@@ -1,5 +1,5 @@
 {
-  "display_name": "Costume Switch",
+  "display_name": "Costume Switch Testing",
   "loading_order": 10,
   "js": "index.js",
   "css": "style.css",
