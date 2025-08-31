@@ -53,7 +53,7 @@
 <div id="costume-switcher-settings" class="extension_container">
   <div class="inline-drawer is-open">
     <div class="inline-drawer-toggle inline-drawer-header">
-      <b>Costume Switcher Testing</b>
+      <b>Costume Switcher</b>
       <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
     <div class="inline-drawer-content">
@@ -73,6 +73,15 @@
       </div>
 
       <div class="cs-block">
+        <label for="cs-focus-lock-select"><b>Manual Focus Lock</b></label>
+        <small>Force the costume to a specific character, overriding all automatic detection.</small>
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <select id="cs-focus-lock-select" class="text_pole" style="flex-grow: 1;"></select>
+            <button id="cs-focus-lock-toggle" class="menu_button interactable">Lock</button>
+        </div>
+      </div>
+
+      <div class="cs-block">
         <input id="cs-enable" type="checkbox" />
         <label for="cs-enable"><b>Enable Costume Switch</b></label>
         <small>Master toggle for the extension. Uncheck to disable all functionality.</small>
@@ -82,6 +91,7 @@
         <label for="cs-patterns"><b>Character Patterns</b></label>
         <textarea id="cs-patterns" class="text_pole" rows="3" placeholder="Character One&#10;Character Two&#10;/Regular Expression/"></textarea>
         <small>Enter character names, one per line. Supports simple names or /regex/.</small>
+        <small style="margin-top: 10px; color: var(--text-color-soft-extra);"><b>Tip:</b> For best results, list longer names before shorter names that are part of them (e.g., list 'Arthur' before 'Art'). Avoid overly complex regex to prevent performance issues.</small>
       </div>
 
       <div class="cs-block">
@@ -136,6 +146,18 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <div class="cs-block">
+            <label for="cs-attribution-verbs"><b>Attribution Verbs</b></label>
+            <small>Comma-separated list of verbs used for `Detect Attribution`. Edit this to add words or support other languages.</small>
+            <textarea id="cs-attribution-verbs" class="text_pole" rows="4"></textarea>
+          </div>
+
+          <div class="cs-block">
+            <label for="cs-action-verbs"><b>Action Verbs</b></label>
+            <small>Comma-separated list of verbs used for `Detect Action`. Edit this to add words or support other languages.</small>
+            <textarea id="cs-action-verbs" class="text_pole" rows="4"></textarea>
           </div>
 
           <div class="cs-block">
