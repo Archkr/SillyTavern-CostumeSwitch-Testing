@@ -2,7 +2,8 @@ import { extension_settings, getContext } from "../../../extensions.js";
 import { saveSettingsDebounced, event_types, eventSource } from "../../../../script.js";
 import { executeSlashCommandsOnChatInput } from "../../../slash-commands.js";
 
-const extensionName = "SillyTavern-CostumeSwitch";
+// IMPORTANT: Make sure this name exactly matches your extension's folder name.
+const extensionName = "Costume-Switch-Testing"; // Or whatever you named the folder
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
 // Default settings for a single profile.
@@ -17,7 +18,7 @@ const PROFILE_DEFAULTS = {
     failedTriggerCooldownMs: 10000,
     maxBufferChars: 2000,
     repeatSuppressMs: 800,
-    tokenProcessThreshold: 60, // <-- ADDED DEFAULT
+    tokenProcessThreshold: 60,
     mappings: [],
     detectAttribution: true,
     detectAction: true,
@@ -46,9 +47,19 @@ function parsePatternEntry(raw) {
 }
 function computeFlagsFromEntries(entries, requireI = true) { const f = new Set(); for (const e of entries) { if (!e) continue; for (const c of (e.flags || '')) f.add(c); } if (requireI) f.add('i'); return Array.from(f).filter(c => 'gimsuy'.includes(c)).join(''); }
 
+// ADDED v1.2.0: ReDoS / Performance protection guard
+function checkPatternComplexity(entries, limits = { maxLength: 4000, maxEntries: 250 }) {
+    const totalLen = entries.reduce((s, e) => s + (e?.body?.length || 0), 0);
+    if (totalLen > limits.maxLength || entries.length > limits.maxEntries) {
+        throw new Error(`Pattern list is too complex (length: ${totalLen}/${limits.maxLength}, entries: ${entries.length}/${limits.maxEntries}). Please reduce patterns.`);
+    }
+}
+
+// MODIFIED v1.2.0: Added complexity check
 function buildGenericRegex(patternList) {
     const entries = (patternList || []).map(parsePatternEntry).filter(Boolean);
     if (!entries.length) return null;
+    checkPatternComplexity(entries);
     const parts = entries.map(e => `(?:${e.body})`);
     const body = `(?:${parts.join('|')})`;
     const flags = computeFlagsFromEntries(entries, true);
@@ -69,19 +80,70 @@ function buildGenericRegex(patternList) {
     }
 }
 
-function buildNameRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const p = e.map(x => `(?:${x.body})`), b = `(?:^|\\n|[\\(\\[\\-—–])(?:(${p.join('|')}))(?:\\W|$)`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { return console.warn("buildNameRegex compile failed:", err), null } }
-function buildSpeakerRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const p = e.map(x => `(?:${x.body})`), b = `(?:^|\\n)\\s*(${p.join('|')})\\s*[:;,]\\s*`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { return console.warn("buildSpeakerRegex compile failed:", err), null } }
-function buildVocativeRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const p = e.map(x => `(?:${x.body})`), b = `(?:["“'\\s])(${p.join('|')})[,.!?]`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { return console.warn("buildVocativeRegex compile failed:", err), null } }
-function buildAttributionRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const n = e.map(x => `(?:${x.body})`).join("|"), v = "(?:acknowledged|added|admitted|advised|affirmed|agreed|announced|answered|argued|asked|barked|began|bellowed|blurted|boasted|bragged|called|chirped|commanded|commented|complained|conceded|concluded|confessed|confirmed|continued|countered|cried|croaked|crowed|declared|decreed|demanded|denied|drawled|echoed|emphasized|enquired|enthused|estimated|exclaimed|explained|gasped|insisted|instructed|interjected|interrupted|joked|lamented|lied|maintained|moaned|mumbled|murmured|mused|muttered|nagged|nodded|noted|objected|offered|ordered|perked up|pleaded|prayed|predicted|proclaimed|promised|proposed|protested|queried|questioned|quipped|rambled|reasoned|reassured|recited|rejoined|remarked|repeated|replied|responded|retorted|roared|said|scolded|scoffed|screamed|shouted|sighed|snapped|snarled|spoke|stammered|stated|stuttered|suggested|surmised|tapped|threatened|turned|urged|vowed|wailed|warned|whimpered|whispered|wondered|yelled)", p = v + "(?:\\s+(?:out|back|over))?", l = "(?:\\s+[A-Z][a-z]+)*", a = `(?:["“”][^"“”]{0,400}["“”])\\s*,?\\s*(${n})${l}\\s+${p}(?:,)?`, b = `\\b(${n})${l}\\s+${p}\\s*[:,]?\\s*["“”]`, V = `(${n})${l}[’\`']s\\s+(?:[a-z]+,\\s*)?[a-z]+\\s+voice`, c = `(?:["“”][^"“”]{0,400}["“”])\\s*,?\\s*${V}`, d = `${V}[^"“]{0,150}?["“"]`, D = `\\b(${n})${l}[^"“”]{0,150}?["“”]`, B = `(?:${a})|(?:${b})|(?:${c})|(?:${d})|(?:${D})`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(B, f) } catch (err) { return console.warn("buildAttributionRegex compile failed:", err), null } }
-function buildActionRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const n = e.map(x => `(?:${x.body})`).join("|"), a = "(?:adjust|adjusted|appear|appeared|approach|approached|arrive|arrived|blink|blinked|bow|bowed|charge|charged|chase|chased|climb|climbed|collapse|collapsed|crawl|crawled|crept|crouch|crouched|dance|danced|dart|darted|dash|dashed|depart|departed|dive|dived|dodge|dodged|drag|dragged|drift|drifted|drop|dropped|emerge|emerged|enter|entered|exit|exited|fall|fell|flee|fled|flinch|flinched|float|floated|fly|flew|follow|followed|freeze|froze|frown|frowned|gesture|gestured|giggle|giggled|glance|glanced|grab|grabbed|grasp|grasped|grin|grinned|groan|groaned|growl|growled|grumble|grumbled|grunt|grunted|hold|held|hit|hop|hopped|hurry|hurried|jerk|jerked|jog|jogged|jump|jumped|kneel|knelt|laugh|laughed|lean|leaned|leap|leapt|left|limp|limped|look|looked|lower|lowered|lunge|lunged|march|marched|motion|motioned|move|moved|nod|nodded|observe|observed|pace|paced|pause|paused|point|pointed|pop|popped|position|positioned|pounce|pounced|push|pushed|race|raced|raise|raised|reach|reached|retreat|retreated|rise|rose|run|ran|rush|rushed|sit|sat|scramble|scrambled|set|shift|shifted|shake|shook|shrug|shrugged|shudder|shuddered|sigh|sighed|sip|sipped|slip|slipped|slump|slumped|smile|smiled|snort|snorted|spin|spun|sprint|sprinted|stagger|staggered|stare|stared|step|stepped|stand|stood|straighten|straightened|stumble|stumbled|swagger|swaggered|swallow|swallowed|swap|swapped|swing|swung|tap|tapped|throw|threw|tilt|tilted|tiptoe|tiptoed|take|took|toss|tossed|trudge|trudged|turn|turned|twist|twisted|vanish|vanished|wake|woke|walk|walked|wander|wandered|watch|watched|wave|waved|wince|winced|withdraw|withdrew)", p = `\\b(${n})(?:\\s+[A-Z][a-z]+)*\\b(?:\\s+[a-zA-Z'’]+){0,4}?\\s+${a}\\b`, b = `\\b(${n})(?:\\s+[A-Z][a-z]+)*[’\`']s\\s+(?:[a-zA-Z'’]+\\s+){0,4}?[a-zA-Z'’]+\\s+${a}\\b`, c = `\\b(${n})(?:\\s+[A-Z][a-z]+)*[’\`']s\\s+(?:gaze|expression|hand|hands|feet|eyes|head|shoulders|body|figure|glance|smile|frown)`, B = `(?:${p})|(?:${b})|(?:${c})`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(B, f) } catch (err) { return console.warn("buildActionRegex compile failed:", err), null } }
+// MODIFIED v1.2.0: Added complexity checks to all regex builders
+function buildNameRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; checkPatternComplexity(e); const p = e.map(x => `(?:${x.body})`), b = `(?:^|\\n|[\\(\\[\\-—–])(?:(${p.join('|')}))(?:\\W|$)`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { return console.warn("buildNameRegex compile failed:", err), null } }
+function buildSpeakerRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; checkPatternComplexity(e); const p = e.map(x => `(?:${x.body})`), b = `(?:^|\\n)\\s*(${p.join('|')})\\s*[:;,]\\s*`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { return console.warn("buildSpeakerRegex compile failed:", err), null } }
+function buildVocativeRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; checkPatternComplexity(e); const p = e.map(x => `(?:${x.body})`), b = `(?:["“'\\s])(${p.join('|')})[,.!?]`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { return console.warn("buildVocativeRegex compile failed:", err), null } }
+function buildAttributionRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; checkPatternComplexity(e); const n = e.map(x => `(?:${x.body})`).join("|"), v = "(?:acknowledged|added|admitted|advised|affirmed|agreed|announced|answered|argued|asked|barked|began|bellowed|blurted|boasted|bragged|called|chirped|commanded|commented|complained|conceded|concluded|confessed|confirmed|continued|countered|cried|croaked|crowed|declared|decreed|demanded|denied|drawled|echoed|emphasized|enquired|enthused|estimated|exclaimed|explained|gasped|insisted|instructed|interjected|interrupted|joked|lamented|lied|maintained|moaned|mumbled|murmured|mused|muttered|nagged|nodded|noted|objected|offered|ordered|perked up|pleaded|prayed|predicted|proclaimed|promised|proposed|protested|queried|questioned|quipped|rambled|reasoned|reassured|recited|rejoined|remarked|repeated|replied|responded|retorted|roared|said|scolded|scoffed|screamed|shouted|sighed|snapped|snarled|spoke|stammered|stated|stuttered|suggested|surmised|tapped|threatened|turned|urged|vowed|wailed|warned|whimpered|whispered|wondered|yelled)", p = v + "(?:\\s+(?:out|back|over))?", l = "(?:\\s+[A-Z][a-z]+)*", a = `(?:["“”][^"“”]{0,400}["“”])\\s*,?\\s*(${n})${l}\\s+${p}(?:,)?`, b = `\\b(${n})${l}\\s+${p}\\s*[:,]?\\s*["“”]`, V = `(${n})${l}[’\`']s\\s+(?:[a-z]+,\\s*)?[a-z]+\\s+voice`, c = `(?:["“”][^"“”]{0,400}["“”])\\s*,?\\s*${V}`, d = `${V}[^"“]{0,150}?["“"]`, D = `\\b(${n})${l}[^"“”]{0,150}?["“”]`, B = `(?:${a})|(?:${b})|(?:${c})|(?:${d})|(?:${D})`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(B, f) } catch (err) { return console.warn("buildAttributionRegex compile failed:", err), null } }
+function buildActionRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; checkPatternComplexity(e); const n = e.map(x => `(?:${x.body})`).join("|"), a = "(?:adjust|adjusted|appear|appeared|approach|approached|arrive|arrived|blink|blinked|bow|bowed|charge|charged|chase|chased|climb|climbed|collapse|collapsed|crawl|crawled|crept|crouch|crouched|dance|danced|dart|darted|dash|dashed|depart|departed|dive|dived|dodge|dodged|drag|dragged|drift|drifted|drop|dropped|emerge|emerged|enter|entered|exit|exited|fall|fell|flee|fled|flinch|flinched|float|floated|fly|flew|follow|followed|freeze|froze|frown|frowned|gesture|gestured|giggle|giggled|glance|glanced|grab|grabbed|grasp|grasped|grin|grinned|groan|groaned|growl|growled|grumble|grumbled|grunt|grunted|hold|held|hit|hop|hopped|hurry|hurried|jerk|jerked|jog|jogged|jump|jumped|kneel|knelt|laugh|laughed|lean|leaned|leap|leapt|left|limp|limped|look|looked|lower|lowered|lunge|lunged|march|marched|motion|motioned|move|moved|nod|nodded|observe|observed|pace|paced|pause|paused|point|pointed|pop|popped|position|positioned|pounce|pounced|push|pushed|race|raced|raise|raised|reach|reached|retreat|retreated|rise|rose|run|ran|rush|rushed|sit|sat|scramble|scrambled|set|shift|shifted|shake|shook|shrug|shrugged|shudder|shuddered|sigh|sighed|sip|sipped|slip|slipped|slump|slumped|smile|smiled|snort|snorted|spin|spun|sprint|sprinted|stagger|staggered|stare|stared|step|stepped|stand|stood|straighten|straightened|stumble|stumbled|swagger|swaggered|swallow|swallowed|swap|swapped|swing|swung|tap|tapped|throw|threw|tilt|tilted|tiptoe|tiptoed|take|took|toss|tossed|trudge|trudged|turn|turned|twist|twisted|vanish|vanished|wake|woke|walk|walked|wander|wandered|watch|watched|wave|waved|wince|winced|withdraw|withdrew)", p = `\\b(${n})(?:\\s+[A-Z][a-z]+)*\\b(?:\\s+[a-zA-Z'’]+){0,4}?\\s+${a}\\b`, b = `\\b(${n})(?:\\s+[A-Z][a-z]+)*[’\`']s\\s+(?:[a-zA-Z'’]+\\s+){0,4}?[a-zA-Z'’]+\\s+${a}\\b`, c = `\\b(${n})(?:\\s+[A-Z][a-z]+)*[’\`']s\\s+(?:gaze|expression|hand|hands|feet|eyes|head|shoulders|body|figure|glance|smile|frown)`, B = `(?:${p})|(?:${b})|(?:${c})`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(B, f) } catch (err) { return console.warn("buildActionRegex compile failed:", err), null } }
 
-function getQuoteRanges(s) { const q=/"|\u201C|\u201D/g,pos=[],ranges=[];let m;while((m=q.exec(s))!==null)pos.push(m.index);for(let i=0;i+1<pos.length;i+=2)ranges.push([pos[i],pos[i+1]]);return ranges }
+// MODIFIED v1.2.0: Improved quote handling for streaming edge cases
+function getQuoteRanges(s) {
+    const q = /"|\u201C|\u201D/g, pos = [], ranges = [];
+    let m;
+    while ((m = q.exec(s)) !== null) {
+        if (s[m.index - 1] === '\\') continue; // ignore escaped quotes
+        pos.push(m.index);
+    }
+    for (let i = 0; i + 1 < pos.length; i += 2) {
+        ranges.push([pos[i], pos[i + 1]]);
+    }
+    // treat trailing open quote as extending to end of buffer for streaming
+    if (pos.length % 2 === 1) {
+        ranges.push([pos[pos.length - 1], s.length]);
+    }
+    return ranges;
+}
 function isIndexInsideQuotesRanges(ranges,idx){for(const[a,b]of ranges)if(idx>a&&idx<b)return!0;return!1}
-function findMatches(combined,regex,quoteRanges,searchInsideQuotes=!1){if(!combined||!regex)return[];const flags=regex.flags.includes("g")?regex.flags:regex.flags+"g",re=new RegExp(regex.source,flags),results=[];let m;for(; (m=re.exec(combined))!==null;){const idx=m.index||0;(searchInsideQuotes||!isIndexInsideQuotesRanges(quoteRanges,idx))&&results.push({match:m[0],groups:m.slice(1),index:idx}),re.lastIndex===m.index&&re.lastIndex++}return results}
-function findAllMatches(combined,regexes,settings,quoteRanges){const allMatches=[],{speakerRegex,attributionRegex,actionRegex,vocativeRegex,nameRegex}=regexes,priorities={speaker:5,attribution:4,action:3,vocative:2,possessive:1,name:0};if(speakerRegex&&findMatches(combined,speakerRegex,quoteRanges).forEach(m=>{const name=m.groups?.[0]?.trim();name&&allMatches.push({name,matchKind:"speaker",matchIndex:m.index,priority:priorities.speaker})}),settings.detectAttribution&&attributionRegex&&findMatches(combined,attributionRegex,quoteRanges).forEach(m=>{const name=m.groups?.find(g=>g)?.trim();name&&allMatches.push({name,matchKind:"attribution",matchIndex:m.index,priority:priorities.attribution})}),settings.detectAction&&actionRegex&&findMatches(combined,actionRegex,quoteRanges).forEach(m=>{const name=m.groups?.find(g=>g)?.trim();name&&allMatches.push({name,matchKind:"action",matchIndex:m.index,priority:priorities.action})}),settings.detectVocative&&vocativeRegex&&findMatches(combined,vocativeRegex,quoteRanges,!0).forEach(m=>{const name=m.groups?.[0]?.trim();name&&allMatches.push({name,matchKind:"vocative",matchIndex:m.index,priority:priorities.vocative})}),settings.detectPossessive&&settings.patterns?.length){const names_poss=settings.patterns.map(s=>(s||"").trim()).filter(Boolean);if(names_poss.length){const possRe=new RegExp("\\b("+names_poss.map(escapeRegex).join("|")+")[’'`']s\\b","gi");findMatches(combined,possRe,quoteRanges).forEach(m=>{const name=m.groups?.[0]?.trim();name&&allMatches.push({name,matchKind:"possessive",matchIndex:m.index,priority:priorities.possessive})})}}return settings.detectGeneral&&nameRegex&&findMatches(combined,nameRegex,quoteRanges).forEach(m=>{const name=String(m.groups?.[0]||m.match).replace(/-(?:sama|san)$/i,"").trim();name&&allMatches.push({name,matchKind:"name",matchIndex:m.index,priority:priorities.name})}),allMatches}
-function findBestMatch(combined,regexes,settings,quoteRanges){if(!combined)return null;const allMatches=findAllMatches(combined,regexes,settings,quoteRanges);if(0===allMatches.length)return null;const activeMatches=allMatches.filter(m=>"speaker"===m.matchKind||"attribution"===m.matchKind||"action"===m.matchKind);if(activeMatches.length>0)return activeMatches.sort((a,b)=>b.matchIndex-a.matchIndex),activeMatches[0];const passiveMatches=allMatches.filter(m=>"vocative"===m.matchKind||"possessive"===m.matchKind||"name"===m.matchKind);return passiveMatches.length>0?(passiveMatches.sort((a,b)=>b.matchIndex-a.matchIndex),passiveMatches[0]):null}
+function findMatches(combined,regex,quoteRanges,searchInsideQuotes=!1){if(!combined||!regex)return[];const flags=regex.flags.includes("g")?regex.flags:regex.flags+"g",re=new RegExp(regex.source,flags),results=[];let m;for(; (m=re.exec(combined))!==null;){const idx=m.index??0;(searchInsideQuotes||!isIndexInsideQuotesRanges(quoteRanges,idx))&&results.push({match:m[0],groups:m.slice(1),index:idx}),re.lastIndex===m.index&&re.lastIndex++}return results}
+function findAllMatches(combined,regexes,settings,quoteRanges){const allMatches=[],priorities={speaker:5,attribution:4,action:3,vocative:2,possessive:1,name:0};const {speakerRegex,attributionRegex,actionRegex,vocativeRegex,nameRegex}=regexes;if(speakerRegex&&findMatches(combined,speakerRegex,quoteRanges).forEach(m=>{const name=m.groups?.[0]?.trim();name&&allMatches.push({name,matchKind:"speaker",matchIndex:m.index,priority:priorities.speaker})}),settings.detectAttribution&&attributionRegex&&findMatches(combined,attributionRegex,quoteRanges).forEach(m=>{const name=m.groups?.find(g=>g)?.trim();name&&allMatches.push({name,matchKind:"attribution",matchIndex:m.index,priority:priorities.attribution})}),settings.detectAction&&actionRegex&&findMatches(combined,actionRegex,quoteRanges).forEach(m=>{const name=m.groups?.find(g=>g)?.trim();name&&allMatches.push({name,matchKind:"action",matchIndex:m.index,priority:priorities.action})}),settings.detectVocative&&vocativeRegex&&findMatches(combined,vocativeRegex,quoteRanges,!0).forEach(m=>{const name=m.groups?.[0]?.trim();name&&allMatches.push({name,matchKind:"vocative",matchIndex:m.index,priority:priorities.vocative})}),settings.detectPossessive&&settings.patterns?.length){const names_poss=settings.patterns.map(s=>(s||"").trim()).filter(Boolean);if(names_poss.length){const possRe=new RegExp("\\b("+names_poss.map(escapeRegex).join("|")+")[’'`']s\\b","gi");findMatches(combined,possRe,quoteRanges).forEach(m=>{const name=m.groups?.[0]?.trim();name&&allMatches.push({name,matchKind:"possessive",matchIndex:m.index,priority:priorities.possessive})})}}return settings.detectGeneral&&nameRegex&&findMatches(combined,nameRegex,quoteRanges).forEach(m=>{const name=String(m.groups?.[0]||m.match).replace(/-(?:sama|san)$/i,"").trim();name&&allMatches.push({name,matchKind:"name",matchIndex:m.index,priority:priorities.name})}),allMatches}
+
+// MODIFIED v1.2.0: Corrected winner selection logic
+function findBestMatch(combined, regexes, settings, quoteRanges) {
+    if (!combined) return null;
+    const allMatches = findAllMatches(combined, regexes, settings, quoteRanges);
+    if (allMatches.length === 0) return null;
+
+    const priorities = { speaker: 5, attribution: 4, action: 3, vocative: 2, possessive: 1, name: 0 };
+    const sorter = (a, b) => {
+        if (b.matchIndex !== a.matchIndex) return b.matchIndex - a.matchIndex; // later index first
+        return (priorities[b.matchKind] || 0) - (priorities[a.matchKind] || 0); // higher priority first
+    };
+
+    // Prefer active matches (speaker, attribution, action) over passive ones
+    const activeMatches = allMatches.filter(m => ["speaker", "attribution", "action"].includes(m.matchKind));
+    if (activeMatches.length > 0) {
+        return activeMatches.sort(sorter)[0];
+    }
+
+    const passiveMatches = allMatches.filter(m => ["vocative", "possessive", "name"].includes(m.matchKind));
+    if (passiveMatches.length > 0) {
+        return passiveMatches.sort(sorter)[0];
+    }
+    
+    return null;
+}
 function normalizeStreamText(s){return s?String(s).replace(/[\uFEFF\u200B\u200C\u200D]/g,"").replace(/[\u2018\u2019\u201A\u201B]/g,"'").replace(/[\u201C\u201D\u201E\u201F]/g,'"').replace(/(\*\*|__|~~|`{1,3})/g,"").replace(/\u00A0/g," "):""}
-function normalizeCostumeName(n){if(!n)return"";let s=String(n).trim();s.startsWith("/")&&(s=s.slice(1).trim());const first=s.split(/[\/\s]+/).filter(Boolean)[0]||s;return String(first).replace(/[-_](?:sama|san)$/i,"").trim()}
+
+// MODIFIED v1.2.0: Fixed bug that truncated multi-word costume names
+function normalizeCostumeName(n) {
+    if (!n) return "";
+    let s = String(n).trim();
+    if (s.startsWith("/")) {
+        s = s.slice(1).trim();
+    }
+    return String(s).replace(/[-_](?:sama|san)$/i, "").trim();
+}
 const perMessageBuffers=new Map,perMessageStates=new Map;let lastIssuedCostume=null,lastSwitchTimestamp=0;const lastTriggerTimes=new Map,failedTriggerTimes=new Map;let _streamHandler=null,_genStartHandler=null,_genEndHandler=null,_msgRecvHandler=null,_chatChangedHandler=null;const MAX_MESSAGE_BUFFERS=60;
 function ensureBufferLimit(){if(!(perMessageBuffers.size<=60)){for(;perMessageBuffers.size>60;){const firstKey=perMessageBuffers.keys().next().value;perMessageBuffers.delete(firstKey),perMessageStates.delete(firstKey)}}}
 function waitForSelector(selector,timeout=3e3,interval=120){return new Promise(resolve=>{const start=Date.now(),iv=setInterval(()=>{const el=document.querySelector(selector);if(el)return clearInterval(iv),void resolve(!0);Date.now()-start>timeout&&(clearInterval(iv),resolve(!1))},interval)})}
@@ -162,7 +224,6 @@ jQuery(async () => {
         $("#cs-debug").prop("checked", !!profile.debug);
         $("#cs-global-cooldown").val(profile.globalCooldownMs || PROFILE_DEFAULTS.globalCooldownMs);
         $("#cs-repeat-suppress").val(profile.repeatSuppressMs || PROFILE_DEFAULTS.repeatSuppressMs);
-        // LOAD NEW SETTING
         $("#cs-token-process-threshold").val(profile.tokenProcessThreshold || PROFILE_DEFAULTS.tokenProcessThreshold);
         $("#cs-detect-attribution").prop("checked", !!profile.detectAttribution);
         $("#cs-detect-action").prop("checked", !!profile.detectAction);
@@ -293,7 +354,6 @@ jQuery(async () => {
             debug: !!$("#cs-debug").prop("checked"),
             globalCooldownMs: parseInt($("#cs-global-cooldown").val() || PROFILE_DEFAULTS.globalCooldownMs, 10),
             repeatSuppressMs: parseInt($("#cs-repeat-suppress").val() || PROFILE_DEFAULTS.repeatSuppressMs, 10),
-            // SAVE NEW SETTING
             tokenProcessThreshold: parseInt($("#cs-token-process-threshold").val() || PROFILE_DEFAULTS.tokenProcessThreshold, 10),
             detectAttribution: !!$("#cs-detect-attribution").prop("checked"),
             detectAction: !!$("#cs-detect-action").prop("checked"),
@@ -561,7 +621,8 @@ jQuery(async () => {
     try { unload(); } catch (e) {}
     try { eventSource.on(streamEventName, _streamHandler); eventSource.on(event_types.GENERATION_STARTED, _genStartHandler); eventSource.on(event_types.GENERATION_ENDED, _genEndHandler); eventSource.on(event_types.MESSAGE_RECEIVED, _msgRecvHandler); eventSource.on(event_types.CHAT_CHANGED, _chatChangedHandler); } catch (e) { console.error("CostumeSwitch: failed to attach event handlers:", e); }
     try { window[`__${extensionName}_unload`] = unload; } catch (e) {}
-    console.log("SillyTavern-CostumeSwitch v1.1.1 loaded successfully.");
+    // MODIFIED v1.2.0: Updated version number
+    console.log("SillyTavern-CostumeSwitch v1.2.0 loaded successfully.");
 });
 
 function getSettingsObj() {
