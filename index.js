@@ -2,7 +2,7 @@ import { extension_settings, getContext } from "../../../extensions.js";
 import { saveSettingsDebounced, event_types, eventSource } from "../../../../script.js";
 import { executeSlashCommandsOnChatInput } from "../../../slash-commands.js";
 
-const extensionName = "SillyTavern-CostumeSwitch-Testing";
+const extensionName = "SillyTavern-CostumeSwitch";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
 const DEFAULT_ATTRIBUTION_VERBS = ["acknowledged", "added", "admitted", "advised", "affirmed", "agreed", "announced", "answered", "argued", "asked", "barked", "began", "bellowed", "blurted", "boasted", "bragged", "called", "chirped", "commanded", "commented", "complained", "conceded", "concluded", "confessed", "confirmed", "continued", "countered", "cried", "croaked", "crowed", "declared", "decreed", "demanded", "denied", "drawled", "echoed", "emphasized", "enquired", "enthused", "estimated", "exclaimed", "explained", "gasped", "insisted", "instructed", "interjected", "interrupted", "joked", "lamented", "lied", "maintained", "moaned", "mumbled", "murmured", "mused", "muttered", "nagged", "nodded", "noted", "objected", "offered", "ordered", "perked up", "pleaded", "prayed", "predicted", "proclaimed", "promised", "proposed", "protested", "queried", "questioned", "quipped", "rambled", "reasoned", "reassured", "recited", "rejoined", "remarked", "repeated", "replied", "responded", "retorted", "roared", "said", "scolded", "scoffed", "screamed", "shouted", "sighed", "snapped", "snarled", "spoke", "stammered", "stated", "stuttered", "suggested", "surmised", "tapped", "threatened", "turned", "urged", "vowed", "wailed", "warned", "whimpered", "whispered", "wondered", "yelled"];
@@ -265,6 +265,7 @@ jQuery(async () => {
     loadProfile(settings.activeProfile);
 
     function testRegexPattern() {
+        $("#cs-test-veto-result").text('N/A').css('color', 'var(--text-color-soft)');
         const text = $("#cs-regex-test-input").val();
         if (!text) {
             $("#cs-test-all-detections").html('<li style="color: var(--text-color-soft);">Enter text to test.</li>');
@@ -273,6 +274,21 @@ jQuery(async () => {
         }
     
         const tempProfile = saveCurrentProfileData();
+
+        // Veto check logic first
+        const tempVetoRegex = buildGenericRegex(tempProfile.vetoPatterns);
+        const combined = normalizeStreamText(text);
+
+        if (tempVetoRegex && tempVetoRegex.test(combined)) {
+            const vetoMatch = combined.match(tempVetoRegex)[0];
+            $("#cs-test-veto-result").html(`Vetoed by: <b style="color: var(--red);">${vetoMatch}</b>`).css('color', 'var(--text-color)');
+            $("#cs-test-all-detections").html('<li style="color: var(--text-color-soft);">Message vetoed. No detections run.</li>');
+            $("#cs-test-winner-list").html('<li style="color: var(--text-color-soft);">Message vetoed.</li>');
+            return; 
+        } else {
+             $("#cs-test-veto-result").text('No veto phrases matched.').css('color', 'var(--green)');
+        }
+
         const lowerIgnored = (tempProfile.ignorePatterns || []).map(p => String(p).trim().toLowerCase());
         const effectivePatterns = (tempProfile.patterns || []).filter(p => !lowerIgnored.includes(String(p).trim().toLowerCase()));
     
@@ -284,7 +300,6 @@ jQuery(async () => {
             nameRegex: buildNameRegex(effectivePatterns)
         };
     
-        const combined = normalizeStreamText(text);
         const quoteRanges = getQuoteRanges(combined);
     
         const allMatches = findAllMatches(combined, tempRegexes, tempProfile, quoteRanges);
