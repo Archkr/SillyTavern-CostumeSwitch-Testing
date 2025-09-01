@@ -75,22 +75,27 @@ function buildNameRegex(patternList) { const e = (patternList || []).map(parsePa
 function buildSpeakerRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const p = e.map(x => `(?:${x.body})`), b = `(?:^|\\n)\\s*(${p.join('|')})\\s*[:;,]\\s*`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { return console.warn("buildSpeakerRegex compile failed:", err), null } }
 function buildVocativeRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const p = e.map(x => `(?:${x.body})`), b = `(?:["“'\\s])(${p.join('|')})[,.!?]`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { return console.warn("buildVocativeRegex compile failed:", err), null } }
 
-// DEPRECATED old complex functions
-// function buildAttributionRegex(patternList, verbList) { ... }
-// function buildActionRegex(patternList, verbList) { ... }
-
-
-// --- NEW SIMPLIFIED REGEX BUILDERS ---
-
-// Finds dialogue attribution like: "Hello," Alice said.
-function buildDialogueAttributionRegex(patternList, verbList) {
+// A new, unified function to find all types of dialogue attribution.
+function buildUnifiedAttributionRegex(patternList, verbList) {
     const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null;
     const names = e.map(x => `(?:${x.body})`).join("|");
     const verbs = `(?:${verbList})`;
-    const body = `(?:["“”][^"“”]{0,400}["“”])\\s*,?\\s*(${names})(?:\\s+[A-Z][a-z]+)*\\s+${verbs}`;
+    const optionalMiddleName = `(?:\\s+[A-Z][a-z]+)*`;
+
+    // Case 1: "Dialogue," Name said.
+    const postQuote = `(?:["“”][^"“”]{0,400}["“”])\\s*,?\\s*(${names})${optionalMiddleName}\\s+${verbs}`;
+
+    // Case 2: Name said, "Dialogue"
+    const preQuote = `\\b(${names})${optionalMiddleName}\\s+${verbs}\\s*[:,]?\\s*["“”]`;
+    
+    // Case 3: Name's voice...
+    const voice = `\\b(${names})${optionalMiddleName}[’\`']s\\s+(?:[a-zA-Z'’]+\\s+){0,3}?voice\\b`;
+
+    const body = `(?:${postQuote})|(?:${preQuote})|(?:${voice})`;
     const flags = computeFlagsFromEntries(e, true);
-    try { return new RegExp(body, flags) } catch (err) { return console.warn("buildDialogueAttributionRegex compile failed:", err), null }
+    try { return new RegExp(body, flags) } catch (err) { return console.warn("buildUnifiedAttributionRegex compile failed:", err), null }
 }
+
 
 // Finds direct action like: Alice nodded.
 function buildDirectActionRegex(patternList, verbList) {
@@ -111,15 +116,6 @@ function buildPossessiveRegex(patternList) {
     try { return new RegExp(body, flags) } catch (err) { return console.warn("buildPossessiveRegex compile failed:", err), null }
 }
 
-// NEW: Finds attribution via voice, like: Alice's voice...
-function buildVoiceAttributionRegex(patternList) {
-    const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null;
-    const names = e.map(x => `(?:${x.body})`).join("|");
-    const body = `\\b(${names})(?:\\s+[A-Z][a-z]+)*[’\`']s\\s+(?:[a-zA-Z'’]+\\s+){0,3}?voice\\b`;
-    const flags = computeFlagsFromEntries(e, true);
-    try { return new RegExp(body, flags) } catch (err) { return console.warn("buildVoiceAttributionRegex compile failed:", err), null }
-}
-
 
 function getQuoteRanges(s) { const q=/"|\u201C|\u201D/g,pos=[],ranges=[];let m;while((m=q.exec(s))!==null)pos.push(m.index);for(let i=0;i+1<pos.length;i+=2)ranges.push([pos[i],pos[i+1]]);return ranges }
 function isIndexInsideQuotesRanges(ranges,idx){for(const[a,b]of ranges)if(idx>a&&idx<b)return!0;return!1}
@@ -129,9 +125,8 @@ function findAllMatches(combined, regexes, settings, quoteRanges) {
     const allMatches = [];
     const { 
         speakerRegex, 
-        dialogueAttributionRegex,
+        attributionRegex,
         directActionRegex,
-        voiceAttributionRegex, // new
         possessiveRegex,
         vocativeRegex, 
         nameRegex 
@@ -151,13 +146,7 @@ function findAllMatches(combined, regexes, settings, quoteRanges) {
         name && allMatches.push({ name, matchKind: "speaker", matchIndex: m.index, priority: priorities.speaker });
     })){}
 
-    if (settings.detectAttribution && dialogueAttributionRegex && findMatches(combined, dialogueAttributionRegex, quoteRanges).forEach(m => {
-        const name = m.groups?.find(g => g)?.trim();
-        name && allMatches.push({ name, matchKind: "attribution", matchIndex: m.index, priority: priorities.attribution });
-    })){}
-
-    // NEW: Voice attribution gets high priority
-    if (settings.detectAttribution && voiceAttributionRegex && findMatches(combined, voiceAttributionRegex, quoteRanges).forEach(m => {
+    if (settings.detectAttribution && attributionRegex && findMatches(combined, attributionRegex, quoteRanges).forEach(m => {
         const name = m.groups?.find(g => g)?.trim();
         name && allMatches.push({ name, matchKind: "attribution", matchIndex: m.index, priority: priorities.attribution });
     })){}
@@ -172,7 +161,6 @@ function findAllMatches(combined, regexes, settings, quoteRanges) {
         name && allMatches.push({ name, matchKind: "vocative", matchIndex: m.index, priority: priorities.vocative });
     })){}
     
-    // Possessive detection is now its own regex
     if (settings.detectPossessive && possessiveRegex && findMatches(combined, possessiveRegex, quoteRanges).forEach(m => {
         const name = m.groups?.[0]?.trim();
         name && allMatches.push({ name, matchKind: "possessive", matchIndex: m.index, priority: priorities.possessive });
@@ -199,18 +187,9 @@ function findBestMatch(combined, regexes, settings, quoteRanges) {
     let highestScore = -Infinity;
 
     for (const match of allMatches) {
-        // Recency Score: 0 (oldest) to 100 (newest)
         const recencyScore = (match.matchIndex / maxIndex) * 100;
-
-        // Priority Score: 0 to 5, mapped to 0-100
         const priorityScore = match.priority * 20;
-        
-        // Final Score Calculation
-        // Bias determines the weight between recency and priority.
-        // At bias 0, it's an even mix.
-        // At bias 200, only priority matters.
-        // At bias -200, only recency matters.
-        const weight = (bias + 200) / 400; // Convert bias to a 0-1 weight
+        const weight = (bias + 200) / 400; 
         const score = (priorityScore * weight) + (recencyScore * (1 - weight));
 
         if (score > highestScore) {
@@ -231,11 +210,11 @@ function calculateCharacterFocusScores(text, profile, regexes) {
     const scores = {};
     const points = {
         speaker: 3,
-        attribution: 3, // Dialogue
-        action: 2,      // Action
+        attribution: 3, 
+        action: 2,      
         vocative: 1,
-        possessive: 1,  // Passive
-        name: 1,        // Passive
+        possessive: 1,  
+        name: 1,        
     };
 
     allMatches.forEach(match => {
@@ -254,7 +233,6 @@ function normalizeStreamText(s){return s?String(s).replace(/[\uFEFF\u200B\u200C\
 function normalizeCostumeName(n){if(!n)return"";let s=String(n).trim();s.startsWith("/")&&(s=s.slice(1).trim());const first=s.split(/[\/\s]+/).filter(Boolean)[0]||s;return String(first).replace(/[-_](?:sama|san)$/i,"").trim()}
 const perMessageBuffers=new Map,perMessageStates=new Map;let lastIssuedCostume=null,lastSwitchTimestamp=0;const lastTriggerTimes=new Map,failedTriggerTimes=new Map;let _streamHandler=null,_genStartHandler=null,_genEndHandler=null,_msgRecvHandler=null,_chatChangedHandler=null;const MAX_MESSAGE_BUFFERS=60;
 function ensureBufferLimit(){if(!(perMessageBuffers.size<=60)){for(;perMessageBuffers.size>60;){const firstKey=perMessageBuffers.keys().next().value;perMessageBuffers.delete(firstKey),perMessageStates.delete(firstKey)}}}
-function waitForSelector(selector,timeout=3e3,interval=120){return new Promise(resolve=>{const start=Date.now(),iv=setInterval(()=>{const el=document.querySelector(selector);if(el)return clearInterval(iv),void resolve(!0);Date.now()-start>timeout&&(clearInterval(iv),resolve(!1))},interval)})}
 function debugLog(settings,...args){try{settings&&getActiveProfile(settings)?.debug&&console.debug.apply(console,["[CostumeSwitch]"].concat(args))}catch(e){}}
 
 function getActiveProfile(settings) {
@@ -280,7 +258,7 @@ jQuery(async () => {
         $("#extensions_settings").append('<div><h3>Costume Switch</h3><div>Failed to load UI (see console)</div></div>');
     }
 
-    let nameRegex, speakerRegex, dialogueAttributionRegex, directActionRegex, possessiveRegex, vocativeRegex, voiceAttributionRegex, vetoRegex;
+    let nameRegex, speakerRegex, attributionRegex, directActionRegex, possessiveRegex, vocativeRegex, vetoRegex;
 
     function recompileRegexes() {
         try {
@@ -294,10 +272,9 @@ jQuery(async () => {
 
             nameRegex = buildNameRegex(effectivePatterns);
             speakerRegex = buildSpeakerRegex(effectivePatterns);
-            dialogueAttributionRegex = buildDialogueAttributionRegex(effectivePatterns, attributionVerbs);
+            attributionRegex = buildUnifiedAttributionRegex(effectivePatterns, attributionVerbs);
             directActionRegex = buildDirectActionRegex(effectivePatterns, actionVerbs);
             possessiveRegex = buildPossessiveRegex(effectivePatterns);
-            voiceAttributionRegex = buildVoiceAttributionRegex(effectivePatterns);
             vocativeRegex = buildVocativeRegex(effectivePatterns);
             vetoRegex = buildGenericRegex(profile.vetoPatterns);
             
@@ -421,10 +398,9 @@ jQuery(async () => {
     
         const tempRegexes = {
             speakerRegex: buildSpeakerRegex(effectivePatterns),
-            dialogueAttributionRegex: buildDialogueAttributionRegex(effectivePatterns, (tempProfile.attributionVerbs || '').replace(/\s*\n\s*/g, '|')),
+            attributionRegex: buildUnifiedAttributionRegex(effectivePatterns, (tempProfile.attributionVerbs || '').replace(/\s*\n\s*/g, '|')),
             directActionRegex: buildDirectActionRegex(effectivePatterns, (tempProfile.actionVerbs || '').replace(/\s*\n\s*/g, '|')),
             possessiveRegex: buildPossessiveRegex(effectivePatterns),
-            voiceAttributionRegex: buildVoiceAttributionRegex(effectivePatterns),
             vocativeRegex: buildVocativeRegex(effectivePatterns),
             nameRegex: buildNameRegex(effectivePatterns)
         };
@@ -724,7 +700,7 @@ jQuery(async () => {
             }
 
             const quoteRanges = getQuoteRanges(combined);
-            const regexes = { speakerRegex, dialogueAttributionRegex, directActionRegex, possessiveRegex, voiceAttributionRegex, vocativeRegex, nameRegex };
+            const regexes = { speakerRegex, attributionRegex, directActionRegex, possessiveRegex, vocativeRegex, nameRegex };
             const bestMatch = findBestMatch(combined, regexes, profile, quoteRanges);
             
             if (bestMatch) {
@@ -752,9 +728,8 @@ jQuery(async () => {
         perMessageBuffers.clear(); perMessageStates.clear(); lastIssuedCostume = null; lastTriggerTimes.clear(); failedTriggerTimes.clear();
     }
     
-    // Slash Command for Scene Analysis
     registerSlashCommand("scene", 
-        (args, a, b) => {
+        (args) => {
             const debugMode = (args[0] || '').trim().toLowerCase() === 'debug';
             const ctx = getContext();
             const lastMessage = ctx.chat.slice().reverse().find(msg => !msg.is_user && msg.mes);
@@ -764,8 +739,6 @@ jQuery(async () => {
                 return;
             }
 
-            // Create a temporary profile by reading directly from the UI.
-            // This guarantees we use the most up-to-date settings, saved or not.
             const tempProfile = {
                 patterns: $("#cs-patterns").val().split(/\r?\n/).map(s => s.trim()).filter(Boolean),
                 ignorePatterns: $("#cs-ignore-patterns").val().split(/\r?\n/).map(s => s.trim()).filter(Boolean),
@@ -778,17 +751,15 @@ jQuery(async () => {
                 detectGeneral: !!$("#cs-detect-general").prop("checked"),
             };
 
-            // Temporarily build regexes based on the fresh UI data
             const tempRegexes = {};
             try {
                 const lowerIgnored = (tempProfile.ignorePatterns || []).map(p => String(p).trim().toLowerCase());
                 const effectivePatterns = (tempProfile.patterns || []).filter(p => !lowerIgnored.includes(String(p).trim().toLowerCase()));
                 tempRegexes.nameRegex = buildNameRegex(effectivePatterns);
                 tempRegexes.speakerRegex = buildSpeakerRegex(effectivePatterns);
-                tempRegexes.dialogueAttributionRegex = buildDialogueAttributionRegex(effectivePatterns, tempProfile.attributionVerbs);
+                tempRegexes.attributionRegex = buildUnifiedAttributionRegex(effectivePatterns, tempProfile.attributionVerbs);
                 tempRegexes.directActionRegex = buildDirectActionRegex(effectivePatterns, tempProfile.actionVerbs);
                 tempRegexes.possessiveRegex = buildPossessiveRegex(effectivePatterns);
-                tempRegexes.voiceAttributionRegex = buildVoiceAttributionRegex(effectivePatterns);
                 tempRegexes.vocativeRegex = buildVocativeRegex(effectivePatterns);
             } catch (e) {
                 toastr.error(`Failed to build patterns for analysis: ${e.message}`);
@@ -808,12 +779,11 @@ jQuery(async () => {
                 sortedScores.forEach(([name, score]) => {
                     debugString += `${name}: ${score}<br>`;
                 });
-                toastr.info(debugString, "Scene Analysis Debug", {timeOut: 15000}); // Longer timeout for readability
+                toastr.info(debugString, "Scene Analysis Debug", {timeOut: 15000});
                 return;
             }
 
             const topScore = sortedScores[0][1];
-            // Include anyone with a score of at least 40% of the top score
             const primaryCharacters = sortedScores
                 .filter(([name, score]) => score >= topScore * 0.4)
                 .map(([name, score]) => name);
@@ -822,8 +792,8 @@ jQuery(async () => {
             $("#send_textarea").val(resultString).focus();
             toastr.success(`Detected primary characters: ${resultString}`, "Scene Analysis Complete");
         },
-        [], // Bypassing the argument registration system completely.
-        "Analyzes the last AI message to determine the primary characters in the scene. Type '/scene debug' to see scores.",
+        ["debug"], 
+        "Analyzes the last AI message to determine the primary characters. Type '/scene debug' to see scores.",
         true
     );
 
