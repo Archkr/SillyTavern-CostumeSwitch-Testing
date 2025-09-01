@@ -2,7 +2,7 @@ import { extension_settings, getContext } from "../../../extensions.js";
 import { saveSettingsDebounced, event_types, eventSource } from "../../../../script.js";
 import { registerSlashCommand, executeSlashCommandsOnChatInput } from "../../../slash-commands.js";
 
-const extensionName = "SillyTavern-CostumeSwitch-Testing";
+const extensionName = "SillyTavern-CostumeSwitch";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
 // Default settings for a single profile.
@@ -649,7 +649,7 @@ jQuery(async () => {
     // Slash Command for Scene Analysis
     registerSlashCommand("scene", 
         (args, a, b) => {
-            // Correctly check the first element of the args array
+            // Manually check the first argument. This is more reliable.
             const debugMode = (args[0] || '').trim().toLowerCase() === 'debug';
             const ctx = getContext();
             const lastMessage = ctx.chat.slice().reverse().find(msg => !msg.is_user && msg.mes);
@@ -709,7 +709,7 @@ jQuery(async () => {
             $("#send_textarea").val(resultString).focus();
             toastr.success(`Detected primary characters: ${resultString}`, "Scene Analysis Complete");
         },
-        ["debug"], // Re-adding argument registration, as it's the correct way
+        [], // Bypassing the argument registration system completely.
         "Analyzes the last AI message to determine the primary characters in the scene. Type '/scene debug' to see scores.",
         true
     );
