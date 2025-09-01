@@ -689,9 +689,9 @@ jQuery(async () => {
             }
 
             const topScore = sortedScores[0][1];
-            // Include anyone with a score of at least 70% of the top score
+            // Include anyone with a score of at least 40% of the top score
             const primaryCharacters = sortedScores
-                .filter(([name, score]) => score >= topScore * 0.7)
+                .filter(([name, score]) => score >= topScore * 0.4)
                 .map(([name, score]) => name);
 
             const resultString = primaryCharacters.join(', ');
