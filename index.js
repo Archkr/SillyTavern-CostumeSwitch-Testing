@@ -53,12 +53,11 @@ function computeFlagsFromEntries(entries, requireI = true) {
     return Array.from(f).filter(c => 'gimsuy'.includes(c)).join('');
 }
 
-// FIX: This helper function now correctly handles multi-word verbs
 function processVerbsForRegex(verbString) {
     return verbString.split('|')
         .map(v => v.trim())
         .filter(Boolean)
-        .map(v => v.replace(/\s+/g, '\\s+')) // a cat -> a\s+cat
+        .map(v => v.replace(/\s+/g, '\\s+'))
         .join('|');
 }
 
@@ -89,7 +88,7 @@ function buildVocativeRegex(patternList) { const e = (patternList || []).map(par
 function buildUnifiedAttributionRegex(patternList, verbString) {
     const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null;
     const names = e.map(x => `(?:${x.body})`).join("|");
-    const verbs = processVerbsForRegex(verbString); // FIX: Use new helper
+    const verbs = processVerbsForRegex(verbString);
     if (!verbs) return null;
     const optionalMiddleName = `(?:\\s+[A-Z][a-z]+)*`;
     const postQuote = `(?:["“”][^"“”]{0,400}["“”])\\s*,?\\s*(${names})${optionalMiddleName}\\s+${verbs}`;
@@ -103,7 +102,7 @@ function buildUnifiedAttributionRegex(patternList, verbString) {
 function buildDirectActionRegex(patternList, verbString) {
     const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null;
     const names = e.map(x => `(?:${x.body})`).join("|");
-    const verbs = processVerbsForRegex(verbString); // FIX: Use new helper
+    const verbs = processVerbsForRegex(verbString);
     if (!verbs) return null;
     const body = `\\b(${names})(?:\\s+[A-Z][a-z]+)*\\s+(?:[a-zA-Z'’]+\\s+){0,3}?${verbs}\\b`;
     const flags = computeFlagsFromEntries(e, true);
@@ -118,10 +117,6 @@ function buildPossessiveRegex(patternList) {
     try { return new RegExp(body, flags) } catch (err) { console.warn("buildPossessiveRegex compile failed:", err); return null }
 }
 
-// ... rest of the file remains unchanged ...
-// NOTE: I'm omitting the rest of the JS file as it doesn't need changes from this point on.
-// This is just a placeholder to represent the rest of the file.
-// In a real scenario, the entire file content would be here.
 function getQuoteRanges(s) { const q=/"|\u201C|\u201D/g,pos=[],ranges=[];let m;while((m=q.exec(s))!==null)pos.push(m.index);for(let i=0;i+1<pos.length;i+=2)ranges.push([pos[i],pos[i+1]]);return ranges }
 function isIndexInsideQuotesRanges(ranges,idx){for(const[a,b]of ranges)if(idx>a&&idx<b)return!0;return!1}
 function findMatches(combined,regex,quoteRanges,searchInsideQuotes=!1){if(!combined||!regex)return[];const flags=regex.flags.includes("g")?regex.flags:regex.flags+"g",re=new RegExp(regex.source,flags),results=[];let m;for(; (m=re.exec(combined))!==null;){const idx=m.index||0;(searchInsideQuotes||!isIndexInsideQuotesRanges(quoteRanges,idx))&&results.push({match:m[0],groups:m.slice(1),index:idx}),re.lastIndex===m.index&&re.lastIndex++}return results}
@@ -182,4 +177,3 @@ jQuery(async () => {
     console.log("SillyTavern-CostumeSwitch v1.2.1 loaded successfully.");
 });
 function getSettingsObj() { const ctx = typeof getContext === 'function' ? getContext() : (typeof SillyTavern !== 'undefined' ? SillyTavern.getContext() : null); let storeSource; if (ctx && ctx.extensionSettings) { storeSource = ctx.extensionSettings; } else if (typeof extension_settings !== 'undefined') { storeSource = extension_settings; } else { throw new Error("Can't find SillyTavern extension settings storage."); } if (!storeSource[extensionName] || !storeSource[extensionName].profiles) { const oldSettings = storeSource[extensionName] || {}; const newSettings = structuredClone(DEFAULTS); Object.keys(PROFILE_DEFAULTS).forEach(key => { if (oldSettings.hasOwnProperty(key)) { newSettings.profiles.Default[key] = oldSettings[key]; } }); if (oldSettings.hasOwnProperty('enabled')) newSettings.enabled = oldSettings.enabled; storeSource[extensionName] = newSettings; } storeSource[extensionName] = Object.assign({}, structuredClone(DEFAULTS), storeSource[extensionName]); for (const profileName in storeSource[extensionName].profiles) { storeSource[extensionName].profiles[profileName] = Object.assign({}, structuredClone(PROFILE_DEFAULTS), storeSource[extensionName].profiles[profileName]); } return { store: storeSource, save: ctx?.saveSettingsDebounced || saveSettingsDebounced, ctx }; }
-
