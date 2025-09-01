@@ -74,13 +74,118 @@ function buildGenericRegex(patternList) {
 function buildNameRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const p = e.map(x => `(?:${x.body})`), b = `(?:^|\\n|[\\(\\[\\-—–])(?:(${p.join('|')}))(?:\\W|$)`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { return console.warn("buildNameRegex compile failed:", err), null } }
 function buildSpeakerRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const p = e.map(x => `(?:${x.body})`), b = `(?:^|\\n)\\s*(${p.join('|')})\\s*[:;,]\\s*`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { return console.warn("buildSpeakerRegex compile failed:", err), null } }
 function buildVocativeRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const p = e.map(x => `(?:${x.body})`), b = `(?:["“'\\s])(${p.join('|')})[,.!?]`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { return console.warn("buildVocativeRegex compile failed:", err), null } }
-function buildAttributionRegex(patternList, verbList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const n = e.map(x => `(?:${x.body})`).join("|"), v = `(?:${verbList})`, p = v + "(?:\\s+(?:out|back|over))?", l = "(?:\\s+[A-Z][a-z]+)*", a = `(?:["“”][^"“”]{0,400}["“”])\\s*,?\\s*(${n})${l}\\s+${p}(?:,)?`, b = `\\b(${n})${l}\\s+${p}\\s*[:,]?\\s*["“”]`, V = `(${n})${l}[’\`']s\\s+(?:[a-z]+,\\s*)?[a-z]+\\s+voice`, c = `(?:["“”][^"“”]{0,400}["“”])\\s*,?\\s*${V}`, d = `${V}[^"“]{0,150}?["“"]`, D = `\\b(${n})${l}[^"“”]{0,150}?["“”]`, B = `(?:${a})|(?:${b})|(?:${c})|(?:${d})|(?:${D})`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(B, f) } catch (err) { return console.warn("buildAttributionRegex compile failed:", err), null } }
-function buildActionRegex(patternList, verbList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const n = e.map(x => `(?:${x.body})`).join("|"), a = `(?:${verbList})`, p = `\\b(${n})(?:\\s+[A-Z][a-z]+)*\\b(?:\\s+[a-zA-Z'’]+){0,4}?\\s+${a}\\b`, b = `\\b(${n})(?:\\s+[A-Z][a-z]+)*[’\`']s\\s+(?:[a-zA-Z'’]+\\s+){0,4}?[a-zA-Z'’]+\\s+${a}\\b`, c = `\\b(${n})(?:\\s+[A-Z][a-z]+)*[’\`']s\\s+(?:gaze|expression|hand|hands|feet|eyes|head|shoulders|body|figure|glance|smile|frown)`, B = `(?:${p})|(?:${b})|(?:${c})`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(B, f) } catch (err) { return console.warn("buildActionRegex compile failed:", err), null } }
+
+// DEPRECATED old complex functions
+// function buildAttributionRegex(patternList, verbList) { ... }
+// function buildActionRegex(patternList, verbList) { ... }
+
+
+// --- NEW SIMPLIFIED REGEX BUILDERS ---
+
+// Finds dialogue attribution like: "Hello," Alice said.
+function buildDialogueAttributionRegex(patternList, verbList) {
+    const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null;
+    const names = e.map(x => `(?:${x.body})`).join("|");
+    const verbs = `(?:${verbList})`;
+    const body = `(?:["“”][^"“”]{0,400}["“”])\\s*,?\\s*(${names})(?:\\s+[A-Z][a-z]+)*\\s+${verbs}`;
+    const flags = computeFlagsFromEntries(e, true);
+    try { return new RegExp(body, flags) } catch (err) { return console.warn("buildDialogueAttributionRegex compile failed:", err), null }
+}
+
+// Finds direct action like: Alice nodded.
+function buildDirectActionRegex(patternList, verbList) {
+    const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null;
+    const names = e.map(x => `(?:${x.body})`).join("|");
+    const verbs = `(?:${verbList})`;
+    const body = `\\b(${names})(?:\\s+[A-Z][a-z]+)*\\s+(?:[a-zA-Z'’]+\\s+){0,3}?${verbs}\\b`;
+    const flags = computeFlagsFromEntries(e, true);
+    try { return new RegExp(body, flags) } catch (err) { return console.warn("buildDirectActionRegex compile failed:", err), null }
+}
+
+// Finds possessive markers like: Alice's eyes...
+function buildPossessiveRegex(patternList) {
+    const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null;
+    const names = e.map(x => `(?:${x.body})`).join("|");
+    const body = `\\b(${names})[’\`']s\\b`;
+    const flags = computeFlagsFromEntries(e, true);
+    try { return new RegExp(body, flags) } catch (err) { return console.warn("buildPossessiveRegex compile failed:", err), null }
+}
+
+// NEW: Finds attribution via voice, like: Alice's voice...
+function buildVoiceAttributionRegex(patternList) {
+    const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null;
+    const names = e.map(x => `(?:${x.body})`).join("|");
+    const body = `\\b(${names})[’\`']s\\s+(?:[a-zA-Z'’]+\\s+){0,3}?voice\\b`;
+    const flags = computeFlagsFromEntries(e, true);
+    try { return new RegExp(body, flags) } catch (err) { return console.warn("buildVoiceAttributionRegex compile failed:", err), null }
+}
+
 
 function getQuoteRanges(s) { const q=/"|\u201C|\u201D/g,pos=[],ranges=[];let m;while((m=q.exec(s))!==null)pos.push(m.index);for(let i=0;i+1<pos.length;i+=2)ranges.push([pos[i],pos[i+1]]);return ranges }
 function isIndexInsideQuotesRanges(ranges,idx){for(const[a,b]of ranges)if(idx>a&&idx<b)return!0;return!1}
 function findMatches(combined,regex,quoteRanges,searchInsideQuotes=!1){if(!combined||!regex)return[];const flags=regex.flags.includes("g")?regex.flags:regex.flags+"g",re=new RegExp(regex.source,flags),results=[];let m;for(; (m=re.exec(combined))!==null;){const idx=m.index||0;(searchInsideQuotes||!isIndexInsideQuotesRanges(quoteRanges,idx))&&results.push({match:m[0],groups:m.slice(1),index:idx}),re.lastIndex===m.index&&re.lastIndex++}return results}
-function findAllMatches(combined,regexes,settings,quoteRanges){const allMatches=[],{speakerRegex,attributionRegex,actionRegex,vocativeRegex,nameRegex}=regexes,priorities={speaker:5,attribution:4,action:3,vocative:2,possessive:1,name:0};if(speakerRegex&&findMatches(combined,speakerRegex,quoteRanges).forEach(m=>{const name=m.groups?.[0]?.trim();name&&allMatches.push({name,matchKind:"speaker",matchIndex:m.index,priority:priorities.speaker})}),settings.detectAttribution&&attributionRegex&&findMatches(combined,attributionRegex,quoteRanges).forEach(m=>{const name=m.groups?.find(g=>g)?.trim();name&&allMatches.push({name,matchKind:"attribution",matchIndex:m.index,priority:priorities.attribution})}),settings.detectAction&&actionRegex&&findMatches(combined,actionRegex,quoteRanges).forEach(m=>{const name=m.groups?.find(g=>g)?.trim();name&&allMatches.push({name,matchKind:"action",matchIndex:m.index,priority:priorities.action})}),settings.detectVocative&&vocativeRegex&&findMatches(combined,vocativeRegex,quoteRanges,!0).forEach(m=>{const name=m.groups?.[0]?.trim();name&&allMatches.push({name,matchKind:"vocative",matchIndex:m.index,priority:priorities.vocative})}),settings.detectPossessive&&settings.patterns?.length){const names_poss=settings.patterns.map(s=>(s||"").trim()).filter(Boolean);if(names_poss.length){const possRe=new RegExp("\\b("+names_poss.map(escapeRegex).join("|")+")[’'`']s\\b","gi");findMatches(combined,possRe,quoteRanges).forEach(m=>{const name=m.groups?.[0]?.trim();name&&allMatches.push({name,matchKind:"possessive",matchIndex:m.index,priority:priorities.possessive})})}}return settings.detectGeneral&&nameRegex&&findMatches(combined,nameRegex,quoteRanges).forEach(m=>{const name=String(m.groups?.[0]||m.match).replace(/-(?:sama|san)$/i,"").trim();name&&allMatches.push({name,matchKind:"name",matchIndex:m.index,priority:priorities.name})}),allMatches}
+
+function findAllMatches(combined, regexes, settings, quoteRanges) {
+    const allMatches = [];
+    const { 
+        speakerRegex, 
+        dialogueAttributionRegex,
+        directActionRegex,
+        voiceAttributionRegex, // new
+        possessiveRegex,
+        vocativeRegex, 
+        nameRegex 
+    } = regexes;
+
+    const priorities = {
+        speaker: 5,
+        attribution: 4,
+        action: 3,
+        vocative: 2,
+        possessive: 1,
+        name: 0
+    };
+
+    if (speakerRegex && findMatches(combined, speakerRegex, quoteRanges).forEach(m => {
+        const name = m.groups?.[0]?.trim();
+        name && allMatches.push({ name, matchKind: "speaker", matchIndex: m.index, priority: priorities.speaker });
+    })){}
+
+    if (settings.detectAttribution && dialogueAttributionRegex && findMatches(combined, dialogueAttributionRegex, quoteRanges).forEach(m => {
+        const name = m.groups?.find(g => g)?.trim();
+        name && allMatches.push({ name, matchKind: "attribution", matchIndex: m.index, priority: priorities.attribution });
+    })){}
+
+    // NEW: Voice attribution gets high priority
+    if (settings.detectAttribution && voiceAttributionRegex && findMatches(combined, voiceAttributionRegex, quoteRanges).forEach(m => {
+        const name = m.groups?.find(g => g)?.trim();
+        name && allMatches.push({ name, matchKind: "attribution", matchIndex: m.index, priority: priorities.attribution });
+    })){}
+
+    if (settings.detectAction && directActionRegex && findMatches(combined, directActionRegex, quoteRanges).forEach(m => {
+        const name = m.groups?.find(g => g)?.trim();
+        name && allMatches.push({ name, matchKind: "action", matchIndex: m.index, priority: priorities.action });
+    })){}
+
+    if (settings.detectVocative && vocativeRegex && findMatches(combined, vocativeRegex, quoteRanges, true).forEach(m => {
+        const name = m.groups?.[0]?.trim();
+        name && allMatches.push({ name, matchKind: "vocative", matchIndex: m.index, priority: priorities.vocative });
+    })){}
+    
+    // Possessive detection is now its own regex
+    if (settings.detectPossessive && possessiveRegex && findMatches(combined, possessiveRegex, quoteRanges).forEach(m => {
+        const name = m.groups?.[0]?.trim();
+        name && allMatches.push({ name, matchKind: "possessive", matchIndex: m.index, priority: priorities.possessive });
+    })){}
+
+    if (settings.detectGeneral && nameRegex && findMatches(combined, nameRegex, quoteRanges).forEach(m => {
+        const name = String(m.groups?.[0] || m.match).replace(/-(?:sama|san)$/i, "").trim();
+        name && allMatches.push({ name, matchKind: "name", matchIndex: m.index, priority: priorities.name });
+    })){}
+
+    return allMatches;
+}
+
 
 function findBestMatch(combined, regexes, settings, quoteRanges) {
     if (!combined) return null;
@@ -129,7 +234,7 @@ function calculateCharacterFocusScores(text, profile, regexes) {
         attribution: 3, // Dialogue
         action: 2,      // Action
         vocative: 1,
-        possessive: 1,
+        possessive: 1,  // Passive
         name: 1,        // Passive
     };
 
@@ -175,10 +280,9 @@ jQuery(async () => {
         $("#extensions_settings").append('<div><h3>Costume Switch</h3><div>Failed to load UI (see console)</div></div>');
     }
 
-    const ok = await waitForSelector("#cs-save", 3000, 100);
-    if (!ok) console.warn("CostumeSwitch: settings UI did not appear within timeout.");
+        if (!ok) console.warn("CostumeSwitch: settings UI did not appear within timeout.");
 
-    let nameRegex, speakerRegex, attributionRegex, actionRegex, vocativeRegex, vetoRegex;
+    let nameRegex, speakerRegex, dialogueAttributionRegex, directActionRegex, possessiveRegex, vocativeRegex, voiceAttributionRegex, vetoRegex;
 
     function recompileRegexes() {
         try {
@@ -192,8 +296,10 @@ jQuery(async () => {
 
             nameRegex = buildNameRegex(effectivePatterns);
             speakerRegex = buildSpeakerRegex(effectivePatterns);
-            attributionRegex = buildAttributionRegex(effectivePatterns, attributionVerbs);
-            actionRegex = buildActionRegex(effectivePatterns, actionVerbs);
+            dialogueAttributionRegex = buildDialogueAttributionRegex(effectivePatterns, attributionVerbs);
+            directActionRegex = buildDirectActionRegex(effectivePatterns, actionVerbs);
+            possessiveRegex = buildPossessiveRegex(effectivePatterns);
+            voiceAttributionRegex = buildVoiceAttributionRegex(effectivePatterns);
             vocativeRegex = buildVocativeRegex(effectivePatterns);
             vetoRegex = buildGenericRegex(profile.vetoPatterns);
             
@@ -317,8 +423,10 @@ jQuery(async () => {
     
         const tempRegexes = {
             speakerRegex: buildSpeakerRegex(effectivePatterns),
-            attributionRegex: buildAttributionRegex(effectivePatterns, (tempProfile.attributionVerbs || '').replace(/\s*\n\s*/g, '|')),
-            actionRegex: buildActionRegex(effectivePatterns, (tempProfile.actionVerbs || '').replace(/\s*\n\s*/g, '|')),
+            dialogueAttributionRegex: buildDialogueAttributionRegex(effectivePatterns, (tempProfile.attributionVerbs || '').replace(/\s*\n\s*/g, '|')),
+            directActionRegex: buildDirectActionRegex(effectivePatterns, (tempProfile.actionVerbs || '').replace(/\s*\n\s*/g, '|')),
+            possessiveRegex: buildPossessiveRegex(effectivePatterns),
+            voiceAttributionRegex: buildVoiceAttributionRegex(effectivePatterns),
             vocativeRegex: buildVocativeRegex(effectivePatterns),
             nameRegex: buildNameRegex(effectivePatterns)
         };
@@ -618,7 +726,7 @@ jQuery(async () => {
             }
 
             const quoteRanges = getQuoteRanges(combined);
-            const regexes = { speakerRegex, attributionRegex, actionRegex, vocativeRegex, nameRegex };
+            const regexes = { speakerRegex, dialogueAttributionRegex, directActionRegex, possessiveRegex, voiceAttributionRegex, vocativeRegex, nameRegex };
             const bestMatch = findBestMatch(combined, regexes, profile, quoteRanges);
             
             if (bestMatch) {
@@ -679,8 +787,10 @@ jQuery(async () => {
                 const effectivePatterns = (tempProfile.patterns || []).filter(p => !lowerIgnored.includes(String(p).trim().toLowerCase()));
                 tempRegexes.nameRegex = buildNameRegex(effectivePatterns);
                 tempRegexes.speakerRegex = buildSpeakerRegex(effectivePatterns);
-                tempRegexes.attributionRegex = buildAttributionRegex(effectivePatterns, tempProfile.attributionVerbs);
-                tempRegexes.actionRegex = buildActionRegex(effectivePatterns, tempProfile.actionVerbs);
+                tempRegexes.dialogueAttributionRegex = buildDialogueAttributionRegex(effectivePatterns, tempProfile.attributionVerbs);
+                tempRegexes.directActionRegex = buildDirectActionRegex(effectivePatterns, tempProfile.actionVerbs);
+                tempRegexes.possessiveRegex = buildPossessiveRegex(effectivePatterns);
+                tempRegexes.voiceAttributionRegex = buildVoiceAttributionRegex(effectivePatterns);
                 tempRegexes.vocativeRegex = buildVocativeRegex(effectivePatterns);
             } catch (e) {
                 toastr.error(`Failed to build patterns for analysis: ${e.message}`);
