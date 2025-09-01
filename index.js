@@ -2,7 +2,7 @@ import { extension_settings, getContext } from "../../../extensions.js";
 import { saveSettingsDebounced, event_types, eventSource } from "../../../../script.js";
 import { registerSlashCommand, executeSlashCommandsOnChatInput } from "../../../slash-commands.js";
 
-const extensionName = "SillyTavern-CostumeSwitch-Testing";
+const extensionName = "SillyTavern-CostumeSwitch";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
 // Default settings for a single profile.
@@ -668,8 +668,8 @@ jQuery(async () => {
             try {
                 const lowerIgnored = (profile.ignorePatterns || []).map(p => String(p).trim().toLowerCase());
                 const effectivePatterns = (profile.patterns || []).filter(p => !lowerIgnored.includes(String(p).trim().toLowerCase()));
-                const attributionVerbs = (profile.attributionVerbs || PROFILE_DEFAULTS.attributionVerbs).replace(/\s*\|\s*/g, '|');
-                const actionVerbs = (profile.actionVerbs || PROFILE_DEFAULTS.actionVerbs).replace(/\s*\|\s*/g, '|');
+                const attributionVerbs = String(profile.attributionVerbs || PROFILE_DEFAULTS.attributionVerbs).replace(/\s*\|\s*/g, '|');
+                const actionVerbs = String(profile.actionVerbs || PROFILE_DEFAULTS.actionVerbs).replace(/\s*\|\s*/g, '|');
                 tempRegexes.nameRegex = buildNameRegex(effectivePatterns);
                 tempRegexes.speakerRegex = buildSpeakerRegex(effectivePatterns);
                 tempRegexes.attributionRegex = buildAttributionRegex(effectivePatterns, attributionVerbs);
