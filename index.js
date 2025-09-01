@@ -708,7 +708,7 @@ jQuery(async () => {
             $("#send_textarea").val(resultString).focus();
             toastr.success(`Detected primary characters: ${resultString}`, "Scene Analysis Complete");
         },
-        [],
+        ["debug"],
         "Analyzes the last AI message to determine the primary characters in the scene.",
         true
     );
