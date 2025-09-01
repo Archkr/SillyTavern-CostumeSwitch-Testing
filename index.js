@@ -648,8 +648,8 @@ jQuery(async () => {
     
     // Slash Command for Scene Analysis
     registerSlashCommand("scene", 
-        (args, a, b) => {
-            const debugMode = (args[0] || '').toLowerCase() === 'debug';
+        (argsString, a, b) => {
+            const debugMode = (argsString || '').trim().toLowerCase() === 'debug';
             const ctx = getContext();
             const lastMessage = ctx.chat.slice().reverse().find(msg => !msg.is_user && msg.mes);
 
@@ -708,8 +708,8 @@ jQuery(async () => {
             $("#send_textarea").val(resultString).focus();
             toastr.success(`Detected primary characters: ${resultString}`, "Scene Analysis Complete");
         },
-        ["debug"],
-        "Analyzes the last AI message to determine the primary characters in the scene.",
+        [], // Removing the argument registration to handle it manually
+        "Analyzes the last AI message to determine the primary characters in the scene. Type '/scene debug' to see scores.",
         true
     );
 
