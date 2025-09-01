@@ -280,8 +280,6 @@ jQuery(async () => {
         $("#extensions_settings").append('<div><h3>Costume Switch</h3><div>Failed to load UI (see console)</div></div>');
     }
 
-        if (!ok) console.warn("CostumeSwitch: settings UI did not appear within timeout.");
-
     let nameRegex, speakerRegex, dialogueAttributionRegex, directActionRegex, possessiveRegex, vocativeRegex, voiceAttributionRegex, vetoRegex;
 
     function recompileRegexes() {
