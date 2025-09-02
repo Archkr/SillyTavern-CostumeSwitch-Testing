@@ -91,7 +91,10 @@ function buildUnifiedAttributionRegex(patternList, verbString) {
     const verbs = processVerbsForRegex(verbString);
     if (!verbs) return null;
     const optionalMiddleName = `(?:\\s+[A-Z][a-z]+)*`;
-    const postQuote = `(?:["“”][^"“”]{0,400}["“”])\\s*,?\\s*(${names})${optionalMiddleName}\\s+${verbs}`;
+    // ### BUG FIX ###
+    // The original pattern (?:["“”][^"“”]{0,400}["“”]) was too rigid.
+    // It failed on complex quotes. Using a non-greedy .*? is more robust.
+    const postQuote = `(?:["“”].*?["“”])\\s*,?\\s*(${names})${optionalMiddleName}\\s+${verbs}`;
     const preQuote = `\\b(${names})${optionalMiddleName}\\s+${verbs}\\s*[:,]?\\s*["“”]`;
     const voice = `\\b(${names})${optionalMiddleName}[’\`']s\\s+(?:[a-zA-Z'’]+\\s+){0,3}?voice\\b`;
     const body = `(?:${postQuote})|(?:${preQuote})|(?:${voice})`;
@@ -121,7 +124,6 @@ function getQuoteRanges(s) { const q=/"|\u201C|\u201D/g,pos=[],ranges=[];let m;w
 function isIndexInsideQuotesRanges(ranges,idx){for(const[a,b]of ranges)if(idx>a&&idx<b)return!0;return!1}
 function findMatches(combined,regex,quoteRanges,searchInsideQuotes=!1){if(!combined||!regex)return[];const flags=regex.flags.includes("g")?regex.flags:regex.flags+"g",re=new RegExp(regex.source,flags),results=[];let m;for(; (m=re.exec(combined))!==null;){const idx=m.index||0;(searchInsideQuotes||!isIndexInsideQuotesRanges(quoteRanges,idx))&&results.push({match:m[0],groups:m.slice(1),index:idx}),re.lastIndex===m.index&&re.lastIndex++}return results}
 
-// Reverting to the original findAllMatches function
 function findAllMatches(combined, regexes, settings, quoteRanges) {
     const allMatches = [];
     const { speakerRegex, attributionRegex, directActionRegex, possessiveRegex, vocativeRegex, nameRegex } = regexes;
@@ -157,23 +159,12 @@ function findAllMatches(combined, regexes, settings, quoteRanges) {
     return allMatches;
 }
 
-
-/**
- * [CODE FIX 3 - FINAL] This is a complete rewrite of the scoring logic.
- * It sorts all matches into a stable order: first by their position in the text (recency),
- * and then by their priority. This absolutely guarantees that if two matches occur at the
- * same index, the one with the higher priority will always be sorted first.
- * By simply taking the last element of this sorted list, we get the most recent,
- * highest-priority match, which is the correct "winner". The bias slider is then
- * applied in a clear, final step.
- */
 function findBestMatch(combined, regexes, settings, quoteRanges) {
     if (!combined) return null;
 
     const allMatches = findAllMatches(combined, regexes, settings, quoteRanges);
     if (allMatches.length === 0) return null;
 
-    // Sort by index first, then by priority. This is the key change.
     allMatches.sort((a, b) => {
         if (a.matchIndex !== b.matchIndex) {
             return a.matchIndex - b.matchIndex;
@@ -183,9 +174,6 @@ function findBestMatch(combined, regexes, settings, quoteRanges) {
 
     const bias = Number(settings.detectionBias || 0);
 
-    // With a stable sort, the last item is always the most recent, highest-priority match.
-    // We can then apply bias to potentially select a different winner.
-    // This is much cleaner than trying to score everything in one go.
     let bestMatch = allMatches[allMatches.length - 1];
 
     if (bias !== 0) {
@@ -234,7 +222,7 @@ jQuery(async () => {
     async function issueCostumeForName(name, opts = {}) { const profile = getActiveProfile(settings); if (!name || !profile) return; const now = Date.now(); name = normalizeCostumeName(name); const isLock = opts.isLock || false; if (!isLock) { if (settings.focusLock) { debugLog(settings, "Focus is locked to", settings.focusLock, "- skipping switch to", name); return; } const currentName = normalizeCostumeName(lastIssuedCostume || profile.defaultCostume || (ctx?.characters?.[ctx.characterId]?.name) || ''); if (currentName && currentName.toLowerCase() === name.toLowerCase()) { debugLog(settings, "already using costume for", name, "- skipping switch."); return; } if (now - lastSwitchTimestamp < (profile.globalCooldownMs || PROFILE_DEFAULTS.globalCooldownMs)) { debugLog(settings, "global cooldown active, skipping switch to", name); return; } } const matchKind = opts.matchKind || null; let argFolder = getMappedCostume(name) || name; const lastSuccess = lastTriggerTimes.get(argFolder) || 0; if (!isLock && now - lastSuccess < (profile.perTriggerCooldownMs || PROFILE_DEFAULTS.perTriggerCooldownMs)) { debugLog(settings, "per-trigger cooldown active, skipping", argFolder); return; } const lastFailed = failedTriggerTimes.get(argFolder) || 0; if (now - lastFailed < (profile.failedTriggerCooldownMs || PROFILE_DEFAULTS.failedTriggerCooldownMs)) { debugLog(settings, "failed-trigger cooldown active, skipping", argFolder); return; } const command = `/costume \\${argFolder}`; debugLog(settings, "executing command:", command, "kind:", matchKind, "isLock:", isLock); try { await executeSlashCommandsOnChatInput(command); lastTriggerTimes.set(argFolder, now); lastIssuedCostume = argFolder; lastSwitchTimestamp = now; $("#cs-status").text(`Switched -> ${argFolder}`); setTimeout(() => $("#cs-status").text("Ready"), 1000); } catch (err) { failedTriggerTimes.set(argFolder, now); console.error(`[CostumeSwitch] Failed to execute /costume command for "${argFolder}".`, err); } }
     const streamEventName = event_types?.STREAM_TOKEN_RECEIVED || event_types?.SMOOTH_STREAM_TOKEN_RECEIVED || 'stream_token_received';
     _genStartHandler = (messageId) => { const bufKey = messageId != null ? `m${messageId}` : 'live'; debugLog(settings, `Generation started for ${bufKey}, resetting state.`); perMessageStates.set(bufKey, { lastAcceptedName: null, lastAcceptedTs: 0, vetoed: false }); perMessageBuffers.delete(bufKey); };
-    _streamHandler = (...args) => { try { if (!settings.enabled || settings.focusLock) return; const profile = getActiveProfile(settings); if (!profile) return; let tokenText = "", messageId = null; if (typeof args[0] === 'number') { messageId = args[0]; tokenText = String(args[1] ?? ""); } else if (typeof args[0] === 'object') { tokenText = String(args[0].token ?? args[0].text ?? ""); messageId = args[0].messageId ?? args[1] ?? null; } else { tokenText = String(args.join(' ') || ""); } if (!tokenText) return; const bufKey = messageId != null ? `m${messageId}` : 'live'; if (!perMessageStates.has(bufKey)) { _genStartHandler(messageId); } const state = perMessageStates.get(bufKey); if (state.vetoed) return; const prev = perMessageBuffers.get(bufKey) || ""; const normalizedToken = normalizeStreamText(tokenText); const combined = (prev + normalizedToken).slice(-(profile.maxBufferChars || PROFILE_DEFAULTS.maxBufferChars)); perMessageBuffers.set(bufKey, combined); ensureBufferLimit(); const threshold = Number(profile.tokenProcessThreshold || PROFILE_DEFAULTS.tokenProcessThreshold); const lastChar = normalizedToken.slice(-1); const isBoundary = /[\s\.\,\!\?\:\;\u201className="text_pole"4\)\]]$/.test(lastChar); if (!isBoundary && combined.length < (state.nextThreshold || threshold)) { return; } state.nextThreshold = combined.length + threshold; perMessageStates.set(bufKey, state); if (vetoRegex && vetoRegex.test(combined)) { debugLog(settings, "Veto phrase matched. Halting detection for this message."); state.vetoed = true; perMessageStates.set(bufKey, state); return; } const quoteRanges = getQuoteRanges(combined); const regexes = { speakerRegex, attributionRegex, directActionRegex, possessiveRegex, vocativeRegex, nameRegex }; const bestMatch = findBestMatch(combined, regexes, profile, quoteRanges); if (bestMatch) { const { name: matchedName, matchKind } = bestMatch; const now = Date.now(); const suppressMs = Number(profile.repeatSuppressMs || PROFILE_DEFAULTS.repeatSuppressMs); if (state.lastAcceptedName?.toLowerCase() === matchedName.toLowerCase() && (now - state.lastAcceptedTs < suppressMs)) { debugLog(settings, 'Suppressing repeat match for same name (flicker guard)', { matchedName }); return; } state.lastAcceptedName = matchedName; state.lastAcceptedTs = now; perMessageStates.set(bufKey, state); issueCostumeForName(matchedName, { matchKind, bufKey }); } } catch (err) { console.error("CostumeSwitch stream handler error:", err); } };
+    _streamHandler = (...args) => { try { if (!settings.enabled || settings.focusLock) return; const profile = getActiveProfile(settings); if (!profile) return; let tokenText = "", messageId = null; if (typeof args[0] === 'number') { messageId = args[0]; tokenText = String(args[1] ?? ""); } else if (typeof args[0] === 'object') { tokenText = String(args[0].token ?? args[0].text ?? ""); messageId = args[0].messageId ?? args[1] ?? null; } else { tokenText = String(args.join(' ') || ""); } if (!tokenText) return; const bufKey = messageId != null ? `m${messageId}` : 'live'; if (!perMessageStates.has(bufKey)) { _genStartHandler(messageId); } const state = perMessageStates.get(bufKey); if (state.vetoed) return; const prev = perMessageBuffers.get(bufKey) || ""; const normalizedToken = normalizeStreamText(tokenText); const combined = (prev + normalizedToken).slice(-(profile.maxBufferChars || PROFILE_DEFAULTS.maxBufferChars)); perMessageBuffers.set(bufKey, combined); ensureBufferLimit(); const threshold = Number(profile.tokenProcessThreshold || PROFILE_DEFAULTS.tokenProcessThreshold); const lastChar = normalizedToken.slice(-1); const isBoundary = /[\s\.\,\!\?\:\;\)\u2014\]]$/.test(lastChar); if (!isBoundary && combined.length < (state.nextThreshold || threshold)) { return; } state.nextThreshold = combined.length + threshold; perMessageStates.set(bufKey, state); if (vetoRegex && vetoRegex.test(combined)) { debugLog(settings, "Veto phrase matched. Halting detection for this message."); state.vetoed = true; perMessageStates.set(bufKey, state); return; } const quoteRanges = getQuoteRanges(combined); const regexes = { speakerRegex, attributionRegex, directActionRegex, possessiveRegex, vocativeRegex, nameRegex }; const bestMatch = findBestMatch(combined, regexes, profile, quoteRanges); if (bestMatch) { const { name: matchedName, matchKind } = bestMatch; const now = Date.now(); const suppressMs = Number(profile.repeatSuppressMs || PROFILE_DEFAULTS.repeatSuppressMs); if (state.lastAcceptedName?.toLowerCase() === matchedName.toLowerCase() && (now - state.lastAcceptedTs < suppressMs)) { debugLog(settings, 'Suppressing repeat match for same name (flicker guard)', { matchedName }); return; } state.lastAcceptedName = matchedName; state.lastAcceptedTs = now; perMessageStates.set(bufKey, state); issueCostumeForName(matchedName, { matchKind, bufKey }); } } catch (err) { console.error("CostumeSwitch stream handler error:", err); } };
     _genEndHandler = (messageId) => { if (messageId != null) { perMessageBuffers.delete(`m${messageId}`); perMessageStates.delete(`m${messageId}`); } };
     _msgRecvHandler = (messageId) => { if (messageId != null) { perMessageBuffers.delete(`m${messageId}`); perMessageStates.delete(`m${messageId}`); } };
     _chatChangedHandler = () => { perMessageBuffers.clear(); perMessageStates.clear(); lastIssuedCostume = null; lastTriggerTimes.clear(); failedTriggerTimes.clear(); };
