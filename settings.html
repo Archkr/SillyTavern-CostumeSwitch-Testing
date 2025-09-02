@@ -13,7 +13,7 @@
 <div id="costume-switcher-settings" class="extension_container">
   <div class="inline-drawer is-open">
     <div class="inline-drawer-toggle inline-drawer-header">
-      <b>Costume Switcher (v1.2.5)</b>
+      <b>Costume Switcher (v1.3.0 Patched)</b>
       <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
     <div class="inline-drawer-content">
@@ -89,7 +89,7 @@
                 </tr>
                 <tr>
                   <td style="vertical-align: top;"><input id="cs-detect-action" type="checkbox" /><label for="cs-detect-action"> Detect Action</label></td>
-                  <td><small>Finds character actions, like <em>He nodded.</em></small></td>
+                  <td><small>Finds character actions, like <em>He nodded.</em> <b>(Can cause false positives with complex sentences)</b></small></td>
                 </tr>
                 <tr>
                   <td style="vertical-align: top;"><input id="cs-detect-vocative" type="checkbox" /><label for="cs-detect-vocative"> Detect Vocative</label></td>
@@ -101,7 +101,7 @@
                 </tr>
                 <tr>
                   <td style="vertical-align: top;"><input id="cs-detect-general" type="checkbox" /><label for="cs-detect-general"> Detect General Mentions</label></td>
-                  <td><small><b>(Use with caution)</b> Triggers on any name mention. Can be inaccurate.</small></td>
+                  <td><small><b>(Use with caution)</b> Triggers on any name mention. Can be inaccurate and is worth very few points.</small></td>
                 </tr>
               </tbody>
             </table>
@@ -128,11 +128,6 @@
                 <small>Min time between any two switches.</small>
               </div>
               <div class="inline-group">
-                <label for="cs-repeat-suppress">Repeat Suppression (ms)</label>
-                <input id="cs-repeat-suppress" class="text_pole" type="number" min="0" />
-                <small>Min time before the *same* character triggers again.</small>
-              </div>
-              <div class="inline-group">
                 <label for="cs-per-trigger-cooldown">Per-Trigger Cooldown (ms)</label>
                 <input id="cs-per-trigger-cooldown" class="text_pole" type="number" min="0" />
                 <small>Cooldown for a specific costume after it's used.</small>
@@ -153,11 +148,7 @@
                 <small>How much text history to check against.</small>
               </div>
             </div>
-            <div class="inline-group" style="margin-top: 15px;">
-              <label for="cs-detection-bias">Detection Bias (<span id="cs-detection-bias-value">0</span>)</label>
-              <input id="cs-detection-bias" type="range" min="-200" max="200" value="0" style="width: 100%;" />
-              <small>Adjusts scoring. Positive values favor action/dialogue tags (priority). Negative values favor the most recently mentioned character (recency).</small>
-            </div>
+            <!-- REMOVED Detection Bias slider as it's no longer needed with the new scoring model -->
           </div>
 
           <div class="cs-block">
@@ -189,7 +180,7 @@
                 </ul>
               </div>
               <div style="flex: 1;">
-                <div style="font-weight: bold; margin-bottom: 5px;">Winning Detections (in order):</div>
+                <div style="font-weight: bold; margin-bottom: 5px;">Winning Character (by score):</div>
                 <ul id="cs-test-winner-list" style="list-style-position: inside; padding: 0; margin: 0; font-size: 0.9em;">
                   <li style="color: var(--text-color-soft);">N/A</li>
                 </ul>
