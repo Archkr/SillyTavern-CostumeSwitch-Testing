@@ -568,23 +568,21 @@ jQuery(async () => {
         } else {
             allDetectionsList.html('<li style="color: var(--text-color-soft);">No detections found.</li>');
         }
-        
-        // --- FINAL REWRITTEN WINNER SIMULATION LOGIC ---
+
+        // --- REWRITTEN AND SIMPLIFIED WINNER SIMULATION LOGIC ---
         const winnerList = $("#cs-test-winner-list");
         winnerList.empty();
         const winners = [];
-        
-        if (allMatches.length > 0) {
-            let currentWinner = allMatches[0];
-            winners.push(currentWinner);
+        let lastWinnerName = null;
 
-            for (let i = 1; i < allMatches.length; i++) {
-                const contender = allMatches[i];
-                // A new winner is chosen ONLY if their name is different AND
-                // their priority is greater than or equal to the current winner's priority.
-                if (contender.name !== currentWinner.name && contender.priority >= currentWinner.priority) {
-                    winners.push(contender);
-                    currentWinner = contender;
+        if (allMatches.length > 0) {
+            for (const match of allMatches) {
+                // Since allMatches is pre-sorted by index then priority,
+                // the first time we see a new name, it's guaranteed to be its
+                // highest-priority match at that point in the text, signifying a focus shift.
+                if (match.name !== lastWinnerName) {
+                    winners.push(match);
+                    lastWinnerName = match.name;
                 }
             }
         }
