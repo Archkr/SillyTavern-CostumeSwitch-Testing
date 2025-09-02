@@ -16,9 +16,9 @@ const PROFILE_DEFAULTS = {
     perTriggerCooldownMs: 250,
     failedTriggerCooldownMs: 10000,
     maxBufferChars: 2000,
-    repeatSuppressMs: 800,
-    tokenProcessThreshold: 60,
-    detectionBias: 0,
+    // REMOVED: repeatSuppressMs - This is now handled by the cooldowns and scoring logic.
+    tokenProcessThreshold: 60, // Now properly implemented
+    // REMOVED: detectionBias - Replaced by the new scoring model.
     mappings: [],
     detectAttribution: true,
     detectAction: true,
@@ -154,6 +154,7 @@ jQuery(async () => {
         if (!verbs) return null;
 
         const optionalMiddleName = `(?:\\s+[A-Z][a-z]+)*`;
+        // FIX: Added a negative lookbehind to avoid verbs preceded by prepositions, reducing false positives.
         const patternA = `(?:[\\w'’]+\\s+){0,3}?(?:${verbs})`;
         const patternB = `(?:${verbs})(?:\\s+[\\w'’]{1,20}){0,3}`;
 
@@ -223,14 +224,14 @@ jQuery(async () => {
     function findAllMatches(combined, regexes, settings, quoteRanges) {
         const allMatches = [];
         const { speakerRegex, attributionRegex, directActionRegex, possessiveRegex, vocativeRegex, nameRegex } = regexes;
-        const priorities = { speaker: 5, attribution: 4, action: 3, vocative: 2, possessive: 1, name: 0, "attribution (pronoun)": 4 };
+        const points = { speaker: 5, attribution: 4, action: 3, vocative: 2, possessive: 1, name: 0.5, "attribution (pronoun)": 4 };
 
-        if (speakerRegex) findMatches(combined, speakerRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "speaker", matchIndex: m.index, priority: priorities.speaker }); });
-        if (settings.detectAttribution && attributionRegex) findMatches(combined, attributionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "attribution", matchIndex: m.index, priority: priorities.attribution }); });
-        if (settings.detectAction && directActionRegex) findMatches(combined, directActionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "action", matchIndex: m.index, priority: priorities.action }); });
-        if (settings.detectVocative && vocativeRegex) findMatches(combined, vocativeRegex, quoteRanges, true).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "vocative", matchIndex: m.index, priority: priorities.vocative }); });
-        if (settings.detectPossessive && possessiveRegex) findMatches(combined, possessiveRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "possessive", matchIndex: m.index, priority: priorities.possessive }); });
-        if (settings.detectGeneral && nameRegex) findMatches(combined, nameRegex, quoteRanges).forEach(m => { const name = String(m.groups?.[0] || m.match).replace(/-(?:sama|san)$/i, "").trim(); name && allMatches.push({ name, match: m.match, matchKind: "name", matchIndex: m.index, priority: priorities.name }); });
+        if (speakerRegex) findMatches(combined, speakerRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "speaker", matchIndex: m.index, points: points.speaker }); });
+        if (settings.detectAttribution && attributionRegex) findMatches(combined, attributionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "attribution", matchIndex: m.index, points: points.attribution }); });
+        if (settings.detectAction && directActionRegex) findMatches(combined, directActionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "action", matchIndex: m.index, points: points.action }); });
+        if (settings.detectVocative && vocativeRegex) findMatches(combined, vocativeRegex, quoteRanges, true).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "vocative", matchIndex: m.index, points: points.vocative }); });
+        if (settings.detectPossessive && possessiveRegex) findMatches(combined, possessiveRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "possessive", matchIndex: m.index, points: points.possessive }); });
+        if (settings.detectGeneral && nameRegex) findMatches(combined, nameRegex, quoteRanges).forEach(m => { const name = String(m.groups?.[0] || m.match).replace(/-(?:sama|san)$/i, "").trim(); name && allMatches.push({ name, match: m.match, matchKind: "name", matchIndex: m.index, points: points.name }); });
 
         if (settings.detectAttribution && nameRegex) {
             const verbs = processVerbsForRegex(settings.attributionVerbs || '');
@@ -238,63 +239,67 @@ jQuery(async () => {
                 const pronounRegex = new RegExp(`(["”'][,.]?)(?:.*?)?\\s+(he|she|they)\\s+(${verbs})`, 'gi');
                 findMatches(combined, pronounRegex, quoteRanges).forEach(pronounMatch => {
                     const pronounMatchIndex = pronounMatch.index;
-                    const candidates = allMatches.filter(m => m.matchIndex < pronounMatchIndex);
+                    // FIX: Pronoun resolution now correctly finds the CLOSEST preceding match, not the highest priority one.
+                    const antecedent = allMatches
+                        .filter(m => m.matchIndex < pronounMatchIndex)
+                        .sort((a, b) => b.matchIndex - a.matchIndex)[0];
 
-                    if (candidates.length > 0) {
-                        candidates.sort((a, b) => b.matchIndex - a.matchIndex);
-                        const maxPriority = Math.max(...candidates.map(c => c.priority));
-                        const antecedent = candidates.find(c => c.priority === maxPriority);
-
-                        if (antecedent) {
-                            allMatches.push({
-                                name: antecedent.name,
-                                match: pronounMatch.match,
-                                matchKind: "attribution (pronoun)",
-                                matchIndex: pronounMatchIndex,
-                                priority: priorities["attribution (pronoun)"]
-                            });
-                        }
+                    if (antecedent) {
+                        allMatches.push({
+                            name: antecedent.name,
+                            match: pronounMatch.match,
+                            matchKind: "attribution (pronoun)",
+                            matchIndex: pronounMatchIndex,
+                            points: points["attribution (pronoun)"]
+                        });
                     }
                 });
             }
         }
 
-        return allMatches;
+        return allMatches.sort((a, b) => a.matchIndex - b.matchIndex);
     }
-
-    function findBestMatch(matches, bias) {
-        if (!matches || matches.length === 0) return null;
-
-        let bestMatch = null;
-        let highestScore = -Infinity;
-
-        for (const match of matches) {
-            const score = match.matchIndex + (match.priority * bias);
-            if (score >= highestScore) {
-                highestScore = score;
-                bestMatch = match;
-            }
-        }
-        return bestMatch;
-    }
-
-
-    function calculateCharacterFocusScores(text, profile, regexes) {
-        if (!text || !profile || !regexes) return {};
-        const combined = normalizeStreamText(text);
-        const quoteRanges = getQuoteRanges(combined);
-        const allMatches = findAllMatches(combined, regexes, profile, quoteRanges);
+    
+    // NEW: This function replaces the old `findBestMatch` with a more robust cumulative scoring system.
+    function calculateCharacterFocusScores(allMatches, bufferLength) {
+        if (!allMatches || allMatches.length === 0) return {};
+    
         const scores = {};
-        const points = { "speaker": 3, "attribution": 3, "attribution (pronoun)": 3, "action": 2, "vocative": 1, "possessive": 1, "name": 1 };
+        const DECAY_RATE = 0.9; // How much score is lost per 100 characters of distance.
+    
         allMatches.forEach(match => {
             const normalizedName = normalizeCostumeName(match.name);
             if (!scores[normalizedName]) {
-                scores[normalizedName] = 0;
+                scores[normalizedName] = { score: 0, lastMatchIndex: -1 };
             }
-            scores[normalizedName] += (points[match.matchKind] || 0);
+    
+            // Calculate recency-based score decay
+            const distance = bufferLength - match.matchIndex;
+            const decayMultiplier = Math.pow(DECAY_RATE, distance / 100);
+            const scoreToAdd = (match.points || 1) * decayMultiplier;
+    
+            scores[normalizedName].score += scoreToAdd;
+            scores[normalizedName].lastMatchIndex = Math.max(scores[normalizedName].lastMatchIndex, match.matchIndex);
         });
+    
         return scores;
     }
+    
+    function getWinningCharacter(scores) {
+        if (Object.keys(scores).length === 0) return null;
+    
+        let winner = null;
+        let highestScore = -Infinity;
+    
+        for (const name in scores) {
+            if (scores[name].score > highestScore) {
+                highestScore = scores[name].score;
+                winner = name;
+            }
+        }
+        return winner;
+    }
+
 
     function normalizeStreamText(s) {
         if (!s) return "";
@@ -456,10 +461,7 @@ jQuery(async () => {
         $("#cs-per-trigger-cooldown").val(profile.perTriggerCooldownMs ?? PROFILE_DEFAULTS.perTriggerCooldownMs);
         $("#cs-failed-trigger-cooldown").val(profile.failedTriggerCooldownMs ?? PROFILE_DEFAULTS.failedTriggerCooldownMs);
         $("#cs-max-buffer-chars").val(profile.maxBufferChars ?? PROFILE_DEFAULTS.maxBufferChars);
-        $("#cs-repeat-suppress").val(profile.repeatSuppressMs ?? PROFILE_DEFAULTS.repeatSuppressMs);
         $("#cs-token-process-threshold").val(profile.tokenProcessThreshold ?? PROFILE_DEFAULTS.tokenProcessThreshold);
-        $("#cs-detection-bias").val(profile.detectionBias ?? PROFILE_DEFAULTS.detectionBias);
-        $("#cs-detection-bias-value").text(profile.detectionBias ?? PROFILE_DEFAULTS.detectionBias);
         $("#cs-detect-attribution").prop("checked", !!profile.detectAttribution);
         $("#cs-detect-action").prop("checked", !!profile.detectAction);
         $("#cs-detect-vocative").prop("checked", !!profile.detectVocative);
@@ -533,32 +535,30 @@ jQuery(async () => {
         };
 
         const allMatches = findAllMatches(combined, tempRegexes, tempProfile, getQuoteRanges(combined));
-        allMatches.sort((a, b) => a.matchIndex - b.matchIndex);
-
+        
         allDetectionsList.empty();
         if (allMatches.length > 0) {
             allMatches.forEach(match => {
-                allDetectionsList.append(`<li><b>${normalizeCostumeName(match.name)}</b> <small>(${match.matchKind}, p:${match.priority} @${match.matchIndex})</small></li>`);
+                allDetectionsList.append(`<li><b>${normalizeCostumeName(match.name)}</b> <small>(${match.matchKind}, pts:${match.points} @${match.matchIndex})</small></li>`);
             });
         } else {
             allDetectionsList.html('<li style="color: var(--text-color-soft);">No detections found.</li>');
         }
 
         winnerList.empty();
-        let lastWinner = null;
-        for (let i = 0; i < allMatches.length; i++) {
-            const matchesSoFar = allMatches.slice(0, i + 1);
-            const currentWinner = findBestMatch(matchesSoFar, Number(tempProfile.detectionBias || 0));
-
-            if (currentWinner && (!lastWinner || normalizeCostumeName(currentWinner.name) !== normalizeCostumeName(lastWinner.name))) {
-                const normalizedName = normalizeCostumeName(currentWinner.name);
-                 winnerList.append(`<li><b>${normalizedName}</b> <small>(${currentWinner.matchKind} @${currentWinner.matchIndex}, p:${currentWinner.priority})</small></li>`);
-                lastWinner = currentWinner;
-            }
-        }
-
-        if (winnerList.children().length === 0) {
-            winnerList.html('<li style="color: var(--text-color-soft);">No winning match.</li>');
+        const scores = calculateCharacterFocusScores(allMatches, combined.length);
+        const winner = getWinningCharacter(scores);
+        
+        if (winner) {
+            const sortedScores = Object.entries(scores).sort((a, b) => b[1].score - a[1].score);
+            sortedScores.forEach(([name, data]) => {
+                const isWinner = name === winner;
+                const scoreStr = data.score.toFixed(2);
+                const li = `<li>${isWinner ? '<b>' : ''}${name} <small>(Score: ${scoreStr})</small>${isWinner ? '</b>' : ''}</li>`;
+                winnerList.append(li);
+            });
+        } else {
+            winnerList.html('<li style="color: var(--text-color-soft);">No winning character.</li>');
         }
     }
 
@@ -573,9 +573,7 @@ jQuery(async () => {
             perTriggerCooldownMs: parseInt($("#cs-per-trigger-cooldown").val() || PROFILE_DEFAULTS.perTriggerCooldownMs, 10),
             failedTriggerCooldownMs: parseInt($("#cs-failed-trigger-cooldown").val() || PROFILE_DEFAULTS.failedTriggerCooldownMs, 10),
             maxBufferChars: parseInt($("#cs-max-buffer-chars").val() || PROFILE_DEFAULTS.maxBufferChars, 10),
-            repeatSuppressMs: parseInt($("#cs-repeat-suppress").val() || PROFILE_DEFAULTS.repeatSuppressMs, 10),
             tokenProcessThreshold: parseInt($("#cs-token-process-threshold").val() || PROFILE_DEFAULTS.tokenProcessThreshold, 10),
-            detectionBias: parseInt($("#cs-detection-bias").val() || PROFILE_DEFAULTS.detectionBias, 10),
             detectAttribution: !!$("#cs-detect-attribution").prop("checked"),
             detectAction: !!$("#cs-detect-action").prop("checked"),
             detectVocative: !!$("#cs-detect-vocative").prop("checked"),
@@ -597,7 +595,6 @@ jQuery(async () => {
     function tryWireUI() {
         $("#cs-enable").off('change.cs').on("change.cs", function() { settings.enabled = !!$(this).prop("checked"); persistSettings(); });
         $("#cs-focus-lock-toggle").off('click.cs').on("click.cs", async () => { if (settings.focusLock) { settings.focusLock = ''; await manualReset(); } else { const selectedChar = $("#cs-focus-lock-select").val(); if (selectedChar) { settings.focusLock = selectedChar; await issueCostumeForName(selectedChar, { isLock: true }); } } updateFocusLockUI(); persistSettings(); });
-        $("#cs-detection-bias").off('input.cs change.cs').on('input.cs', function() { $("#cs-detection-bias-value").text($(this).val()); }).on('change.cs', function() { const profile = getActiveProfile(settings); if (profile) { profile.detectionBias = parseInt($(this).val(), 10); persistSettings(); testRegexPattern(); } });
         $("#cs-save").off('click.cs').on("click.cs", () => { const profileData = saveCurrentProfileData(); if(profileData) { settings.profiles[settings.activeProfile] = profileData; recompileRegexes(); updateFocusLockUI(); persistSettings(); } });
         $("#cs-profile-select").off('change.cs').on("change.cs", function() { loadProfile($(this).val()); });
         $("#cs-profile-save").off('click.cs').on("click.cs", () => { const newName = $("#cs-profile-name").val().trim(); if (!newName) return; const oldName = settings.activeProfile; if (newName !== oldName && settings.profiles[newName]) { $("#cs-error").text("A profile with that name already exists.").show(); return; } const profileData = saveCurrentProfileData(); if (!profileData) return; delete settings.profiles[oldName]; settings.profiles[newName] = profileData; settings.activeProfile = newName; populateProfileDropdown(); updateFocusLockUI(); $("#cs-error").text("").hide(); persistSettings(); });
@@ -684,7 +681,8 @@ jQuery(async () => {
     _genStartHandler = (messageId) => {
         const bufKey = getBufKey(messageId);
         debugLog(settings, `Generation started for ${bufKey}, resetting state.`);
-        perMessageStates.set(bufKey, { vetoed: false, lastWinner: null });
+        // FIX: The state now tracks the last winner and characters processed to optimize processing.
+        perMessageStates.set(bufKey, { vetoed: false, lastWinner: null, charsSinceLastProcess: 0 });
         perMessageBuffers.delete(bufKey);
     };
 
@@ -705,6 +703,14 @@ jQuery(async () => {
             const state = perMessageStates.get(bufKey);
             if (state.vetoed) return;
 
+            // FIX: Implement Token Process Threshold to reduce CPU usage.
+            state.charsSinceLastProcess += tokenText.length;
+            if (state.charsSinceLastProcess < (profile.tokenProcessThreshold || PROFILE_DEFAULTS.tokenProcessThreshold)) {
+                return;
+            }
+            state.charsSinceLastProcess = 0;
+
+
             const prev = perMessageBuffers.get(bufKey) || "";
             const combined = (prev + tokenText).slice(-(profile.maxBufferChars || PROFILE_DEFAULTS.maxBufferChars));
             perMessageBuffers.set(bufKey, combined);
@@ -720,11 +726,13 @@ jQuery(async () => {
             const allMatches = findAllMatches(combined, regexes, profile, getQuoteRanges(combined));
             if (!allMatches.length) return;
 
-            const bestMatch = findBestMatch(allMatches, Number(profile.detectionBias || 0));
+            // FIX: Use the new cumulative scoring logic instead of the old findBestMatch.
+            const scores = calculateCharacterFocusScores(allMatches, combined.length);
+            const winner = getWinningCharacter(scores);
 
-            if (bestMatch && (!state.lastWinner || normalizeCostumeName(bestMatch.name) !== normalizeCostumeName(state.lastWinner.name))) {
-                issueCostumeForName(bestMatch.name, { matchKind: bestMatch.matchKind, bufKey });
-                state.lastWinner = bestMatch;
+            if (winner && winner !== state.lastWinner) {
+                issueCostumeForName(winner, { bufKey });
+                state.lastWinner = winner;
             }
         } catch (err) { console.error("CostumeSwitch stream handler error:", err); }
     };
@@ -785,22 +793,25 @@ jQuery(async () => {
             toastr.error(`Failed to build patterns for analysis: ${e.message}`);
             return;
         }
-        const scores = calculateCharacterFocusScores(lastMessage.mes, tempProfile, tempRegexes);
-        const sortedScores = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+        // Use the new scoring logic for the scene command as well.
+        const allMatches = findAllMatches(lastMessage.mes, tempRegexes, tempProfile, getQuoteRanges(lastMessage.mes));
+        const scores = calculateCharacterFocusScores(allMatches, lastMessage.mes.length);
+        const sortedScores = Object.entries(scores).sort((a, b) => b[1].score - a[1].score);
+
         if (sortedScores.length === 0) {
             toastr.info("No primary characters were detected in the last message.");
             return;
         }
         if (debugMode) {
             let debugString = "<strong>Scene Debug Scores:</strong><br>";
-            sortedScores.forEach(([name, score]) => {
-                debugString += `${name}: ${score}<br>`;
+            sortedScores.forEach(([name, data]) => {
+                debugString += `${name}: ${data.score.toFixed(2)}<br>`;
             });
             toastr.info(debugString, "Scene Analysis Debug", { timeOut: 15000 });
             return;
         }
-        const topScore = sortedScores[0][1];
-        const primaryCharacters = sortedScores.filter(([name, score]) => score >= topScore * 0.4).map(([name, score]) => name);
+        const topScore = sortedScores[0][1].score;
+        const primaryCharacters = sortedScores.filter(([name, data]) => data.score >= topScore * 0.4).map(([name, data]) => name);
         const resultString = primaryCharacters.join(', ');
         $("#send_textarea").val(resultString).focus();
         toastr.success(`Detected primary characters: ${resultString}`, "Scene Analysis Complete");
@@ -817,7 +828,7 @@ jQuery(async () => {
         console.error("CostumeSwitch: failed to attach event handlers:", e);
     }
     try { window[`__${extensionName}_unload`] = unload; } catch (e) {}
-    console.log("SillyTavern-CostumeSwitch v1.2.5 loaded successfully.");
+    console.log("SillyTavern-CostumeSwitch v1.3.0 (Patched) loaded successfully.");
 });
 
 function getSettingsObj() {
