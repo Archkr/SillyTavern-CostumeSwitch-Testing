@@ -154,8 +154,8 @@ jQuery(async () => {
         if (!verbs) return null;
 
         const optionalMiddleName = `(?:\\s+[A-Z][a-z]+)*`;
-        const patternA = `(?:[\\w'’]+\\s+){0,3}?(?:${verbs})`; 
-        const patternB = `(?:${verbs})(?:\\s+[\\w'’]{1,20}){0,3}`; 
+        const patternA = `(?:[\\w'’]+\\s+){0,3}?(?:${verbs})`;
+        const patternB = `(?:${verbs})(?:\\s+[\\w'’]{1,20}){0,3}`;
 
         const body = `\\b(${names})${optionalMiddleName}\\s+(?:${patternA}|${patternB})\\b`;
 
@@ -225,7 +225,6 @@ jQuery(async () => {
         const { speakerRegex, attributionRegex, directActionRegex, possessiveRegex, vocativeRegex, nameRegex } = regexes;
         const priorities = { speaker: 5, attribution: 4, action: 3, vocative: 2, possessive: 1, name: 0, "attribution (pronoun)": 4 };
 
-        // Step 1: Find all direct, non-pronoun matches.
         if (speakerRegex) findMatches(combined, speakerRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "speaker", matchIndex: m.index, priority: priorities.speaker }); });
         if (settings.detectAttribution && attributionRegex) findMatches(combined, attributionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "attribution", matchIndex: m.index, priority: priorities.attribution }); });
         if (settings.detectAction && directActionRegex) findMatches(combined, directActionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "action", matchIndex: m.index, priority: priorities.action }); });
@@ -233,18 +232,16 @@ jQuery(async () => {
         if (settings.detectPossessive && possessiveRegex) findMatches(combined, possessiveRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "possessive", matchIndex: m.index, priority: priorities.possessive }); });
         if (settings.detectGeneral && nameRegex) findMatches(combined, nameRegex, quoteRanges).forEach(m => { const name = String(m.groups?.[0] || m.match).replace(/-(?:sama|san)$/i, "").trim(); name && allMatches.push({ name, match: m.match, matchKind: "name", matchIndex: m.index, priority: priorities.name }); });
 
-        // Step 2: NEW - Handle pronoun attribution with smarter resolution.
         if (settings.detectAttribution && nameRegex) {
             const verbs = processVerbsForRegex(settings.attributionVerbs || '');
             if (verbs) {
                 const pronounRegex = new RegExp(`(["”'][,.]?)(?:.*?)?\\s+(he|she|they)\\s+(${verbs})`, 'gi');
                 findMatches(combined, pronounRegex, quoteRanges).forEach(pronounMatch => {
                     const pronounMatchIndex = pronounMatch.index;
-
                     const candidates = allMatches.filter(m => m.matchIndex < pronounMatchIndex);
 
                     if (candidates.length > 0) {
-                        candidates.sort((a, b) => b.matchIndex - a.matchIndex); 
+                        candidates.sort((a, b) => b.matchIndex - a.matchIndex);
                         const maxPriority = Math.max(...candidates.map(c => c.priority));
                         const antecedent = candidates.find(c => c.priority === maxPriority);
 
@@ -267,10 +264,10 @@ jQuery(async () => {
 
     function findBestMatch(matches, bias) {
         if (!matches || matches.length === 0) return null;
-    
+
         let bestMatch = null;
         let highestScore = -Infinity;
-    
+
         for (const match of matches) {
             const score = match.matchIndex + (match.priority * bias);
             if (score >= highestScore) {
@@ -302,11 +299,11 @@ jQuery(async () => {
     function normalizeStreamText(s) {
         if (!s) return "";
         return String(s)
-            .replace(/[\uFEFF\u200B\u200C\u200D]/g, "") 
-            .replace(/[\u2018\u2019\u201A\u201B]/g, "'") 
+            .replace(/[\uFEFF\u200B\u200C\u200D]/g, "")
+            .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
             .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
-            .replace(/(\*\*|__|~~|`{1,3})/g, "") 
-            .replace(/\u00A0/g, " "); 
+            .replace(/(\*\*|__|~~|`{1,3})/g, "")
+            .replace(/\u00A0/g, " ");
     }
 
     function normalizeCostumeName(n) {
@@ -363,6 +360,10 @@ jQuery(async () => {
     }
     function getActiveProfile(settings) {
         return settings?.profiles?.[settings.activeProfile];
+    }
+
+    function getBufKey(messageId) {
+        return messageId != null ? `m${messageId}` : 'live';
     }
 
     if (typeof executeSlashCommandsOnChatInput !== 'function') {
@@ -497,18 +498,18 @@ jQuery(async () => {
         const allDetectionsList = $("#cs-test-all-detections");
         const winnerList = $("#cs-test-winner-list");
         const vetoStatusList = $("#cs-test-veto-status");
-    
+
         allDetectionsList.html('<li style="color: var(--text-color-soft);">Enter text to test.</li>');
         winnerList.html('<li style="color: var(--text-color-soft);">N/A</li>');
         vetoStatusList.html('<li style="color: var(--text-color-soft);">N/A</li>');
-    
+
         if (!text) return;
-    
+
         const tempProfile = saveCurrentProfileData();
         const tempVetoPatterns = $("#cs-veto-patterns").val().split(/\r?\n/).map(s => s.trim()).filter(Boolean);
         const tempVetoRegex = buildGenericRegex(tempVetoPatterns);
         const combined = normalizeStreamText(text);
-    
+
         vetoStatusList.empty();
         if (tempVetoRegex && tempVetoRegex.test(combined)) {
             const match = combined.match(tempVetoRegex)[0];
@@ -519,7 +520,7 @@ jQuery(async () => {
         } else {
             vetoStatusList.html('<li style="color: var(--green);">No veto detected.</li>');
         }
-    
+
         const lowerIgnored = (tempProfile.ignorePatterns || []).map(p => String(p).trim().toLowerCase());
         const effectivePatterns = (tempProfile.patterns || []).filter(p => !lowerIgnored.includes(String(p).trim().toLowerCase()));
         const tempRegexes = {
@@ -530,10 +531,10 @@ jQuery(async () => {
             vocativeRegex: buildVocativeRegex(effectivePatterns),
             nameRegex: buildNameRegex(effectivePatterns)
         };
-        
+
         const allMatches = findAllMatches(combined, tempRegexes, tempProfile, getQuoteRanges(combined));
         allMatches.sort((a, b) => a.matchIndex - b.matchIndex);
-    
+
         allDetectionsList.empty();
         if (allMatches.length > 0) {
             allMatches.forEach(match => {
@@ -542,22 +543,20 @@ jQuery(async () => {
         } else {
             allDetectionsList.html('<li style="color: var(--text-color-soft);">No detections found.</li>');
         }
-    
+
         winnerList.empty();
-        let currentWinner = null;
-        let highestScore = -Infinity;
-        const bias = Number(tempProfile.detectionBias || 0);
-        
-        for (const match of allMatches) {
-            const score = match.matchIndex + (match.priority * bias);
-            if (score > highestScore) {
-                highestScore = score;
-                currentWinner = match;
+        let lastWinner = null;
+        for (let i = 0; i < allMatches.length; i++) {
+            const matchesSoFar = allMatches.slice(0, i + 1);
+            const currentWinner = findBestMatch(matchesSoFar, Number(tempProfile.detectionBias || 0));
+
+            if (currentWinner && (!lastWinner || normalizeCostumeName(currentWinner.name) !== normalizeCostumeName(lastWinner.name))) {
                 const normalizedName = normalizeCostumeName(currentWinner.name);
-                winnerList.append(`<li><b>${normalizedName}</b> <small>(${currentWinner.matchKind} @${currentWinner.matchIndex}, p:${currentWinner.priority})</small></li>`);
+                 winnerList.append(`<li><b>${normalizedName}</b> <small>(${currentWinner.matchKind} @${currentWinner.matchIndex}, p:${currentWinner.priority})</small></li>`);
+                lastWinner = currentWinner;
             }
         }
-        
+
         if (winnerList.children().length === 0) {
             winnerList.html('<li style="color: var(--text-color-soft);">No winning match.</li>');
         }
@@ -681,24 +680,27 @@ jQuery(async () => {
         }
     }
     const streamEventName = event_types?.STREAM_TOKEN_RECEIVED || event_types?.SMOOTH_STREAM_TOKEN_RECEIVED || 'stream_token_received';
+
     _genStartHandler = (messageId) => {
-        const bufKey = messageId != null ? `m${messageId}` : 'live';
+        const bufKey = getBufKey(messageId);
         debugLog(settings, `Generation started for ${bufKey}, resetting state.`);
-        perMessageStates.set(bufKey, { vetoed: false, lastFoundIndex: -1, currentWinner: null, highestScore: -Infinity });
+        perMessageStates.set(bufKey, { vetoed: false, lastWinner: null });
         perMessageBuffers.delete(bufKey);
     };
+
     _streamHandler = (...args) => {
         try {
             if (!settings.enabled || settings.focusLock) return;
             const profile = getActiveProfile(settings);
             if (!profile) return;
+
             let tokenText = "", messageId = null;
             if (typeof args[0] === 'number') { messageId = args[0]; tokenText = String(args[1] ?? ""); }
             else if (typeof args[0] === 'object') { tokenText = String(args[0].token ?? args[0].text ?? ""); messageId = args[0].messageId ?? args[1] ?? null; }
             else { tokenText = String(args.join(' ') || ""); }
             if (!tokenText) return;
 
-            const bufKey = messageId != null ? `m${messageId}` : 'live';
+            const bufKey = getBufKey(messageId);
             if (!perMessageStates.has(bufKey)) { _genStartHandler(messageId); }
             const state = perMessageStates.get(bufKey);
             if (state.vetoed) return;
@@ -707,47 +709,35 @@ jQuery(async () => {
             const combined = (prev + tokenText).slice(-(profile.maxBufferChars || PROFILE_DEFAULTS.maxBufferChars));
             perMessageBuffers.set(bufKey, combined);
             ensureBufferLimit();
-    
+
             if (vetoRegex && vetoRegex.test(combined)) {
                 debugLog(settings, "Veto phrase matched. Halting detection for this message.");
                 state.vetoed = true;
                 return;
             }
-            
-            const searchSlice = combined.substring(state.lastFoundIndex + 1);
-            if(searchSlice.length < 10) return;
 
-            const quoteRanges = getQuoteRanges(searchSlice);
             const regexes = { speakerRegex, attributionRegex, directActionRegex, possessiveRegex, vocativeRegex, nameRegex };
-            const newMatches = findAllMatches(searchSlice, regexes, profile, quoteRanges);
-            if (!newMatches.length) return;
+            const allMatches = findAllMatches(combined, regexes, profile, getQuoteRanges(combined));
+            if (!allMatches.length) return;
 
-            const bias = Number(profile.detectionBias || 0);
+            const bestMatch = findBestMatch(allMatches, Number(profile.detectionBias || 0));
 
-            for (const match of newMatches) {
-                match.index += state.lastFoundIndex + 1; // Adjust index to be absolute
-                const score = match.index + (match.priority * bias);
-                if (score > state.highestScore) {
-                    state.highestScore = score;
-                    state.currentWinner = match;
-                    issueCostumeForName(match.name, { matchKind: match.matchKind, bufKey });
-                }
+            if (bestMatch && (!state.lastWinner || normalizeCostumeName(bestMatch.name) !== normalizeCostumeName(state.lastWinner.name))) {
+                issueCostumeForName(bestMatch.name, { matchKind: bestMatch.matchKind, bufKey });
+                state.lastWinner = bestMatch;
             }
-            state.lastFoundIndex = Math.max(...newMatches.map(m => m.index));
-
         } catch (err) { console.error("CostumeSwitch stream handler error:", err); }
     };
+
     _genEndHandler = (messageId) => {
-        if (messageId != null) {
-            perMessageBuffers.delete(`m${messageId}`);
-            perMessageStates.delete(`m${messageId}`);
-        }
+        const bufKey = getBufKey(messageId);
+        perMessageBuffers.delete(bufKey);
+        perMessageStates.delete(bufKey);
     };
     _msgRecvHandler = (messageId) => {
-        if (messageId != null) {
-            perMessageBuffers.delete(`m${messageId}`);
-            perMessageStates.delete(`m${messageId}`);
-        }
+        const bufKey = getBufKey(messageId);
+        perMessageBuffers.delete(bufKey);
+        perMessageStates.delete(bufKey);
     };
     _chatChangedHandler = () => {
         perMessageBuffers.clear();
