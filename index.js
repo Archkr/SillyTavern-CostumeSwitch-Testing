@@ -569,48 +569,29 @@ jQuery(async () => {
             allDetectionsList.html('<li style="color: var(--text-color-soft);">No detections found.</li>');
         }
 
-        // --- FIXED WINNER SIMULATION LOGIC ---
+        // --- REWRITTEN AND SIMPLIFIED WINNER SIMULATION LOGIC ---
         const winnerList = $("#cs-test-winner-list");
         winnerList.empty();
         const winners = [];
         let lastWinnerName = null;
 
         if (allMatches.length > 0) {
-            // This new simulation correctly processes the chronological list of detections
-            // to determine the flow of "winning" characters.
-            let currentBestMatch = allMatches[0];
-
-            for (let i = 1; i < allMatches.length; i++) {
-                const contender = allMatches[i];
-                // The winner changes if a new character appears with a higher or equal priority.
-                if (contender.name !== currentBestMatch.name && contender.priority >= currentBestMatch.priority) {
-                    if (currentBestMatch.name !== lastWinnerName) {
-                        winners.push(currentBestMatch);
-                        lastWinnerName = currentBestMatch.name;
-                    }
-                    currentBestMatch = contender;
+            for (const match of allMatches) {
+                // Since allMatches is pre-sorted by index then priority,
+                // the first time we see a new name, it's guaranteed to be its
+                // highest-priority match at that point in the text, signifying a focus shift.
+                if (match.name !== lastWinnerName) {
+                    winners.push(match);
+                    lastWinnerName = match.name;
                 }
-                // Or if any character appears with a strictly higher priority.
-                else if (contender.priority > currentBestMatch.priority) {
-                    currentBestMatch = contender;
-                }
-            }
-            // Add the final winner
-             if (currentBestMatch.name !== lastWinnerName) {
-                winners.push(currentBestMatch);
             }
         }
-        
+
         if (winners.length > 0) {
             winners.forEach(match => {
                 winnerList.append(`<li><b>${match.name}</b> <small>(${match.matchKind} @${match.matchIndex}, p:${match.priority})</small></li>`);
             });
-        } else if (allMatches.length > 0) {
-            // If there's only one character detected overall, they are the winner.
-            const finalWinner = allMatches[allMatches.length - 1];
-            winnerList.append(`<li><b>${finalWinner.name}</b> <small>(${finalWinner.matchKind} @${finalWinner.matchIndex}, p:${finalWinner.priority})</small></li>`);
-        }
-        else {
+        } else {
             winnerList.html('<li style="color: var(--text-color-soft);">No winning match.</li>');
         }
     }
