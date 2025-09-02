@@ -135,8 +135,7 @@ jQuery(async () => {
         if (!verbs) return null;
 
         const optionalMiddleName = `(?:\\s+[A-Z][a-z]+)*`;
-        // FIX: Made the quoted text part non-greedy and able to handle newlines to prevent catastrophic backtracking and improve matching.
-        const postQuote = `(?:["“”](?:.|\\n)*?["“”])\\s*[,:;\\-–—]?\\s*(${names})${optionalMiddleName}\\s+(?:${verbs})\\b`;
+        const postQuote = `(?:["“”][^"“”]*["“”])\\s*[,:;\\-–—]?\\s*(${names})${optionalMiddleName}\\s+(?:${verbs})\\b`;
         const preQuote = `\\b(${names})${optionalMiddleName}\\s+(?:${verbs})\\s*[:,]?\\s*["“”]`;
         const voice = `\\b(${names})${optionalMiddleName}(?:[’\`']s|\\'s)\\s+(?:[a-zA-Z'’]+\\s+){0,3}?voice\\b`;
 
@@ -155,13 +154,10 @@ jQuery(async () => {
         if (!verbs) return null;
 
         const optionalMiddleName = `(?:\\s+[A-Z][a-z]+)*`;
-        // TIGHTENED: Reduced filler words from {0,3} to {0,2} for higher accuracy.
-        const body =
-            `\\b(${names})${optionalMiddleName}\\s+(?:` +
-            `(?:[a-zA-Z'’]+\\s+){0,2}?(?:${verbs})` +
-            `|` +
-            `(?:${verbs})(?:\\s+[a-zA-Z'’]{1,20}){0,2}` +
-            `)\\b`;
+        const patternA = `(?:[\\w'’]+\\s+){0,3}?(?:${verbs})`; 
+        const patternB = `(?:${verbs})(?:\\s+[\\w'’]{1,20}){0,3}`; 
+
+        const body = `\\b(${names})${optionalMiddleName}\\s+(?:${patternA}|${patternB})\\b`;
 
         const flags = computeFlagsFromEntries(entries, true);
         try { return new RegExp(body, flags); } catch (err) { console.warn("buildDirectActionRegex compile failed:", err); return null; }
@@ -245,12 +241,10 @@ jQuery(async () => {
                 findMatches(combined, pronounRegex, quoteRanges).forEach(pronounMatch => {
                     const pronounMatchIndex = pronounMatch.index;
 
-                    // Find the best candidate character from matches that appeared *before* the pronoun.
                     const candidates = allMatches.filter(m => m.matchIndex < pronounMatchIndex);
 
                     if (candidates.length > 0) {
-                        // Heuristic: The best candidate is the one with the highest priority who appeared most recently.
-                        candidates.sort((a, b) => b.matchIndex - a.matchIndex); // Sort by most recent
+                        candidates.sort((a, b) => b.matchIndex - a.matchIndex); 
                         const maxPriority = Math.max(...candidates.map(c => c.priority));
                         const antecedent = candidates.find(c => c.priority === maxPriority);
 
@@ -271,38 +265,20 @@ jQuery(async () => {
         return allMatches;
     }
 
-    /**
-     * REFACTORED: This function is now the single source of truth for winner detection.
-     * It can operate on a live text buffer OR a pre-computed list of matches for simulation.
-     */
-    function findBestMatch(combined, regexes, settings, quoteRanges, _precomputedMatches = null) {
-        const allMatches = _precomputedMatches || (combined ? findAllMatches(combined, regexes, settings, quoteRanges) : []);
-        if (allMatches.length === 0) return null;
-        
-        // The live logic doesn't need a presort, but the scoring works correctly on sorted data.
-        allMatches.sort((a, b) => a.matchIndex - b.matchIndex);
-
-        const bias = Number(settings.detectionBias || 0);
-
-        if (bias === 0) {
-            // Default behavior: Find the highest priority, then the latest match within that priority.
-            const maxPriority = Math.max(...allMatches.map(m => m.priority));
-            const topTierMatches = allMatches.filter(m => m.priority === maxPriority);
-            return topTierMatches[topTierMatches.length - 1];
-        } else {
-            // Biased behavior: Score each match based on priority and index.
-            let bestMatch = null;
-            let highestScore = -Infinity;
-            for (const match of allMatches) {
-                // A positive bias values priority more. A negative bias values recency more.
-                const score = match.matchIndex + (match.priority * bias);
-                if (score >= highestScore) {
-                    highestScore = score;
-                    bestMatch = match;
-                }
+    function findBestMatch(matches, bias) {
+        if (!matches || matches.length === 0) return null;
+    
+        let bestMatch = null;
+        let highestScore = -Infinity;
+    
+        for (const match of matches) {
+            const score = match.matchIndex + (match.priority * bias);
+            if (score >= highestScore) {
+                highestScore = score;
+                bestMatch = match;
             }
-            return bestMatch;
         }
+        return bestMatch;
     }
 
 
@@ -326,11 +302,11 @@ jQuery(async () => {
     function normalizeStreamText(s) {
         if (!s) return "";
         return String(s)
-            .replace(/[\uFEFF\u200B\u200C\u200D]/g, "") // Zero-width spaces
-            .replace(/[\u2018\u2019\u201A\u201B]/g, "'") // Smart quotes to straight
+            .replace(/[\uFEFF\u200B\u200C\u200D]/g, "") 
+            .replace(/[\u2018\u2019\u201A\u201B]/g, "'") 
             .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
-            .replace(/(\*\*|__|~~|`{1,3})/g, "") // Markdown
-            .replace(/\u00A0/g, " "); // Non-breaking space
+            .replace(/(\*\*|__|~~|`{1,3})/g, "") 
+            .replace(/\u00A0/g, " "); 
     }
 
     function normalizeCostumeName(n) {
@@ -518,29 +494,32 @@ jQuery(async () => {
 
     function testRegexPattern() {
         const text = $("#cs-regex-test-input").val();
-        if (!text) {
-            $("#cs-test-all-detections").html('<li style="color: var(--text-color-soft);">Enter text to test.</li>');
-            $("#cs-test-winner-list").html('<li style="color: var(--text-color-soft);">N/A</li>');
-            $("#cs-test-veto-status").html('<li style="color: var(--text-color-soft);">N/A</li>');
-            return;
-        }
+        const allDetectionsList = $("#cs-test-all-detections");
+        const winnerList = $("#cs-test-winner-list");
+        const vetoStatusList = $("#cs-test-veto-status");
+    
+        allDetectionsList.html('<li style="color: var(--text-color-soft);">Enter text to test.</li>');
+        winnerList.html('<li style="color: var(--text-color-soft);">N/A</li>');
+        vetoStatusList.html('<li style="color: var(--text-color-soft);">N/A</li>');
+    
+        if (!text) return;
+    
         const tempProfile = saveCurrentProfileData();
         const tempVetoPatterns = $("#cs-veto-patterns").val().split(/\r?\n/).map(s => s.trim()).filter(Boolean);
         const tempVetoRegex = buildGenericRegex(tempVetoPatterns);
         const combined = normalizeStreamText(text);
-
-        const vetoStatusList = $("#cs-test-veto-status");
+    
         vetoStatusList.empty();
         if (tempVetoRegex && tempVetoRegex.test(combined)) {
             const match = combined.match(tempVetoRegex)[0];
             vetoStatusList.html(`<li style="color: var(--red);">VETOED by: "${match}"</li>`);
-            $("#cs-test-all-detections").html('<li style="color: var(--text-color-soft);">Vetoed.</li>');
-            $("#cs-test-winner-list").html('<li style="color: var(--text-color-soft);">Vetoed.</li>');
+            allDetectionsList.html('<li style="color: var(--text-color-soft);">Vetoed.</li>');
+            winnerList.html('<li style="color: var(--text-color-soft);">Vetoed.</li>');
             return;
         } else {
             vetoStatusList.html('<li style="color: var(--green);">No veto detected.</li>');
         }
-
+    
         const lowerIgnored = (tempProfile.ignorePatterns || []).map(p => String(p).trim().toLowerCase());
         const effectivePatterns = (tempProfile.patterns || []).filter(p => !lowerIgnored.includes(String(p).trim().toLowerCase()));
         const tempRegexes = {
@@ -552,43 +531,34 @@ jQuery(async () => {
             nameRegex: buildNameRegex(effectivePatterns)
         };
         
-        // 1. Find all possible matches in the entire text ONE time.
         const allMatches = findAllMatches(combined, tempRegexes, tempProfile, getQuoteRanges(combined));
         allMatches.sort((a, b) => a.matchIndex - b.matchIndex);
-
-        const allDetectionsList = $("#cs-test-all-detections");
+    
         allDetectionsList.empty();
         if (allMatches.length > 0) {
             allMatches.forEach(match => {
-                allDetectionsList.append(`<li><b>${match.name}</b> <small>(${match.matchKind}, p:${match.priority} @${match.matchIndex})</small></li>`);
+                allDetectionsList.append(`<li><b>${normalizeCostumeName(match.name)}</b> <small>(${match.matchKind}, p:${match.priority} @${match.matchIndex})</small></li>`);
             });
         } else {
             allDetectionsList.html('<li style="color: var(--text-color-soft);">No detections found.</li>');
         }
-
-        // 2. Simulate the stream by processing the list of matches sequentially.
-        const winnerList = $("#cs-test-winner-list");
+    
         winnerList.empty();
-        const winners = [];
-        let lastWinnerName = null;
-
-        for (let i = 0; i < allMatches.length; i++) {
-            const matchesSoFar = allMatches.slice(0, i + 1);
-            
-            // 3. At each step, call the EXACT live detection function with the matches found so far.
-            const currentWinner = findBestMatch(null, null, tempProfile, null, matchesSoFar);
-            
-            if (currentWinner && currentWinner.name !== lastWinnerName) {
-                winners.push(currentWinner);
-                lastWinnerName = currentWinner.name;
+        let currentWinner = null;
+        let highestScore = -Infinity;
+        const bias = Number(tempProfile.detectionBias || 0);
+        
+        for (const match of allMatches) {
+            const score = match.matchIndex + (match.priority * bias);
+            if (score > highestScore) {
+                highestScore = score;
+                currentWinner = match;
+                const normalizedName = normalizeCostumeName(currentWinner.name);
+                winnerList.append(`<li><b>${normalizedName}</b> <small>(${currentWinner.matchKind} @${currentWinner.matchIndex}, p:${currentWinner.priority})</small></li>`);
             }
         }
         
-        if (winners.length > 0) {
-            winners.forEach(match => {
-                winnerList.append(`<li><b>${match.name}</b> <small>(${match.matchKind} @${match.matchIndex}, p:${match.priority})</small></li>`);
-            });
-        } else {
+        if (winnerList.children().length === 0) {
             winnerList.html('<li style="color: var(--text-color-soft);">No winning match.</li>');
         }
     }
@@ -714,7 +684,7 @@ jQuery(async () => {
     _genStartHandler = (messageId) => {
         const bufKey = messageId != null ? `m${messageId}` : 'live';
         debugLog(settings, `Generation started for ${bufKey}, resetting state.`);
-        perMessageStates.set(bufKey, { lastAcceptedName: null, lastAcceptedTs: 0, vetoed: false });
+        perMessageStates.set(bufKey, { vetoed: false, lastFoundIndex: -1, currentWinner: null, highestScore: -Infinity });
         perMessageBuffers.delete(bufKey);
     };
     _streamHandler = (...args) => {
@@ -727,43 +697,44 @@ jQuery(async () => {
             else if (typeof args[0] === 'object') { tokenText = String(args[0].token ?? args[0].text ?? ""); messageId = args[0].messageId ?? args[1] ?? null; }
             else { tokenText = String(args.join(' ') || ""); }
             if (!tokenText) return;
+
             const bufKey = messageId != null ? `m${messageId}` : 'live';
             if (!perMessageStates.has(bufKey)) { _genStartHandler(messageId); }
             const state = perMessageStates.get(bufKey);
             if (state.vetoed) return;
+
             const prev = perMessageBuffers.get(bufKey) || "";
-            const normalizedToken = normalizeStreamText(tokenText);
-            const combined = (prev + normalizedToken).slice(-(profile.maxBufferChars || PROFILE_DEFAULTS.maxBufferChars));
+            const combined = (prev + tokenText).slice(-(profile.maxBufferChars || PROFILE_DEFAULTS.maxBufferChars));
             perMessageBuffers.set(bufKey, combined);
             ensureBufferLimit();
-            const threshold = Number(profile.tokenProcessThreshold || PROFILE_DEFAULTS.tokenProcessThreshold);
-            const lastChar = normalizedToken.slice(-1);
-            const isBoundary = /[\s\.\,\!\?\:\;\)\u2014\]]$/.test(lastChar);
-            if (!isBoundary && combined.length < (state.nextThreshold || threshold)) { return; }
-            state.nextThreshold = combined.length + threshold;
-            perMessageStates.set(bufKey, state);
+    
             if (vetoRegex && vetoRegex.test(combined)) {
                 debugLog(settings, "Veto phrase matched. Halting detection for this message.");
                 state.vetoed = true;
-                perMessageStates.set(bufKey, state);
                 return;
             }
-            const quoteRanges = getQuoteRanges(combined);
+            
+            const searchSlice = combined.substring(state.lastFoundIndex + 1);
+            if(searchSlice.length < 10) return;
+
+            const quoteRanges = getQuoteRanges(searchSlice);
             const regexes = { speakerRegex, attributionRegex, directActionRegex, possessiveRegex, vocativeRegex, nameRegex };
-            const bestMatch = findBestMatch(combined, regexes, profile, quoteRanges);
-            if (bestMatch) {
-                const { name: matchedName, matchKind } = bestMatch;
-                const now = Date.now();
-                const suppressMs = Number(profile.repeatSuppressMs || PROFILE_DEFAULTS.repeatSuppressMs);
-                if (state.lastAcceptedName?.toLowerCase() === matchedName.toLowerCase() && (now - state.lastAcceptedTs < suppressMs)) {
-                    debugLog(settings, 'Suppressing repeat match for same name (flicker guard)', { matchedName });
-                    return;
+            const newMatches = findAllMatches(searchSlice, regexes, profile, quoteRanges);
+            if (!newMatches.length) return;
+
+            const bias = Number(profile.detectionBias || 0);
+
+            for (const match of newMatches) {
+                match.index += state.lastFoundIndex + 1; // Adjust index to be absolute
+                const score = match.index + (match.priority * bias);
+                if (score > state.highestScore) {
+                    state.highestScore = score;
+                    state.currentWinner = match;
+                    issueCostumeForName(match.name, { matchKind: match.matchKind, bufKey });
                 }
-                state.lastAcceptedName = matchedName;
-                state.lastAcceptedTs = now;
-                perMessageStates.set(bufKey, state);
-                issueCostumeForName(matchedName, { matchKind, bufKey });
             }
+            state.lastFoundIndex = Math.max(...newMatches.map(m => m.index));
+
         } catch (err) { console.error("CostumeSwitch stream handler error:", err); }
     };
     _genEndHandler = (messageId) => {
