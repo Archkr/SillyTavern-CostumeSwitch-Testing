@@ -16,9 +16,7 @@ const PROFILE_DEFAULTS = {
     perTriggerCooldownMs: 250,
     failedTriggerCooldownMs: 10000,
     maxBufferChars: 2000,
-    // REMOVED: repeatSuppressMs - This is now handled by the cooldowns and scoring logic.
-    tokenProcessThreshold: 60, // Now properly implemented
-    // REMOVED: detectionBias - Replaced by the new scoring model.
+    tokenProcessThreshold: 60,
     mappings: [],
     detectAttribution: true,
     detectAction: true,
@@ -154,7 +152,6 @@ jQuery(async () => {
         if (!verbs) return null;
 
         const optionalMiddleName = `(?:\\s+[A-Z][a-z]+)*`;
-        // FIX: Added a negative lookbehind to avoid verbs preceded by prepositions, reducing false positives.
         const patternA = `(?:[\\w'’]+\\s+){0,3}?(?:${verbs})`;
         const patternB = `(?:${verbs})(?:\\s+[\\w'’]{1,20}){0,3}`;
 
@@ -224,14 +221,23 @@ jQuery(async () => {
     function findAllMatches(combined, regexes, settings, quoteRanges) {
         const allMatches = [];
         const { speakerRegex, attributionRegex, directActionRegex, possessiveRegex, vocativeRegex, nameRegex } = regexes;
-        const points = { speaker: 5, attribution: 4, action: 3, vocative: 2, possessive: 1, name: 0.5, "attribution (pronoun)": 4 };
+        // Rebalanced points for better focus detection
+        const points = { speaker: 5, attribution: 4, action: 3, vocative: 2, possessive: 2, name: 0.5, "attribution (pronoun)": 4, "name (in-quote)": 0.1 };
 
         if (speakerRegex) findMatches(combined, speakerRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "speaker", matchIndex: m.index, points: points.speaker }); });
         if (settings.detectAttribution && attributionRegex) findMatches(combined, attributionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "attribution", matchIndex: m.index, points: points.attribution }); });
         if (settings.detectAction && directActionRegex) findMatches(combined, directActionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "action", matchIndex: m.index, points: points.action }); });
         if (settings.detectVocative && vocativeRegex) findMatches(combined, vocativeRegex, quoteRanges, true).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "vocative", matchIndex: m.index, points: points.vocative }); });
         if (settings.detectPossessive && possessiveRegex) findMatches(combined, possessiveRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "possessive", matchIndex: m.index, points: points.possessive }); });
-        if (settings.detectGeneral && nameRegex) findMatches(combined, nameRegex, quoteRanges).forEach(m => { const name = String(m.groups?.[0] || m.match).replace(/-(?:sama|san)$/i, "").trim(); name && allMatches.push({ name, match: m.match, matchKind: "name", matchIndex: m.index, points: points.name }); });
+        
+        // FIX: Added logic to drastically reduce points for name mentions inside quotes.
+        if (settings.detectGeneral && nameRegex) findMatches(combined, nameRegex, quoteRanges).forEach(m => { 
+            const name = String(m.groups?.[0] || m.match).replace(/-(?:sama|san)$/i, "").trim(); 
+            if (name) {
+                const isInside = isIndexInsideQuotesRanges(quoteRanges, m.index);
+                allMatches.push({ name, match: m.match, matchKind: isInside ? "name (in-quote)" : "name", matchIndex: m.index, points: isInside ? points["name (in-quote)"] : points.name });
+            }
+        });
 
         if (settings.detectAttribution && nameRegex) {
             const verbs = processVerbsForRegex(settings.attributionVerbs || '');
@@ -239,7 +245,6 @@ jQuery(async () => {
                 const pronounRegex = new RegExp(`(["”'][,.]?)(?:.*?)?\\s+(he|she|they)\\s+(${verbs})`, 'gi');
                 findMatches(combined, pronounRegex, quoteRanges).forEach(pronounMatch => {
                     const pronounMatchIndex = pronounMatch.index;
-                    // FIX: Pronoun resolution now correctly finds the CLOSEST preceding match, not the highest priority one.
                     const antecedent = allMatches
                         .filter(m => m.matchIndex < pronounMatchIndex)
                         .sort((a, b) => b.matchIndex - a.matchIndex)[0];
@@ -260,26 +265,32 @@ jQuery(async () => {
         return allMatches.sort((a, b) => a.matchIndex - b.matchIndex);
     }
     
-    // NEW: This function replaces the old `findBestMatch` with a more robust cumulative scoring system.
     function calculateCharacterFocusScores(allMatches, bufferLength) {
         if (!allMatches || allMatches.length === 0) return {};
     
         const scores = {};
-        const DECAY_RATE = 0.9; // How much score is lost per 100 characters of distance.
+        const DECAY_RATE = 0.8; // Decay is slightly more aggressive
     
         allMatches.forEach(match => {
             const normalizedName = normalizeCostumeName(match.name);
             if (!scores[normalizedName]) {
-                scores[normalizedName] = { score: 0, lastMatchIndex: -1 };
+                scores[normalizedName] = { score: 0 };
             }
     
-            // Calculate recency-based score decay
             const distance = bufferLength - match.matchIndex;
             const decayMultiplier = Math.pow(DECAY_RATE, distance / 100);
             const scoreToAdd = (match.points || 1) * decayMultiplier;
     
             scores[normalizedName].score += scoreToAdd;
-            scores[normalizedName].lastMatchIndex = Math.max(scores[normalizedName].lastMatchIndex, match.matchIndex);
+
+            // FIX: Implement "Focus Stealing". A high-priority match for one character reduces others' scores.
+            if (match.points >= 2) { // Possessive, Action, Attribution, or Speaker
+                for (const otherName in scores) {
+                    if (otherName !== normalizedName) {
+                        scores[otherName].score *= 0.5; // Halve the score of everyone else
+                    }
+                }
+            }
         });
     
         return scores;
@@ -681,7 +692,6 @@ jQuery(async () => {
     _genStartHandler = (messageId) => {
         const bufKey = getBufKey(messageId);
         debugLog(settings, `Generation started for ${bufKey}, resetting state.`);
-        // FIX: The state now tracks the last winner and characters processed to optimize processing.
         perMessageStates.set(bufKey, { vetoed: false, lastWinner: null, charsSinceLastProcess: 0 });
         perMessageBuffers.delete(bufKey);
     };
@@ -703,17 +713,17 @@ jQuery(async () => {
             const state = perMessageStates.get(bufKey);
             if (state.vetoed) return;
 
-            // FIX: Implement Token Process Threshold to reduce CPU usage.
+            const prev = perMessageBuffers.get(bufKey) || "";
+            const currentText = prev + tokenText;
+            perMessageBuffers.set(bufKey, currentText);
+
             state.charsSinceLastProcess += tokenText.length;
             if (state.charsSinceLastProcess < (profile.tokenProcessThreshold || PROFILE_DEFAULTS.tokenProcessThreshold)) {
                 return;
             }
             state.charsSinceLastProcess = 0;
 
-
-            const prev = perMessageBuffers.get(bufKey) || "";
-            const combined = (prev + tokenText).slice(-(profile.maxBufferChars || PROFILE_DEFAULTS.maxBufferChars));
-            perMessageBuffers.set(bufKey, combined);
+            const combined = currentText.slice(-(profile.maxBufferChars || PROFILE_DEFAULTS.maxBufferChars));
             ensureBufferLimit();
 
             if (vetoRegex && vetoRegex.test(combined)) {
@@ -726,7 +736,6 @@ jQuery(async () => {
             const allMatches = findAllMatches(combined, regexes, profile, getQuoteRanges(combined));
             if (!allMatches.length) return;
 
-            // FIX: Use the new cumulative scoring logic instead of the old findBestMatch.
             const scores = calculateCharacterFocusScores(allMatches, combined.length);
             const winner = getWinningCharacter(scores);
 
@@ -793,7 +802,6 @@ jQuery(async () => {
             toastr.error(`Failed to build patterns for analysis: ${e.message}`);
             return;
         }
-        // Use the new scoring logic for the scene command as well.
         const allMatches = findAllMatches(lastMessage.mes, tempRegexes, tempProfile, getQuoteRanges(lastMessage.mes));
         const scores = calculateCharacterFocusScores(allMatches, lastMessage.mes.length);
         const sortedScores = Object.entries(scores).sort((a, b) => b[1].score - a[1].score);
@@ -828,7 +836,7 @@ jQuery(async () => {
         console.error("CostumeSwitch: failed to attach event handlers:", e);
     }
     try { window[`__${extensionName}_unload`] = unload; } catch (e) {}
-    console.log("SillyTavern-CostumeSwitch v1.3.0 (Patched) loaded successfully.");
+    console.log("SillyTavern-CostumeSwitch v1.4.0 (Patched) loaded successfully.");
 });
 
 function getSettingsObj() {
