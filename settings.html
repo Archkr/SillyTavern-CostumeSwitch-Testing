@@ -7,12 +7,13 @@
   .cs-status-message { background-color: rgba(var(--green-rgb), 0.15); color: var(--green); border-color: rgba(var(--green-rgb), 0.3); }
   .cs-error-message { background-color: rgba(var(--red-rgb), 0.15); color: var(--red); border-color: rgba(var(--red-rgb), 0.3); display: none; }
   #costume-switcher-settings .menu_button { font-family: inherit; }
+  .inline-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 </style>
 
 <div id="costume-switcher-settings" class="extension_container">
   <div class="inline-drawer is-open">
     <div class="inline-drawer-toggle inline-drawer-header">
-      <b>Costume Switcher (Testing v1.2.1)</b>
+      <b>Costume Switcher (v1.2.5)</b>
       <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
     <div class="inline-drawer-content">
@@ -26,9 +27,9 @@
         </div>
         <div style="display: flex; gap: 10px; margin-top: 10px;">
           <input id="cs-profile-name" class="text_pole" type="text" placeholder="Enter profile name..." style="flex-grow: 1;">
-          <button id="cs-profile-save" class="menu_button interactable">Save / Duplicate</button>
+          <button id="cs-profile-save" class="menu_button interactable">Save / Rename</button>
         </div>
-        <small>Type a new name to create a duplicate. Using the existing name will overwrite.</small>
+        <small>Type a new name to create a new profile from the current settings. Editing the name and saving will rename the current profile.</small>
       </div>
 
       <div class="cs-block">
@@ -120,25 +121,42 @@
 
           <div class="cs-block">
             <label><b>Performance & Tuning</b></label>
-            <div class="inline-group" style="margin-top: 10px;">
-              <label for="cs-global-cooldown">Global Cooldown (ms)</label>
-              <input id="cs-global-cooldown" class="text_pole" type="number" min="0" />
-              <small>Minimum time between any two switches to prevent flickering.</small>
-            </div>
-            <div class="inline-group" style="margin-top: 10px;">
-              <label for="cs-repeat-suppress">Repeat Suppression (ms)</label>
-              <input id="cs-repeat-suppress" class="text_pole" type="number" min="0" />
-              <small>Minimum time before the *same* character can trigger another switch.</small>
-            </div>
-            <div class="inline-group" style="margin-top: 10px;">
-              <label for="cs-token-process-threshold">Token Process Threshold (chars)</label>
-              <input id="cs-token-process-threshold" class="text_pole" type="number" min="0" />
-              <small>How many characters to wait before checking. Lower is more reactive but uses more CPU.</small>
+            <div class="inline-grid" style="margin-top: 10px;">
+              <div class="inline-group">
+                <label for="cs-global-cooldown">Global Cooldown (ms)</label>
+                <input id="cs-global-cooldown" class="text_pole" type="number" min="0" />
+                <small>Min time between any two switches.</small>
+              </div>
+              <div class="inline-group">
+                <label for="cs-repeat-suppress">Repeat Suppression (ms)</label>
+                <input id="cs-repeat-suppress" class="text_pole" type="number" min="0" />
+                <small>Min time before the *same* character triggers again.</small>
+              </div>
+              <div class="inline-group">
+                <label for="cs-per-trigger-cooldown">Per-Trigger Cooldown (ms)</label>
+                <input id="cs-per-trigger-cooldown" class="text_pole" type="number" min="0" />
+                <small>Cooldown for a specific costume after it's used.</small>
+              </div>
+              <div class="inline-group">
+                <label for="cs-failed-trigger-cooldown">Failed Trigger Cooldown (ms)</label>
+                <input id="cs-failed-trigger-cooldown" class="text_pole" type="number" min="0" />
+                <small>Cooldown if a costume command fails.</small>
+              </div>
+               <div class="inline-group">
+                <label for="cs-token-process-threshold">Process Threshold (chars)</label>
+                <input id="cs-token-process-threshold" class="text_pole" type="number" min="0" />
+                <small>How often to check for names. Lower is more reactive but uses more CPU.</small>
+              </div>
+              <div class="inline-group">
+                <label for="cs-max-buffer-chars">Max Buffer (chars)</label>
+                <input id="cs-max-buffer-chars" class="text_pole" type="number" min="0" />
+                <small>How much text history to check against.</small>
+              </div>
             </div>
             <div class="inline-group" style="margin-top: 15px;">
               <label for="cs-detection-bias">Detection Bias (<span id="cs-detection-bias-value">0</span>)</label>
               <input id="cs-detection-bias" type="range" min="-200" max="200" value="0" style="width: 100%;" />
-              <small>Adjusts scoring. Higher values favor action/dialogue tags; lower values favor the most recently mentioned character.</small>
+              <small>Adjusts scoring. Positive values favor action/dialogue tags (priority). Negative values favor the most recently mentioned character (recency).</small>
             </div>
           </div>
 
