@@ -526,21 +526,6 @@ jQuery(async () => {
         const tempProfile = saveCurrentProfileData();
         const tempVetoPatterns = $("#cs-veto-patterns").val().split(/\r?\n/).map(s => s.trim()).filter(Boolean);
         const tempVetoRegex = buildGenericRegex(tempVetoPatterns);
-        $("#cs-enable").prop("checked", !!settings.enabled);
-    populateProfileDropdown();
-    loadProfile(settings.activeProfile);
-
-    function testRegexPattern() {
-        const text = $("#cs-regex-test-input").val();
-        if (!text) {
-            $("#cs-test-all-detections").html('<li style="color: var(--text-color-soft);">Enter text to test.</li>');
-            $("#cs-test-winner-list").html('<li style="color: var(--text-color-soft);">N/A</li>');
-            $("#cs-test-veto-status").html('<li style="color: var(--text-color-soft);">N/A</li>');
-            return;
-        }
-        const tempProfile = saveCurrentProfileData();
-        const tempVetoPatterns = $("#cs-veto-patterns").val().split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-        const tempVetoRegex = buildGenericRegex(tempVetoPatterns);
         const combined = normalizeStreamText(text);
 
         const vetoStatusList = $("#cs-test-veto-status");
