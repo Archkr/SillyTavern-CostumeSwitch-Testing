@@ -127,7 +127,6 @@ function buildDirectActionRegex(patternList, verbString) {
 
     const flags = computeFlagsFromEntries(e, true);
     try { return new RegExp(body, flags) } catch (err) { console.warn("buildDirectActionRegex compile failed:", err); return null }
-}
 
 }
 
