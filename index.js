@@ -229,12 +229,12 @@ jQuery(async () => {
         const priorities = { speaker: 5, attribution: 4, action: 3, vocative: 2, possessive: 1, name: 0, "attribution (pronoun)": 4 };
 
         // Step 1: Find all direct, non-pronoun matches.
-        if (speakerRegex) findMatches(combined, speakerRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, matchKind: "speaker", matchIndex: m.index, priority: priorities.speaker }); });
-        if (settings.detectAttribution && attributionRegex) findMatches(combined, attributionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, matchKind: "attribution", matchIndex: m.index, priority: priorities.attribution }); });
-        if (settings.detectAction && directActionRegex) findMatches(combined, directActionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, matchKind: "action", matchIndex: m.index, priority: priorities.action }); });
-        if (settings.detectVocative && vocativeRegex) findMatches(combined, vocativeRegex, quoteRanges, true).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, matchKind: "vocative", matchIndex: m.index, priority: priorities.vocative }); });
-        if (settings.detectPossessive && possessiveRegex) findMatches(combined, possessiveRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, matchKind: "possessive", matchIndex: m.index, priority: priorities.possessive }); });
-        if (settings.detectGeneral && nameRegex) findMatches(combined, nameRegex, quoteRanges).forEach(m => { const name = String(m.groups?.[0] || m.match).replace(/-(?:sama|san)$/i, "").trim(); name && allMatches.push({ name, matchKind: "name", matchIndex: m.index, priority: priorities.name }); });
+        if (speakerRegex) findMatches(combined, speakerRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "speaker", matchIndex: m.index, priority: priorities.speaker }); });
+        if (settings.detectAttribution && attributionRegex) findMatches(combined, attributionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "attribution", matchIndex: m.index, priority: priorities.attribution }); });
+        if (settings.detectAction && directActionRegex) findMatches(combined, directActionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "action", matchIndex: m.index, priority: priorities.action }); });
+        if (settings.detectVocative && vocativeRegex) findMatches(combined, vocativeRegex, quoteRanges, true).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "vocative", matchIndex: m.index, priority: priorities.vocative }); });
+        if (settings.detectPossessive && possessiveRegex) findMatches(combined, possessiveRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, match: m.match, matchKind: "possessive", matchIndex: m.index, priority: priorities.possessive }); });
+        if (settings.detectGeneral && nameRegex) findMatches(combined, nameRegex, quoteRanges).forEach(m => { const name = String(m.groups?.[0] || m.match).replace(/-(?:sama|san)$/i, "").trim(); name && allMatches.push({ name, match: m.match, matchKind: "name", matchIndex: m.index, priority: priorities.name }); });
 
         // Step 2: NEW - Handle pronoun attribution with smarter resolution.
         if (settings.detectAttribution && nameRegex) {
@@ -256,6 +256,7 @@ jQuery(async () => {
                         if (antecedent) {
                             allMatches.push({
                                 name: antecedent.name,
+                                match: pronounMatch.match,
                                 matchKind: "attribution (pronoun)",
                                 matchIndex: pronounMatchIndex,
                                 priority: priorities["attribution (pronoun)"]
@@ -270,17 +271,14 @@ jQuery(async () => {
     }
 
     /**
-     * FIXED: This function now correctly determines the best match.
-     * Default behavior (bias=0): Finds the match(es) with the highest priority and selects the most recent one.
-     * Biased behavior: Uses a scoring system to let the user tune between priority and recency.
+     * REFACTORED: This function is now the single source of truth for winner detection.
+     * It can operate on a live text buffer OR a pre-computed list of matches for simulation.
      */
-    function findBestMatch(combined, regexes, settings, quoteRanges) {
-        if (!combined) return null;
-
-        const allMatches = findAllMatches(combined, regexes, settings, quoteRanges);
+    function findBestMatch(combined, regexes, settings, quoteRanges, _precomputedMatches = null) {
+        const allMatches = _precomputedMatches || (combined ? findAllMatches(combined, regexes, settings, quoteRanges) : []);
         if (allMatches.length === 0) return null;
         
-        // Always sort by position in text. This is crucial for picking the 'last' one correctly.
+        // The live logic doesn't need a presort, but the scoring works correctly on sorted data.
         allMatches.sort((a, b) => a.matchIndex - b.matchIndex);
 
         const bias = Number(settings.detectionBias || 0);
@@ -528,6 +526,21 @@ jQuery(async () => {
         const tempProfile = saveCurrentProfileData();
         const tempVetoPatterns = $("#cs-veto-patterns").val().split(/\r?\n/).map(s => s.trim()).filter(Boolean);
         const tempVetoRegex = buildGenericRegex(tempVetoPatterns);
+        $("#cs-enable").prop("checked", !!settings.enabled);
+    populateProfileDropdown();
+    loadProfile(settings.activeProfile);
+
+    function testRegexPattern() {
+        const text = $("#cs-regex-test-input").val();
+        if (!text) {
+            $("#cs-test-all-detections").html('<li style="color: var(--text-color-soft);">Enter text to test.</li>');
+            $("#cs-test-winner-list").html('<li style="color: var(--text-color-soft);">N/A</li>');
+            $("#cs-test-veto-status").html('<li style="color: var(--text-color-soft);">N/A</li>');
+            return;
+        }
+        const tempProfile = saveCurrentProfileData();
+        const tempVetoPatterns = $("#cs-veto-patterns").val().split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+        const tempVetoRegex = buildGenericRegex(tempVetoPatterns);
         const combined = normalizeStreamText(text);
 
         const vetoStatusList = $("#cs-test-veto-status");
@@ -552,12 +565,10 @@ jQuery(async () => {
             vocativeRegex: buildVocativeRegex(effectivePatterns),
             nameRegex: buildNameRegex(effectivePatterns)
         };
-        const quoteRanges = getQuoteRanges(combined);
-        const allMatches = findAllMatches(combined, tempRegexes, tempProfile, quoteRanges);
-        allMatches.sort((a, b) => {
-            if (a.matchIndex !== b.matchIndex) return a.matchIndex - b.matchIndex;
-            return b.priority - a.priority; // secondary sort by priority descending
-        });
+        
+        // 1. Find all possible matches in the entire text ONE time.
+        const allMatches = findAllMatches(combined, tempRegexes, tempProfile, getQuoteRanges(combined));
+        allMatches.sort((a, b) => a.matchIndex - b.matchIndex);
 
         const allDetectionsList = $("#cs-test-all-detections");
         allDetectionsList.empty();
@@ -569,40 +580,21 @@ jQuery(async () => {
             allDetectionsList.html('<li style="color: var(--text-color-soft);">No detections found.</li>');
         }
 
-        // --- REWRITTEN: This now simulates the stream to find every focus shift ---
+        // 2. Simulate the stream by processing the list of matches sequentially.
         const winnerList = $("#cs-test-winner-list");
         winnerList.empty();
         const winners = [];
         let lastWinnerName = null;
-        const bias = Number(tempProfile.detectionBias || 0);
 
-        // Loop through each point in time where a match occurs
         for (let i = 0; i < allMatches.length; i++) {
-            // Consider all matches that have occurred up to this point
             const matchesSoFar = allMatches.slice(0, i + 1);
-            let bestMatchSoFar = null;
-
-            if (bias === 0) {
-                // Default logic: highest priority, then most recent of those
-                const maxPriority = Math.max(...matchesSoFar.map(m => m.priority));
-                const topTierMatches = matchesSoFar.filter(m => m.priority === maxPriority);
-                bestMatchSoFar = topTierMatches[topTierMatches.length - 1];
-            } else {
-                // Bias logic: score each match
-                let highestScore = -Infinity;
-                for (const match of matchesSoFar) {
-                    const score = match.matchIndex + (match.priority * bias);
-                    if (score >= highestScore) {
-                        highestScore = score;
-                        bestMatchSoFar = match;
-                    }
-                }
-            }
-
-            // If this new best match represents a change in focus, record it as a "win"
-            if (bestMatchSoFar && bestMatchSoFar.name !== lastWinnerName) {
-                winners.push(bestMatchSoFar);
-                lastWinnerName = bestMatchSoFar.name;
+            
+            // 3. At each step, call the EXACT live detection function with the matches found so far.
+            const currentWinner = findBestMatch(null, null, tempProfile, null, matchesSoFar);
+            
+            if (currentWinner && currentWinner.name !== lastWinnerName) {
+                winners.push(currentWinner);
+                lastWinnerName = currentWinner.name;
             }
         }
         
