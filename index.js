@@ -85,28 +85,50 @@ function buildNameRegex(patternList) { const e = (patternList || []).map(parsePa
 function buildSpeakerRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const p = e.map(x => `(?:${x.body})`), b = `(?:^|\\n)\\s*(${p.join('|')})\\s*[:;,]\\s*`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { console.warn("buildSpeakerRegex compile failed:", err); return null } }
 function buildVocativeRegex(patternList) { const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null; const p = e.map(x => `(?:${x.body})`), b = `(?:["“'\\s])(${p.join('|')})[,.!?]`, f = computeFlagsFromEntries(e, !0); try { return new RegExp(b, f) } catch (err) { console.warn("buildVocativeRegex compile failed:", err); return null } }
 
+
 function buildUnifiedAttributionRegex(patternList, verbString) {
     const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null;
     const names = e.map(x => `(?:${x.body})`).join("|");
     const verbs = processVerbsForRegex(verbString);
     if (!verbs) return null;
-    const optionalMiddleName = `(?:\\s+[A-Z][a-z]+)*`;
-    const postQuote = `(?:["“”].*?["“”])\\s*,?\\s*(${names})${optionalMiddleName}\\s+${verbs}`;
-    const preQuote = `\\b(${names})${optionalMiddleName}\\s+${verbs}\\s*[:,]?\\s*["“”]`;
-    const voice = `\\b(${names})${optionalMiddleName}[’\`']s\\s+(?:[a-zA-Z'’]+\\s+){0,3}?voice\\b`;
+    const optionalMiddleName = `(?:\s+[A-Z][a-z]+)*`;
+
+    // post-quote: "..." [optional punctuation] Name [MiddleName] verb
+    const postQuote = `(?:["“”][^"“”]*["“”])\s*[,:;\-–—]?\s*(${names})${optionalMiddleName}\s+(?:${verbs})\b`;
+    // pre-quote: Name [MiddleName] verb [:,]? "...
+    const preQuote = `\b(${names})${optionalMiddleName}\s+(?:${verbs})\s*[:,]?\s*["“”]`;
+    // voice: Name's voice (allow various apostrophe types)
+    const voice = `\b(${names})${optionalMiddleName}(?:[’\`']s|\'s)\s+(?:[a-zA-Z'’]+\s+){0,3}?voice\b`;
+
     const body = `(?:${postQuote})|(?:${preQuote})|(?:${voice})`;
     const flags = computeFlagsFromEntries(e, true);
     try { return new RegExp(body, flags) } catch (err) { console.warn("buildUnifiedAttributionRegex compile failed:", err); return null }
 }
+
+}
+
 
 function buildDirectActionRegex(patternList, verbString) {
     const e = (patternList || []).map(parsePatternEntry).filter(Boolean); if (!e.length) return null;
     const names = e.map(x => `(?:${x.body})`).join("|");
     const verbs = processVerbsForRegex(verbString);
     if (!verbs) return null;
-    const body = `\\b(${names})(?:\\s+[A-Z][a-z]+)*\\s+(?:[a-zA-Z'’]+\\s+){0,2}?${verbs}\\b`;
+    const optionalMiddleName = `(?:\s+[A-Z][a-z]+)*`;
+
+    // Two main forms:
+    // A) Name (optional middle/title) [up to 3 short filler words] VERB
+    // B) Name (optional middle/title) VERB [0-2 trailing small words]  (to catch "leaned forward")
+    const body =
+        `\b(${names})${optionalMiddleName}\s+(?:` +
+            `(?:[a-zA-Z'’]+\s+){0,3}?(?:${verbs})` +
+        `|` +
+            `(?:${verbs})(?:\s+[a-zA-Z'’]{1,20}){0,2}` +
+        `)\b`;
+
     const flags = computeFlagsFromEntries(e, true);
     try { return new RegExp(body, flags) } catch (err) { console.warn("buildDirectActionRegex compile failed:", err); return null }
+}
+
 }
 
 function buildPossessiveRegex(patternList) {
