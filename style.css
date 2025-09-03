@@ -1,105 +1,194 @@
+/*
+  Modern UI Styles for the Costume Switcher Extension
+  Inspired by clean and modern aesthetics.
+*/
+
+/* --- Base & Variables --- */
+:root {
+    --cs-primary-color: #6c5ce7; /* A modern purple */
+    --cs-primary-color-faded: rgba(108, 92, 231, 0.1);
+    --cs-background-main: #2d3436;
+    --cs-background-secondary: #3b4245;
+    --cs-border-color: #4b5457;
+    --cs-text-primary: #dfe6e9;
+    --cs-text-secondary: #b2bec3;
+    --cs-success-color: #00b894;
+    --cs-error-color: #d63031;
+    --cs-border-radius: 8px;
+    --cs-transition-speed: 0.3s;
+}
+
 #costume-switcher-settings {
-  padding: 10px;
-  border-radius: 8px;
-  background-color: var(--bg1);
+    padding: 15px;
+    border-radius: var(--cs-border-radius);
+    background-color: var(--cs-background-main);
+    color: var(--cs-text-primary);
 }
 
+/* --- Block & Layout --- */
 .cs-block {
-  margin-bottom: 20px;
-  padding: 15px;
-  border-radius: 6px;
-  background-color: var(--bg2);
-  border: 1px solid var(--border);
-}
-
-#costume-switcher-settings small {
-  display: block;
-  margin-top: 5px;
-  color: var(--text-color-soft);
-  font-size: 0.85em;
-}
-
-.cs-tip {
-  margin-top: 10px; 
-  color: var(--text-color-soft-extra);
+    margin-bottom: 25px;
+    padding: 20px;
+    border-radius: var(--cs-border-radius);
+    background: linear-gradient(145deg, var(--cs-background-secondary), var(--cs-background-main));
+    border: 1px solid var(--cs-border-color);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .cs-flex-container {
-  display: flex;
-  gap: 10px;
-  margin-top: 15px;
-  align-items: center;
+    display: flex;
+    gap: 12px;
+    align-items: center;
 }
 
+#costume-switcher-settings b {
+    color: var(--cs-primary-color);
+    letter-spacing: 0.5px;
+}
+
+#costume-switcher-settings small {
+    display: block;
+    margin-top: 8px;
+    color: var(--cs-text-secondary);
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+
+/* --- Input Elements --- */
+.text_pole, 
+#cs-profile-select,
+#cs-focus-lock-select {
+    background-color: var(--cs-background-main) !important;
+    border: 1px solid var(--cs-border-color) !important;
+    color: var(--cs-text-primary) !important;
+    border-radius: var(--cs-border-radius) !important;
+    padding: 10px !important;
+    transition: all var(--cs-transition-speed) ease;
+}
+
+.text_pole:focus,
+#cs-profile-select:focus,
+#cs-focus-lock-select:focus {
+    border-color: var(--cs-primary-color) !important;
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.25);
+    outline: none;
+}
+
+/* --- Buttons --- */
+.menu_button.interactable {
+    background: linear-gradient(145deg, var(--cs-primary-color), #a29bfe);
+    color: white;
+    border: none;
+    border-radius: var(--cs-border-radius);
+    padding: 10px 15px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all var(--cs-transition-speed) ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.menu_button.interactable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(108, 92, 231, 0.4);
+}
+
+#cs-profile-delete {
+    background: linear-gradient(145deg, #636e72, #2d3436);
+}
+
+#cs-profile-delete:hover {
+     box-shadow: 0 4px 10px rgba(45, 52, 54, 0.4);
+}
+
+/* --- Status & Error Messages --- */
 .cs-status-message, .cs-error-message {
-  margin-top: 15px;
-  padding: 10px;
-  border-radius: 4px;
-  font-weight: bold;
-  border: 1px solid transparent;
-}
-
-.cs-veto-result-message {
-  margin-top: 10px;
-  font-weight: bold;
-  padding: 5px 0;
+    margin-top: 15px;
+    padding: 12px;
+    border-radius: var(--cs-border-radius);
+    font-weight: bold;
+    border: 1px solid transparent;
+    text-align: center;
 }
 
 .cs-status-message {
-  background-color: rgba(var(--green-rgb), 0.15);
-  color: var(--green);
-  border-color: rgba(var(--green-rgb), 0.3);
+    background-color: rgba(0, 184, 148, 0.15);
+    color: var(--cs-success-color);
+    border-color: var(--cs-success-color);
 }
 
 .cs-error-message {
-  background-color: rgba(var(--red-rgb), 0.15);
-  color: var(--red);
-  border-color: rgba(var(--red-rgb), 0.3);
-  display: none; /* Hidden by default */
+    background-color: rgba(214, 48, 49, 0.15);
+    color: var(--cs-error-color);
+    border-color: var(--cs-error-color);
+    display: none; /* Hidden by default */
 }
 
+.cs-veto-result-message {
+  margin-top: 15px;
+  font-weight: bold;
+  padding: 8px 0;
+}
+
+/* --- Tables --- */
 .cs-detection-table {
-  width: 100%; 
-  margin-top: 15px; 
-  border-spacing: 0 12px; 
+  width: 100%;
+  margin-top: 15px;
+  border-spacing: 0 10px;
   border-collapse: separate;
 }
 
 .cs-detection-table .cs-detection-label {
-  width: 35%; 
-  vertical-align: top;
+  width: 35%;
+  vertical-align: middle;
 }
 
+/* --- Live Tester --- */
 #cs-regex-test-output-container {
-  display: flex; 
-  gap: 10px; 
-  padding: 10px; 
-  min-height: 100px; 
-  margin-top: 10px; 
-  background-color: var(--bg0);
+    display: flex;
+    gap: 15px;
+    padding: 15px;
+    min-height: 120px;
+    margin-top: 15px;
+    background-color: var(--cs-background-main);
+    border-radius: var(--cs-border-radius);
 }
 
 .cs-test-column {
-  flex: 1;
+    flex: 1;
 }
 
 .cs-test-column:first-child {
-  border-right: 1px solid var(--border); 
-  padding-right: 10px;
+    border-right: 1px solid var(--cs-border-color);
+    padding-right: 15px;
 }
 
 .cs-test-header {
-  font-weight: bold; 
-  margin-bottom: 5px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: var(--cs-primary-color);
 }
 
 .cs-test-list {
-  list-style-position: inside; 
-  padding: 0; 
-  margin: 0; 
-  font-size: 0.9em;
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.95em;
+    color: var(--cs-text-secondary);
 }
 
-#costume-switcher-settings .menu_button {
-  font-family: inherit;
+.cs-test-list li {
+    padding: 5px;
+    border-radius: 4px;
+    transition: background-color var(--cs-transition-speed) ease;
+}
+
+.cs-test-list li:hover {
+    background-color: var(--cs-primary-color-faded);
+}
+
+/* --- Checkboxes --- */
+input[type="checkbox"] {
+    margin-right: 10px;
+    transform: scale(1.2);
+    accent-color: var(--cs-primary-color);
 }
