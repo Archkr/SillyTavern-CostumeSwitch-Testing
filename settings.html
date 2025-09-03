@@ -1,19 +1,59 @@
 <style>
-  #costume-switcher-settings { padding: 10px; border-radius: 8px; background-color: var(--bg1); }
-  .cs-block { margin-bottom: 20px; padding: 15px; border-radius: 6px; background-color: var(--bg2); border: 1px solid var(--border); }
-  #costume-switcher-settings small { display: block; margin-top: 5px; color: var(--text-color-soft); font-size: 0.85em; }
-  .cs-flex-container { display: flex; gap: 10px; margin-top: 15px; }
-  .cs-status-message, .cs-error-message { margin-top: 15px; padding: 10px; border-radius: 4px; font-weight: bold; border: 1px solid transparent; }
-  .cs-status-message { background-color: rgba(var(--green-rgb), 0.15); color: var(--green); border-color: rgba(var(--green-rgb), 0.3); }
-  .cs-error-message { background-color: rgba(var(--red-rgb), 0.15); color: var(--red); border-color: rgba(var(--red-rgb), 0.3); display: none; }
-  #costume-switcher-settings .menu_button { font-family: inherit; }
-  .inline-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  #costume-switcher-settings {
+    padding: 10px;
+    border-radius: 8px;
+    background-color: var(--bg1);
+  }
+
+  .cs-block {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 6px;
+    background-color: var(--bg2);
+    border: 1px solid var(--border);
+  }
+
+  #costume-switcher-settings small {
+    display: block;
+    margin-top: 5px;
+    color: var(--text-color-soft);
+    font-size: 0.85em;
+  }
+
+  .cs-flex-container {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+  }
+
+  .cs-status-message, .cs-error-message {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 4px;
+    font-weight: bold;
+    border: 1px solid transparent;
+  }
+  .cs-status-message {
+    background-color: rgba(var(--green-rgb), 0.15);
+    color: var(--green);
+    border-color: rgba(var(--green-rgb), 0.3);
+  }
+  .cs-error-message {
+    background-color: rgba(var(--red-rgb), 0.15);
+    color: var(--red);
+    border-color: rgba(var(--red-rgb), 0.3);
+    display: none;
+  }
+
+  #costume-switcher-settings .menu_button {
+    font-family: inherit;
+  }
 </style>
 
 <div id="costume-switcher-settings" class="extension_container">
   <div class="inline-drawer is-open">
     <div class="inline-drawer-toggle inline-drawer-header">
-      <b>Costume Switcher (v1.3.0 Hybrid)</b>
+      <b>Costume Switcher</b>
       <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
     <div class="inline-drawer-content">
@@ -27,9 +67,9 @@
         </div>
         <div style="display: flex; gap: 10px; margin-top: 10px;">
           <input id="cs-profile-name" class="text_pole" type="text" placeholder="Enter profile name..." style="flex-grow: 1;">
-          <button id="cs-profile-save" class="menu_button interactable">Save / Rename</button>
+          <button id="cs-profile-save" class="menu_button interactable">Save</button>
         </div>
-        <small>Type a new name to create a new profile from the current settings. Editing the name and saving will rename the current profile.</small>
+        <small>Type a new name to create a duplicate profile. Using the existing name will overwrite the current one.</small>
       </div>
 
       <div class="cs-block">
@@ -51,12 +91,13 @@
         <label for="cs-patterns"><b>Character Patterns</b></label>
         <textarea id="cs-patterns" class="text_pole" rows="3" placeholder="Character One&#10;Character Two&#10;/Regular Expression/"></textarea>
         <small>Enter character names, one per line. Supports simple names or /regex/.</small>
+        <small style="margin-top: 10px; color: var(--text-color-soft-extra);"><b>Tip:</b> For best results, list longer names before shorter names that are part of them (e.g., list 'Arthur' before 'Art'). Avoid overly complex regex to prevent performance issues.</small>
       </div>
 
       <div class="cs-block">
         <label for="cs-default"><b>Default Costume</b></label>
         <input id="cs-default" class="text_pole" type="text" placeholder="e.g., neutral" />
-        <small>The costume folder to use when no character is detected. Leave blank to use main avatar.</small>
+        <small>The costume folder to use when no character is detected. Leave blank to use the main avatar.</small>
       </div>
 
       <div class="inline-drawer">
@@ -69,31 +110,31 @@
           <div class="cs-block">
             <label for="cs-ignore-patterns"><b>Ignored Characters</b></label>
             <textarea id="cs-ignore-patterns" class="text_pole" rows="2" placeholder="Char A&#10;/Narrator/"></textarea>
-            <small>Any character pattern on this list will be ignored during detection.</small>
+            <small>Any character pattern on this list will be ignored during detection. Useful for temporarily disabling a character.</small>
           </div>
 
           <div class="cs-block">
             <label for="cs-veto-patterns"><b>Veto Phrases</b></label>
             <textarea id="cs-veto-patterns" class="text_pole" rows="2" placeholder="OOC:&#10;(OOC)"></textarea>
-            <small>If any of these phrases or /regex/ are found, the <b>entire message</b> is ignored.</small>
+            <small>If any of these phrases or /regex/ patterns are found, the <b>entire message</b> will be ignored, preventing any switch.</small>
           </div>
 
           <div class="cs-block">
-            <label><b>Detection Methods</b></label>
-            <small>Enable these for flexible detection in narrative text.</small>
+            <label><b>Detection Methods (for Novel Style)</b></label>
+            <small>Enable these for flexible detection in narrative text. For simple `Name: "Dialogue"` script style, uncheck all of them.</small>
             <table style="width: 100%; margin-top: 15px; border-spacing: 0 12px; border-collapse: separate;">
               <tbody>
                 <tr>
                   <td style="width: 35%; vertical-align: top;"><input id="cs-detect-attribution" type="checkbox" /><label for="cs-detect-attribution"> Detect Attribution</label></td>
-                  <td><small>Finds dialogue attribution, like <em>"Hello," she said</em> or <em>He answered, "..."</em></small></td>
+                  <td><small>Finds dialogue attribution, like <em>"Hello," she said.</em></small></td>
                 </tr>
                 <tr>
                   <td style="vertical-align: top;"><input id="cs-detect-action" type="checkbox" /><label for="cs-detect-action"> Detect Action</label></td>
-                  <td><small>Finds character actions, like <em>He nodded.</em> <b>(Can cause false positives with complex sentences)</b></small></td>
+                  <td><small>Finds character actions, like <em>He nodded.</em></small></td>
                 </tr>
                 <tr>
                   <td style="vertical-align: top;"><input id="cs-detect-vocative" type="checkbox" /><label for="cs-detect-vocative"> Detect Vocative</label></td>
-                  <td><small>Finds when a character is addressed by name, like <em>"Hello, Bob."</em></small></td>
+                  <td><small>Finds when a character is addressed by name.</small></td>
                 </tr>
                 <tr>
                   <td style="vertical-align: top;"><input id="cs-detect-possessive" type="checkbox" /><label for="cs-detect-possessive"> Detect Possessive</label></td>
@@ -101,7 +142,7 @@
                 </tr>
                 <tr>
                   <td style="vertical-align: top;"><input id="cs-detect-general" type="checkbox" /><label for="cs-detect-general"> Detect General Mentions</label></td>
-                  <td><small><b>(Use with caution)</b> Triggers on any name mention. Can be inaccurate and is worth very few points.</small></td>
+                  <td><small><b>(Use with caution)</b> Triggers on any name mention. Can be inaccurate.</small></td>
                 </tr>
               </tbody>
             </table>
@@ -109,39 +150,37 @@
 
           <div class="cs-block">
             <label for="cs-attribution-verbs"><b>Attribution Verbs</b></label>
-            <small>Verbs for dialogue attribution (one per line). Supports multi-word phrases.</small>
+            <small>Comma-separated list of verbs used for `Detect Attribution`. Edit this to add words or support other languages.</small>
             <textarea id="cs-attribution-verbs" class="text_pole" rows="4"></textarea>
           </div>
 
           <div class="cs-block">
             <label for="cs-action-verbs"><b>Action Verbs</b></label>
-            <small>Verbs for character actions (one per line). Supports multi-word phrases.</small>
+            <small>Comma-separated list of verbs used for `Detect Action`. Edit this to add words or support other languages.</small>
             <textarea id="cs-action-verbs" class="text_pole" rows="4"></textarea>
           </div>
 
           <div class="cs-block">
-            <label><b>Performance & Tuning</b></label>
-            <div class="inline-grid" style="margin-top: 10px;">
-              <div class="inline-group">
-                <label for="cs-global-cooldown">Global Cooldown (ms)</label>
-                <input id="cs-global-cooldown" class="text_pole" type="number" min="0" />
-                <small>Min time between any two switches.</small>
-              </div>
-              <div class="inline-group">
-                <label for="cs-per-trigger-cooldown">Per-Trigger Cooldown (ms)</label>
-                <input id="cs-per-trigger-cooldown" class="text_pole" type="number" min="0" />
-                <small>Cooldown for a specific costume after it's used.</small>
-              </div>
-              <div class="inline-group">
-                <label for="cs-failed-trigger-cooldown">Failed Trigger Cooldown (ms)</label>
-                <input id="cs-failed-trigger-cooldown" class="text_pole" type="number" min="0" />
-                <small>Cooldown if a costume command fails.</small>
-              </div>
-              <div class="inline-group">
-                <label for="cs-analysis-cooldown">Analysis Cooldown (ms)</label>
-                <input id="cs-analysis-cooldown" class="text_pole" type="number" min="0" />
-                <small>Delay before running analysis after text stops streaming.</small>
-              </div>
+            <label><b>Performance Tuning</b></label>
+            <div class="inline-group" style="margin-top: 10px;">
+              <label for="cs-global-cooldown">Global Cooldown (ms)</label>
+              <input id="cs-global-cooldown" class="text_pole" type="number" min="0" />
+              <small>Minimum time between any two switches to prevent flickering.</small>
+            </div>
+            <div class="inline-group" style="margin-top: 10px;">
+              <label for="cs-repeat-suppress">Repeat Suppression (ms)</label>
+              <input id="cs-repeat-suppress" class="text_pole" type="number" min="0" />
+              <small>Minimum time before the *same* character can trigger another switch.</small>
+            </div>
+            <div class="inline-group" style="margin-top: 10px;">
+              <label for="cs-token-process-threshold">Token Process Threshold (chars)</label>
+              <input id="cs-token-process-threshold" class="text_pole" type="number" min="0" />
+              <small>How many characters to wait for before checking. Lower is more reactive but uses more CPU. Higher is smoother but may react slower.</small>
+            </div>
+            <div class="inline-group" style="margin-top: 15px;">
+              <label for="cs-detection-bias">Detection Bias (<span id="cs-detection-bias-value">0</span>)</label>
+              <input id="cs-detection-bias" type="range" min="-200" max="200" value="0" style="width: 100%;" />
+              <small>Adjusts detection accuracy. Higher values favor action/dialogue tags; lower values favor the most recently mentioned character.</small>
             </div>
           </div>
 
@@ -160,12 +199,6 @@
             <small>Paste text to see detections based on your current settings.</small>
             <textarea id="cs-regex-test-input" class="text_pole" rows="4" placeholder="Paste a message here..." style="margin-top: 10px;"></textarea>
             <button id="cs-regex-test-button" class="menu_button interactable">Test Pattern</button>
-            <div style="margin-top:10px; font-size:0.9em;">
-                <b>Veto Status:</b>
-                <ul id="cs-test-veto-status" style="list-style-position: inside; padding: 0; margin: 0; display: inline;">
-                    <li style="color: var(--text-color-soft); display: inline;">N/A</li>
-                </ul>
-            </div>
             <div id="cs-regex-test-output-container" class="text_pole" style="display: flex; gap: 10px; padding: 10px; min-height: 100px; margin-top: 10px; background-color: var(--bg0);">
               <div style="flex: 1; border-right: 1px solid var(--border); padding-right: 10px;">
                 <div style="font-weight: bold; margin-bottom: 5px;">All Detections (in order):</div>
@@ -174,11 +207,10 @@
                 </ul>
               </div>
               <div style="flex: 1;">
-                <div style="font-weight: bold; margin-bottom: 5px;">Winning Character (by score):</div>
+                <div style="font-weight: bold; margin-bottom: 5px;">Winning Detections (in order):</div>
                 <ul id="cs-test-winner-list" style="list-style-position: inside; padding: 0; margin: 0; font-size: 0.9em;">
                   <li style="color: var(--text-color-soft);">N/A</li>
-                </ul>
-              </div>
+                
             </div>
           </div>
           
