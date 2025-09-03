@@ -1,55 +1,7 @@
-<style>
-  #costume-switcher-settings {
-    padding: 10px;
-    border-radius: 8px;
-    background-color: var(--bg1);
-  }
-
-  .cs-block {
-    margin-bottom: 20px;
-    padding: 15px;
-    border-radius: 6px;
-    background-color: var(--bg2);
-    border: 1px solid var(--border);
-  }
-
-  #costume-switcher-settings small {
-    display: block;
-    margin-top: 5px;
-    color: var(--text-color-soft);
-    font-size: 0.85em;
-  }
-
-  .cs-flex-container {
-    display: flex;
-    gap: 10px;
-    margin-top: 15px;
-  }
-
-  .cs-status-message, .cs-error-message {
-    margin-top: 15px;
-    padding: 10px;
-    border-radius: 4px;
-    font-weight: bold;
-    border: 1px solid transparent;
-  }
-  .cs-status-message {
-    background-color: rgba(var(--green-rgb), 0.15);
-    color: var(--green);
-    border-color: rgba(var(--green-rgb), 0.3);
-  }
-  .cs-error-message {
-    background-color: rgba(var(--red-rgb), 0.15);
-    color: var(--red);
-    border-color: rgba(var(--red-rgb), 0.3);
-    display: none;
-  }
-
-  #costume-switcher-settings .menu_button {
-    font-family: inherit;
-  }
-</style>
-
+<!-- 
+  This HTML file contains the structure for the Costume Switcher settings panel.
+  The corresponding styles are in style.css, which SillyTavern will load automatically.
+-->
 <div id="costume-switcher-settings" class="extension_container">
   <div class="inline-drawer is-open">
     <div class="inline-drawer-toggle inline-drawer-header">
@@ -61,11 +13,11 @@
       <div class="cs-block">
         <label for="cs-profile-select"><b>Profiles</b></label>
         <small>Save and load different configurations for various chats or characters.</small>
-        <div style="display: flex; gap: 10px; margin-top: 10px;">
+        <div class="cs-flex-container" style="margin-top: 10px;">
           <select id="cs-profile-select" class="text_pole" style="flex-grow: 1;"></select>
           <button id="cs-profile-delete" class="menu_button interactable" title="Delete Selected Profile">Delete</button>
         </div>
-        <div style="display: flex; gap: 10px; margin-top: 10px;">
+        <div class="cs-flex-container" style="margin-top: 10px;">
           <input id="cs-profile-name" class="text_pole" type="text" placeholder="Enter profile name..." style="flex-grow: 1;">
           <button id="cs-profile-save" class="menu_button interactable">Save</button>
         </div>
@@ -75,7 +27,7 @@
       <div class="cs-block">
         <label for="cs-focus-lock-select"><b>Manual Focus Lock</b></label>
         <small>Force the costume to a specific character, overriding all automatic detection.</small>
-        <div style="display: flex; gap: 10px; margin-top: 10px;">
+        <div class="cs-flex-container" style="margin-top: 10px;">
             <select id="cs-focus-lock-select" class="text_pole" style="flex-grow: 1;"></select>
             <button id="cs-focus-lock-toggle" class="menu_button interactable">Lock</button>
         </div>
@@ -91,7 +43,7 @@
         <label for="cs-patterns"><b>Character Patterns</b></label>
         <textarea id="cs-patterns" class="text_pole" rows="3" placeholder="Character One&#10;Character Two&#10;/Regular Expression/"></textarea>
         <small>Enter character names, one per line. Supports simple names or /regex/.</small>
-        <small style="margin-top: 10px; color: var(--text-color-soft-extra);"><b>Tip:</b> For best results, list longer names before shorter names that are part of them (e.g., list 'Arthur' before 'Art'). Avoid overly complex regex to prevent performance issues.</small>
+        <small class="cs-tip"><b>Tip:</b> For best results, list longer names before shorter names that are part of them (e.g., list 'Arthur' before 'Art').</small>
       </div>
 
       <div class="cs-block">
@@ -122,26 +74,26 @@
           <div class="cs-block">
             <label><b>Detection Methods (for Novel Style)</b></label>
             <small>Enable these for flexible detection in narrative text. For simple `Name: "Dialogue"` script style, uncheck all of them.</small>
-            <table style="width: 100%; margin-top: 15px; border-spacing: 0 12px; border-collapse: separate;">
+            <table class="cs-detection-table">
               <tbody>
                 <tr>
-                  <td style="width: 35%; vertical-align: top;"><input id="cs-detect-attribution" type="checkbox" /><label for="cs-detect-attribution"> Detect Attribution</label></td>
+                  <td class="cs-detection-label"><input id="cs-detect-attribution" type="checkbox" /><label for="cs-detect-attribution"> Detect Attribution</label></td>
                   <td><small>Finds dialogue attribution, like <em>"Hello," she said.</em></small></td>
                 </tr>
                 <tr>
-                  <td style="vertical-align: top;"><input id="cs-detect-action" type="checkbox" /><label for="cs-detect-action"> Detect Action</label></td>
+                  <td class="cs-detection-label"><input id="cs-detect-action" type="checkbox" /><label for="cs-detect-action"> Detect Action</label></td>
                   <td><small>Finds character actions, like <em>He nodded.</em></small></td>
                 </tr>
                 <tr>
-                  <td style="vertical-align: top;"><input id="cs-detect-vocative" type="checkbox" /><label for="cs-detect-vocative"> Detect Vocative</label></td>
+                  <td class="cs-detection-label"><input id="cs-detect-vocative" type="checkbox" /><label for="cs-detect-vocative"> Detect Vocative</label></td>
                   <td><small>Finds when a character is addressed by name.</small></td>
                 </tr>
                 <tr>
-                  <td style="vertical-align: top;"><input id="cs-detect-possessive" type="checkbox" /><label for="cs-detect-possessive"> Detect Possessive</label></td>
+                  <td class="cs-detection-label"><input id="cs-detect-possessive" type="checkbox" /><label for="cs-detect-possessive"> Detect Possessive</label></td>
                   <td><small>Finds ownership, like <em>Her eyes widened.</em></small></td>
                 </tr>
                 <tr>
-                  <td style="vertical-align: top;"><input id="cs-detect-general" type="checkbox" /><label for="cs-detect-general"> Detect General Mentions</label></td>
+                  <td class="cs-detection-label"><input id="cs-detect-general" type="checkbox" /><label for="cs-detect-general"> Detect General Mentions</label></td>
                   <td><small><b>(Use with caution)</b> Triggers on any name mention. Can be inaccurate.</small></td>
                 </tr>
               </tbody>
@@ -199,18 +151,19 @@
             <small>Paste text to see detections based on your current settings.</small>
             <textarea id="cs-regex-test-input" class="text_pole" rows="4" placeholder="Paste a message here..." style="margin-top: 10px;"></textarea>
             <button id="cs-regex-test-button" class="menu_button interactable">Test Pattern</button>
-            <div id="cs-regex-test-output-container" class="text_pole" style="display: flex; gap: 10px; padding: 10px; min-height: 100px; margin-top: 10px; background-color: var(--bg0);">
-              <div style="flex: 1; border-right: 1px solid var(--border); padding-right: 10px;">
-                <div style="font-weight: bold; margin-bottom: 5px;">All Detections (in order):</div>
-                <ul id="cs-test-all-detections" style="list-style-position: inside; padding: 0; margin: 0; font-size: 0.9em;">
+            <div id="cs-regex-test-output-container" class="text_pole">
+              <div class="cs-test-column">
+                <div class="cs-test-header">All Detections (in order):</div>
+                <ul id="cs-test-all-detections" class="cs-test-list">
                   <li style="color: var(--text-color-soft);">Results will appear here.</li>
                 </ul>
               </div>
-              <div style="flex: 1;">
-                <div style="font-weight: bold; margin-bottom: 5px;">Winning Detections (in order):</div>
-                <ul id="cs-test-winner-list" style="list-style-position: inside; padding: 0; margin: 0; font-size: 0.9em;">
+              <div class="cs-test-column">
+                <div class="cs-test-header">Winning Detections (in order):</div>
+                <ul id="cs-test-winner-list" class="cs-test-list">
                   <li style="color: var(--text-color-soft);">N/A</li>
-                
+                </ul>
+              </div>
             </div>
           </div>
           
