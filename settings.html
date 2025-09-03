@@ -13,7 +13,7 @@
 <div id="costume-switcher-settings" class="extension_container">
   <div class="inline-drawer is-open">
     <div class="inline-drawer-toggle inline-drawer-header">
-      <b>Costume Switcher (v1.5.1 Hybrid)</b>
+      <b>Costume Switcher (v1.3.0 Hybrid)</b>
       <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
     <div class="inline-drawer-content">
@@ -137,18 +137,12 @@
                 <input id="cs-failed-trigger-cooldown" class="text_pole" type="number" min="0" />
                 <small>Cooldown if a costume command fails.</small>
               </div>
-               <div class="inline-group">
-                <label for="cs-token-process-threshold">Process Threshold (chars)</label>
-                <input id="cs-token-process-threshold" class="text_pole" type="number" min="0" />
-                <small>This setting is no longer used by the Hybrid Engine.</small>
-              </div>
               <div class="inline-group">
-                <label for="cs-max-buffer-chars">Max Buffer (chars)</label>
-                <input id="cs-max-buffer-chars" class="text_pole" type="number" min="0" />
-                <small>This setting is no longer used by the Hybrid Engine.</small>
+                <label for="cs-analysis-cooldown">Analysis Cooldown (ms)</label>
+                <input id="cs-analysis-cooldown" class="text_pole" type="number" min="0" />
+                <small>Delay before running analysis after text stops streaming.</small>
               </div>
             </div>
-            <!-- REMOVED Detection Bias slider as it's no longer needed with the new scoring model -->
           </div>
 
           <div class="cs-block">
