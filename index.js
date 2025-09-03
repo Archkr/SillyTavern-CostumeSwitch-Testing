@@ -208,6 +208,14 @@ jQuery(async () => {
         settings.activeProfile = profileName;
         const profile = getActiveProfile(settings);
 
+        // FIX: Ensure verb lists are arrays to prevent crash when loading old string-based settings.
+        if (typeof profile.attributionVerbs === 'string') {
+            profile.attributionVerbs = profile.attributionVerbs.split(/[\n,|]/).map(s => s.trim()).filter(Boolean);
+        }
+        if (typeof profile.actionVerbs === 'string') {
+            profile.actionVerbs = profile.actionVerbs.split(/[\n,|]/).map(s => s.trim()).filter(Boolean);
+        }
+
         $("#cs-profile-name").val(profileName);
         $("#cs-patterns").val((profile.patterns || []).join("\n"));
         $("#cs-ignore-patterns").val((profile.ignorePatterns || []).join("\n"));
@@ -706,7 +714,7 @@ jQuery(async () => {
     try { unload(); } catch (e) {}
     try { eventSource.on(streamEventName, _streamHandler); eventSource.on(event_types.GENERATION_STARTED, _genStartHandler); eventSource.on(event_types.GENERATION_ENDED, _genEndHandler); eventSource.on(event_types.MESSAGE_RECEIVED, _msgRecvHandler); eventSource.on(event_types.CHAT_CHANGED, _chatChangedHandler); } catch (e) { console.error("CostumeSwitch: failed to attach event handlers:", e); }
     try { window[`__${extensionName}_unload`] = unload; } catch (e) {}
-    console.log("SillyTavern-CostumeSwitch v1.2.1 loaded successfully.");
+    console.log("SillyTavern-CostumeSwitch v1.2.2 loaded successfully.");
 });
 
 function getSettingsObj() {
