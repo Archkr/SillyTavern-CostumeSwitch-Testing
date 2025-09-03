@@ -105,8 +105,6 @@ function buildVocativeRegex(patternList) {
 }
 
 
-// --- NEW REGEX LOGIC (v1.2.3) ---
-
 function buildAttributionRegex(patternList, verbList) {
     const entries = (patternList || []).map(parsePatternEntry).filter(Boolean);
     if (!entries.length) return null;
@@ -135,13 +133,19 @@ function buildActionRegex(patternList, verbList) {
     if (!verbs) return null;
 
     const optionalMiddleName = `(?:\\s+[A-Z][a-z]+)*`;
-    // Stricter pattern: Character Verb. Allows for one optional adverb.
-    const body = `\\b(${names})${optionalMiddleName}(?:\\s+\\w+)?\\s+(?:${verbs})\\b`;
+    
+    // v1.2.5: Expanded to detect both direct and possessive actions.
+    // Pattern for direct action: Character Verb. Allows for one optional adverb.
+    const directAction = `\\b(${names})${optionalMiddleName}(?:\\s+\\w+)?\\s+(?:${verbs})\\b`;
+
+    // Pattern for possessive action: Character's Noun Verb. Allows for one optional adverb.
+    const possessiveAction = `\\b(${names})[’\`'’]s\\s+\\w+(?:\\s+\\w+)?\\s+(?:${verbs})\\b`;
+
+    const body = `(?:${directAction})|(?:${possessiveAction})`;
 
     const flags = computeFlagsFromEntries(entries, true);
     try { return new RegExp(body, flags) } catch (err) { console.warn("buildActionRegex compile failed:", err); return null }
 }
-// --- END NEW REGEX LOGIC ---
 
 
 function getQuoteRanges(s) {
@@ -166,7 +170,10 @@ function findMatches(combined, regex, quoteRanges, searchInsideQuotes = !1) {
     return results
 }
 function findAllMatches(combined, regexes, settings, quoteRanges) {
-    const allMatches = [], { speakerRegex, attributionRegex, actionRegex, vocativeRegex, nameRegex } = regexes, priorities = { speaker: 5, attribution: 4, action: 3, vocative: 2, possessive: 1, name: 0 };
+    const allMatches = [], { speakerRegex, attributionRegex, actionRegex, vocativeRegex, nameRegex } = regexes;
+    // v1.2.5: Changed 'name' priority to be negative to make it a true last resort.
+    const priorities = { speaker: 5, attribution: 4, action: 3, vocative: 2, possessive: 1, name: -1 };
+    
     if (speakerRegex && findMatches(combined, speakerRegex, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, matchKind: "speaker", matchIndex: m.index, priority: priorities.speaker }) }), settings.detectAttribution && attributionRegex && findMatches(combined, attributionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, matchKind: "attribution", matchIndex: m.index, priority: priorities.attribution }) }), settings.detectAction && actionRegex && findMatches(combined, actionRegex, quoteRanges).forEach(m => { const name = m.groups?.find(g => g)?.trim(); name && allMatches.push({ name, matchKind: "action", matchIndex: m.index, priority: priorities.action }) }), settings.detectVocative && vocativeRegex && findMatches(combined, vocativeRegex, quoteRanges, !0).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, matchKind: "vocative", matchIndex: m.index, priority: priorities.vocative }) }), settings.detectPossessive && settings.patterns?.length) {
         const names_poss = settings.patterns.map(s => (s || "").trim()).filter(Boolean); if (names_poss.length) { const possRe = new RegExp("\\b(" + names_poss.map(escapeRegex).join("|") + ")[’'`']s\\b", "gi"); findMatches(combined, possRe, quoteRanges).forEach(m => { const name = m.groups?.[0]?.trim(); name && allMatches.push({ name, matchKind: "possessive", matchIndex: m.index, priority: priorities.possessive }) }) }
     }
@@ -178,20 +185,11 @@ function findBestMatch(combined, regexes, settings, quoteRanges) {
     const allMatches = findAllMatches(combined, regexes, settings, quoteRanges);
     if (allMatches.length === 0) return null;
 
-    // v1.2.4: Reworked scoring logic.
-    // The priority of a match type (e.g., speaker > action > general mention) is now the
-    // dominant factor in scoring, preventing low-priority matches (like a passive name drop)
-    // from overriding a high-priority match (like who is speaking or acting) just because
-    // it appeared later in the text.
-    const priorityWeight = 500; // This value ensures priority is more important than index.
-
+    const priorityWeight = 500; 
     const bias = Number(settings.detectionBias || 0);
 
     const scoredMatches = allMatches.map(match => {
-        // Base score is now heavily influenced by the match type's priority.
         let score = (match.priority * priorityWeight) + match.matchIndex;
-
-        // The bias setting now fine-tunes the score for "active" matches (speaker, attribution, action).
         if (match.priority >= 3) {
             score += bias;
         }
@@ -200,7 +198,6 @@ function findBestMatch(combined, regexes, settings, quoteRanges) {
 
     if (scoredMatches.length === 0) return null;
 
-    // Sort by the new, more robust score in descending order.
     scoredMatches.sort((a, b) => b.score - a.score);
     
     debugLog(settings, 'Top matches:', scoredMatches.slice(0, 3).map(m=>`${m.name} (${m.matchKind}/${m.priority}) -> ${Math.round(m.score)}`));
@@ -761,7 +758,7 @@ jQuery(async () => {
         eventSource.on(event_types.CHAT_CHANGED, _chatChangedHandler);
     } catch (e) { console.error("CostumeSwitch: failed to attach event handlers:", e); }
     try { window[`__${extensionName}_unload`] = unload; } catch (e) { }
-    console.log("SillyTavern-CostumeSwitch v1.2.4 loaded successfully.");
+    console.log("SillyTavern-CostumeSwitch v1.2.5 loaded successfully.");
 });
 
 function getSettingsObj() {
