@@ -43,7 +43,7 @@ const DEFAULTS = {
 };
 
 // =================================================================
-// DETECTION & NORMALIZATION MODULE (v1.3.2 Drop-in)
+// DETECTION & NORMALIZATION MODULE (v1.3.4 Patched)
 // =================================================================
 
 // Simple regex compile cache (cleared when patterns change)
@@ -61,21 +61,37 @@ function compileRegexFromBody(body, flags = '') {
     }
 }
 
-// normalize a character / folder name into canonical text
+// PATCHED: Normalizes Series/Character style names
 function normalizeCostumeName(n) {
-    if (!n) return '';
+    if (!n) return "";
     let s = String(n).trim();
-    s = s.replace(/^[\\\/]+/, '').replace(/^["']|["']$/g, '').trim();
-    s = s.replace(/\s+/g, ' ');
-    s = s.replace(/[-_](?:sama|san)$/i, '').trim();
-    return s;
+    // strip leading slash if user typed "/Kotori" etc
+    if (s.startsWith("/")) s = s.slice(1).trim();
+
+    // If user uses the Series/Character form, take the last segment after '/'
+    if (s.includes("/")) {
+        const parts = s.split("/").map(p => String(p || "").trim()).filter(Boolean);
+        s = parts.length ? parts[parts.length - 1] : s;
+    }
+
+    // By default take the first token (folder names are often single words).
+    // This keeps backward compatibility with older behavior when there's no slash.
+    const first = (s.split(/\s+/).filter(Boolean)[0]) || s;
+
+    // remove honorific-like suffixes sometimes tacked onto names
+    return String(first).replace(/[-_](?:sama|san)$/i, "").trim();
 }
 
-// PATCHED: Removed extra backslash from command string
+
+// PATCHED: Build a safe /costume command string. Returns { command, folderName }.
 function buildCostumeCommand(folder) {
     const f = normalizeCostumeName(folder);
-    // send /costume <folder> (no stray backslash). If empty, just send "/costume" to reset to main avatar.
-    return { command: f ? `/costume ${f}` : `/costume`, folderName: f };
+    if (!f) return { command: `/costume`, folderName: "" };
+
+    // If folder contains spaces or special chars, quote it (escape any internal quotes).
+    const needsQuotes = /[\s"']/.test(f);
+    const safeFolder = needsQuotes ? `"${String(f).replace(/"/g, '\\"')}"` : f;
+    return { command: `/costume ${safeFolder}`, folderName: f };
 }
 
 
@@ -107,13 +123,11 @@ function findMatches(combined, regex, quoteRanges, allowInsideQuotes = false) {
     while ((m = re.exec(combined)) !== null) {
         const idx = m.index || 0;
         if (!allowInsideQuotes && isIndexInsideQuotesRanges(quoteRanges, idx)) {
-            // prevent infinite loop if zero-length match
             if (re.lastIndex === m.index) re.lastIndex++;
             continue;
         }
         results.push({
             match: m[0],
-            // keep both `index` for legacy and `matchIndex` for clarity
             index: idx,
             matchIndex: idx,
             groupsArray: Array.prototype.slice.call(m).slice(1),
@@ -161,10 +175,7 @@ function findBestMatchFromList(combined, matches = [], settings = {}, lastAccept
     const BIAS_MULT_HIGH = Number(profile.biasMultiplierHigh || 6);
     const BIAS_MULT_LOW = Number(profile.biasMultiplierLow || 1);
     const STICKINESS_BONUS = Number(profile.stickinessWeight || (PRIORITY_WEIGHT / 2));
-
-    // Canonicalize lastAcceptedName for quick compares
     const lastAcceptedCanonical = lastAcceptedName ? normalizeCostumeName(lastAcceptedName).toLowerCase() : null;
-
     const scored = matches.map(m => {
         const recencyNorm = (m.matchIndex / bufferLen) * 1000;
         let score = (m.priority * PRIORITY_WEIGHT) + recencyNorm;
@@ -176,18 +187,16 @@ function findBestMatchFromList(combined, matches = [], settings = {}, lastAccept
         }
         return { ...m, score, recencyNorm, candidateCanonical };
     });
-
     scored.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
         if (b.priority !== a.priority) return b.priority - a.priority;
         return b.matchIndex - a.matchIndex;
     });
-
     debugLog(settings, 'Top detection candidates:', scored.slice(0,3).map(s=>`${s.name}[${s.matchKind}] idx:${s.matchIndex} pr:${s.priority} sc:${Math.round(s.score)}`));
     return scored[0] || null;
 }
 
-// Helpers for building user-provided regexes (safe building + flags extraction)
+// Helpers for building user-provided regexes
 function escapeRegex(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function parsePatternEntry(raw) {
     const t = String(raw || '').trim();
@@ -256,49 +265,34 @@ function buildActionRegex(patternList, verbList) {
     try { return compileRegexFromBody(body, flags) } catch (err) { console.warn("buildActionRegex failed:", err); return null; }
 }
 
-// findAllMatches: returns matches with canonicalName for efficient later compares
 function findAllMatches(combined, regexes, settings, quoteRanges) {
     const allMatches = [];
     const { speakerRegex, attributionRegex, actionRegex, vocativeRegex } = regexes || {};
     const priorities = { speaker: 5, attribution: 4, action: 3, vocative: 2, possessive: 1, name: 1 };
-
     const pushFromMatches = (ms, kind, priority) => {
         ms.forEach(m => {
             const name = getMatchedName(m);
             if (!name) return;
             const canonicalName = normalizeCostumeName(name);
-            allMatches.push({
-                name,
-                canonicalName,
-                matchKind: kind,
-                matchIndex: m.matchIndex,
-                priority,
-                matchText: m.match,
-                matchLength: m.matchLength
-            });
+            allMatches.push({ name, canonicalName, matchKind: kind, matchIndex: m.matchIndex, priority, matchText: m.match, matchLength: m.matchLength });
         });
     };
-
     if (speakerRegex) pushFromMatches(findMatches(combined, speakerRegex, quoteRanges, false), "speaker", priorities.speaker);
     if (settings?.detectAttribution && attributionRegex) pushFromMatches(findMatches(combined, attributionRegex, quoteRanges, false), "attribution", priorities.attribution);
     if (settings?.detectAction && actionRegex) pushFromMatches(findMatches(combined, actionRegex, quoteRanges, false), "action", priorities.action);
     if (settings?.detectVocative && vocativeRegex) pushFromMatches(findMatches(combined, vocativeRegex, quoteRanges, true), "vocative", priorities.vocative);
-
     if (settings?.detectPossessive && settings.patterns?.length) {
         const body = `\\b(${(settings.patterns || []).map(p => parsePatternEntry(p)?.body).filter(Boolean).join("|")})[’\`'’]s\\b`;
         const possRe = compileRegexFromBody(body, "gi");
         pushFromMatches(findMatches(combined, possRe, quoteRanges, false), "possessive", priorities.possessive);
     }
-
     if (settings?.detectGeneral) {
         const nameRegex = buildGenericRegex(settings.patterns);
         if (nameRegex) pushFromMatches(findMatches(combined, nameRegex, quoteRanges, false), "name", priorities.name);
     }
-
     return allMatches;
 }
 
-// small stream helpers and buffer-signature per-message
 function makeBufferSignature(s, tailLen = 512) {
     if (!s) return '';
     const tail = s.length > tailLen ? s.slice(-tailLen) : s;
@@ -313,7 +307,6 @@ function shouldProcessBufferForKey(combined, bufKey) {
     return true;
 }
 
-// safer waitForSelector (mutation observer + fallback)
 function waitForSelector(selector, timeout = 3000) {
     return new Promise(resolve => {
         try {
@@ -350,27 +343,22 @@ function ensureBufferLimit() { if (perMessageBuffers.size > MAX_MESSAGE_BUFFERS)
 function debugLog(settings, ...args) { if (settings && getActiveProfile(settings)?.debug) console.debug("[CostumeSwitch]", ...args); }
 function getActiveProfile(settings) { return settings?.profiles?.[settings.activeProfile]; }
 
-
 jQuery(async () => {
     const { store, save, ctx } = getSettingsObj();
     let settings = store[extensionName];
-
     try {
         $("#extensions_settings").append(await $.get(`${extensionFolderPath}/settings.html`));
     } catch (e) {
         console.warn("Failed to load settings.html:", e);
         $("#extensions_settings").append('<div><h3>Costume Switch</h3><p>Failed to load UI.</p></div>');
     }
-
     await waitForSelector("#cs-save");
-
     let speakerRegex, attributionRegex, actionRegex, vocativeRegex, vetoRegex;
-
     function recompileRegexes() {
         try {
             const profile = getActiveProfile(settings);
             if (!profile) return;
-            __regexCompileCache.clear(); // Clear cache when patterns change
+            __regexCompileCache.clear();
             const lowerIgnored = (profile.ignorePatterns || []).map(p => String(p).trim().toLowerCase());
             const effectivePatterns = (profile.patterns || []).filter(p => !lowerIgnored.includes(String(p).trim().toLowerCase()));
             speakerRegex = buildSpeakerRegex(effectivePatterns);
@@ -383,14 +371,12 @@ jQuery(async () => {
             $("#cs-error").text(`Pattern error: ${e.message}`).show();
         }
     }
-
     function populateProfileDropdown() {
         const select = $("#cs-profile-select");
         select.empty();
         Object.keys(settings.profiles).forEach(name => select.append($('<option>', { value: name, text: name })));
         select.val(settings.activeProfile);
     }
-    
     function updateFocusLockUI() {
         const profile = getActiveProfile(settings);
         const lockSelect = $("#cs-focus-lock-select");
@@ -408,7 +394,6 @@ jQuery(async () => {
             lockToggle.text("Lock");
         }
     }
-
     function loadProfile(profileName) {
         settings.activeProfile = settings.profiles[profileName] ? profileName : Object.keys(settings.profiles)[0];
         const profile = getActiveProfile(settings);
@@ -438,7 +423,6 @@ jQuery(async () => {
         recompileRegexes();
         updateFocusLockUI();
     }
-    
     function renderMappings(profile) {
         const tbody = $("#cs-mappings-tbody").empty();
         (profile.mappings || []).forEach((m, idx) => {
@@ -450,17 +434,14 @@ jQuery(async () => {
             );
         });
     }
-
     function persistSettings() {
         save();
         $("#cs-status").text(`Saved ${new Date().toLocaleTimeString()}`);
         setTimeout(() => $("#cs-status").text("Ready"), 1500);
     }
-    
     $("#cs-enable").prop("checked", !!settings.enabled);
     populateProfileDropdown();
     loadProfile(settings.activeProfile);
-
     function testRegexPattern() {
         const text = $("#cs-regex-test-input").val();
         const allDetectionsList = $("#cs-test-all-detections").empty();
@@ -500,7 +481,6 @@ jQuery(async () => {
              winnerList.html('<li style="color: var(--text-color-soft);">No winning match.</li>');
         }
     }
-
     function saveCurrentProfileData() {
         return {
             patterns: $("#cs-patterns").val().split(/\r?\n/).map(s => s.trim()).filter(Boolean),
@@ -526,7 +506,6 @@ jQuery(async () => {
             mappings: Array.from($("#cs-mappings-tbody tr")).map(tr => ({ name: $(tr).find(".map-name").val().trim(), folder: $(tr).find(".map-folder").val().trim() })).filter(m => m.name && m.folder),
         };
     }
-
     function setupEventHandlers() {
         $(document)
             .on("change.cs", "#cs-enable", function () { settings.enabled = $(this).prop("checked"); persistSettings(); })
@@ -594,7 +573,6 @@ jQuery(async () => {
             .on("click.cs", "#cs-regex-test-button", testRegexPattern);
     }
     setupEventHandlers();
-    
     function getMappedCostume(name) {
         const profile = getActiveProfile(settings);
         if (!name || !profile?.mappings) return null;
@@ -607,6 +585,7 @@ jQuery(async () => {
         return null;
     }
 
+    // PATCHED: Uses new buildCostumeCommand
     async function issueCostumeForName(name, opts = {}) {
         const profile = getActiveProfile(settings);
         if (!name || !profile) return;
@@ -637,27 +616,29 @@ jQuery(async () => {
         }
     }
     
+    // PATCHED: Uses new buildCostumeCommand
     async function manualReset() {
         const profile = getActiveProfile(settings);
-        const defaultCostume = profile?.defaultCostume?.trim() || '';
-        const { command, folderName } = buildCostumeCommand(defaultCostume);
-        debugLog(settings, "Manual reset with command:", command);
+        const cmdObj = buildCostumeCommand(profile?.defaultCostume?.trim());
+        const command = cmdObj.command;
+        debugLog(settings, "Attempting manual reset with command:", command);
         try {
             await executeSlashCommandsOnChatInput(command);
-            lastIssuedCostume = folderName;
+            lastIssuedCostume = cmdObj.folderName || "";
             lastIssuedCharacter = null;
-            $("#cs-status").text(`Reset -> ${folderName || 'Main Avatar'}`);
-        } catch (err) { console.error(`[CostumeSwitch] Manual reset failed.`, err); }
+            $("#cs-status").text(`Reset -> ${cmdObj.folderName || "(none)"}`);
+            setTimeout(() => $("#cs-status").text("Ready"), 1500);
+        } catch (err) {
+            console.error(`[CostumeSwitch] Manual reset failed for "${cmdObj.folderName}".`, err);
+        }
     }
-
+    
     const streamEventName = event_types?.STREAM_TOKEN_RECEIVED || event_types?.SMOOTH_STREAM_TOKEN_RECEIVED || 'stream_token_received';
-
     _genStartHandler = (messageId) => {
         const bufKey = messageId != null ? `m${messageId}` : 'live';
         perMessageStates.set(bufKey, { lastAcceptedName: null, vetoed: false, nextThreshold: 0, lastProcessedSig: null });
         perMessageBuffers.delete(bufKey);
     };
-
     _streamHandler = (...args) => {
         try {
             if (!settings.enabled || settings.focusLock.character) return;
@@ -674,9 +655,7 @@ jQuery(async () => {
             const combined = (prev + normalizeStreamText(tokenText)).slice(-2000);
             perMessageBuffers.set(bufKey, combined);
             ensureBufferLimit();
-
             if (!shouldProcessBufferForKey(combined, bufKey)) return;
-
             if (combined.length < state.nextThreshold) return;
             state.nextThreshold = combined.length + profile.tokenProcessThreshold;
             if (vetoRegex && vetoRegex.test(combined)) {
@@ -686,27 +665,22 @@ jQuery(async () => {
             const regexes = { speakerRegex, attributionRegex, actionRegex, vocativeRegex };
             const allMatches = findAllMatches(combined, regexes, profile, quoteRanges);
             const bestMatch = findBestMatchFromList(combined, allMatches, settings, state.lastAcceptedName);
-            
             const lastAcceptedCanonical = state.lastAcceptedName ? normalizeCostumeName(state.lastAcceptedName).toLowerCase() : null;
             if (bestMatch && bestMatch.canonicalName.toLowerCase() !== lastAcceptedCanonical) {
-                state.lastAcceptedName = bestMatch.name; // store the original matched name for stickiness check
+                state.lastAcceptedName = bestMatch.name;
                 issueCostumeForName(bestMatch.name, { matchKind: bestMatch.matchKind });
             }
         } catch (err) { console.error("CostumeSwitch stream handler error:", err); }
     };
-
     _genEndHandler = (messageId) => { if (messageId != null) { perMessageBuffers.delete(`m${messageId}`); perMessageStates.delete(`m${messageId}`); } };
-    
-    _chatChangedHandler = () => { 
-        perMessageBuffers.clear(); 
-        perMessageStates.clear(); 
-        lastIssuedCostume = null; 
+    _chatChangedHandler = () => {
+        perMessageBuffers.clear();
+        perMessageStates.clear();
+        lastIssuedCostume = null;
         lastIssuedCharacter = null;
         lastTriggerTimes.clear();
-        // clear per-file regex compile cache so future regex rebuilds start fresh
         try { __regexCompileCache.clear(); } catch(e) {}
     };
-
     function unload() {
         eventSource.off(streamEventName, _streamHandler);
         eventSource.off(event_types.GENERATION_STARTED, _genStartHandler);
@@ -714,36 +688,26 @@ jQuery(async () => {
         eventSource.off(event_types.CHAT_CHANGED, _chatChangedHandler);
         $(document).off('.cs');
     }
-
     eventSource.on(streamEventName, _streamHandler);
     eventSource.on(event_types.GENERATION_STARTED, _genStartHandler);
     eventSource.on(event_types.GENERATION_ENDED, _genEndHandler);
     eventSource.on(event_types.CHAT_CHANGED, _chatChangedHandler);
 
-    // PATCHED: Register slash commands
+    // PATCHED: Register /scene for command palette
     try {
         registerSlashCommand?.({
             name: 'scene',
-            description: 'Switch scene (forward to engine)',
+            description: 'Switch scene (forwards to engine)',
             handler: async (args) => {
                 const argText = Array.isArray(args) ? args.join(' ') : String(args || '');
                 await executeSlashCommandsOnChatInput(`/scene ${argText}`.trim());
             }
         });
-        registerSlashCommand?.({
-            name: 'costume',
-            description: 'Switch costume (folder name)',
-            handler: async (args) => {
-                const argText = Array.isArray(args) ? args.join(' ') : String(args || '');
-                await executeSlashCommandsOnChatInput(argText ? `/costume ${argText}` : `/costume`);
-            }
-        });
     } catch (e) {
-        console.warn("[CostumeSwitch] registerSlashCommand failed (ignored):", e);
+        console.warn("[CostumeSwitch] registerSlashCommand for /scene failed (ignored):", e);
     }
 
-
-    console.log("SillyTavern-CostumeSwitch v1.3.2 (Audited) loaded.");
+    console.log("SillyTavern-CostumeSwitch v1.3.4 (Patched) loaded.");
 });
 
 function getSettingsObj() {
