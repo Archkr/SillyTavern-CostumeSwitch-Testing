@@ -1,196 +1,112 @@
 /*
-  Modern UI Styles for the Costume Switcher Extension
-  Theme: Aurora Borealis
+  Styles for the Costume Switcher extension settings panel.
+  This file is loaded automatically by SillyTavern.
 */
-
-/* --- Base & Variables --- */
-:root {
-    --cs-primary-color: #00E0C6; /* A vibrant aurora teal */
-    --cs-primary-color-light: #00FFD1;
-    --cs-primary-color-faded: rgba(0, 224, 198, 0.1);
-    --cs-background-main: #1d2c3f; /* Deep northern sky blue */
-    --cs-background-secondary: #2a3b50; /* Lighter sky blue */
-    --cs-border-color: #3a506b; /* Muted blue-grey */
-    --cs-text-primary: #f0f4f8; /* Soft off-white */
-    --cs-text-secondary: #a0b1c5; /* Muted light blue */
-    --cs-success-color: #2ecc71; /* Fresh green */
-    --cs-error-color: #e74c3c; /* Soft red */
-    --cs-border-radius: 8px;
-    --cs-transition-speed: 0.3s;
-}
-
 #costume-switcher-settings {
-    padding: 15px;
-    border-radius: var(--cs-border-radius);
-    background-color: var(--cs-background-main);
-    color: var(--cs-text-primary);
+  padding: 10px;
+  border-radius: 8px;
+  background-color: var(--bg1);
 }
 
-/* --- Block & Layout --- */
 .cs-block {
-    margin-bottom: 25px;
-    padding: 20px;
-    border-radius: var(--cs-border-radius);
-    background: linear-gradient(145deg, var(--cs-background-secondary), var(--cs-background-main));
-    border: 1px solid var(--cs-border-color);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-.cs-flex-container {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-}
-
-#costume-switcher-settings b {
-    color: var(--cs-primary-color);
-    letter-spacing: 0.5px;
+  margin-bottom: 20px;
+  padding: 15px;
+  border-radius: 6px;
+  background-color: var(--bg2);
+  border: 1px solid var(--border);
 }
 
 #costume-switcher-settings small {
-    display: block;
-    margin-top: 8px;
-    color: var(--cs-text-secondary);
-    font-size: 0.9em;
-    line-height: 1.5;
+  display: block;
+  margin-top: 5px;
+  color: var(--text-color-soft);
+  font-size: 0.85em;
 }
 
-/* --- Input Elements --- */
-.text_pole, 
-#cs-profile-select,
-#cs-focus-lock-select {
-    background-color: var(--cs-background-main) !important;
-    border: 1px solid var(--cs-border-color) !important;
-    color: var(--cs-text-primary) !important;
-    border-radius: var(--cs-border-radius) !important;
-    padding: 10px !important;
-    transition: all var(--cs-transition-speed) ease;
+.cs-tip {
+  margin-top: 10px; 
+  color: var(--text-color-soft-extra);
 }
 
-.text_pole:focus,
-#cs-profile-select:focus,
-#cs-focus-lock-select:focus {
-    border-color: var(--cs-primary-color) !important;
-    box-shadow: 0 0 0 3px var(--cs-primary-color-faded);
-    outline: none;
+.cs-flex-container {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+  align-items: center;
 }
 
-/* --- Buttons --- */
-.menu_button.interactable {
-    background: linear-gradient(145deg, var(--cs-primary-color), var(--cs-primary-color-light));
-    color: #1d2c3f; /* Dark text for contrast on bright button */
-    border: none;
-    border-radius: var(--cs-border-radius);
-    padding: 10px 15px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all var(--cs-transition-speed) ease;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-
-.menu_button.interactable:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0, 224, 198, 0.3);
-}
-
-#cs-profile-delete {
-    background: linear-gradient(145deg, #4b5457, #3a506b);
-    color: var(--cs-text-primary);
-}
-
-#cs-profile-delete:hover {
-     box-shadow: 0 4px 10px rgba(58, 80, 107, 0.4);
-}
-
-/* --- Status & Error Messages --- */
 .cs-status-message, .cs-error-message {
-    margin-top: 15px;
-    padding: 12px;
-    border-radius: var(--cs-border-radius);
-    font-weight: bold;
-    border: 1px solid transparent;
-    text-align: center;
-}
-
-.cs-status-message {
-    background-color: rgba(46, 204, 113, 0.15);
-    color: var(--cs-success-color);
-    border-color: var(--cs-success-color);
-}
-
-.cs-error-message {
-    background-color: rgba(231, 76, 60, 0.15);
-    color: var(--cs-error-color);
-    border-color: var(--cs-error-color);
-    display: none; /* Hidden by default */
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 4px;
+  font-weight: bold;
+  border: 1px solid transparent;
 }
 
 .cs-veto-result-message {
-  margin-top: 15px;
+  margin-top: 10px;
   font-weight: bold;
-  padding: 8px 0;
+  padding: 5px 0;
 }
 
-/* --- Tables --- */
+.cs-status-message {
+  background-color: rgba(var(--green-rgb), 0.15);
+  color: var(--green);
+  border-color: rgba(var(--green-rgb), 0.3);
+}
+
+.cs-error-message {
+  background-color: rgba(var(--red-rgb), 0.15);
+  color: var(--red);
+  border-color: rgba(var(--red-rgb), 0.3);
+  display: none; /* Hidden by default */
+}
+
+/* Specific table styles for better readability */
 .cs-detection-table {
-  width: 100%;
-  margin-top: 15px;
-  border-spacing: 0 10px;
+  width: 100%; 
+  margin-top: 15px; 
+  border-spacing: 0 12px; 
   border-collapse: separate;
 }
 
 .cs-detection-table .cs-detection-label {
-  width: 35%;
-  vertical-align: middle;
+  width: 35%; 
+  vertical-align: top;
 }
 
-/* --- Live Tester --- */
+/* Live Tester Styles */
 #cs-regex-test-output-container {
-    display: flex;
-    gap: 15px;
-    padding: 15px;
-    min-height: 120px;
-    margin-top: 15px;
-    background-color: var(--cs-background-main);
-    border-radius: var(--cs-border-radius);
+  display: flex; 
+  gap: 10px; 
+  padding: 10px; 
+  min-height: 100px; 
+  margin-top: 10px; 
+  background-color: var(--bg0);
 }
 
 .cs-test-column {
-    flex: 1;
+  flex: 1;
 }
 
 .cs-test-column:first-child {
-    border-right: 1px solid var(--cs-border-color);
-    padding-right: 15px;
+  border-right: 1px solid var(--border); 
+  padding-right: 10px;
 }
 
 .cs-test-header {
-    font-weight: bold;
-    margin-bottom: 10px;
-    color: var(--cs-primary-color);
+  font-weight: bold; 
+  margin-bottom: 5px;
 }
 
 .cs-test-list {
-    list-style-type: none;
-    padding: 0;
-    margin: 0;
-    font-size: 0.95em;
-    color: var(--cs-text-secondary);
+  list-style-position: inside; 
+  padding: 0; 
+  margin: 0; 
+  font-size: 0.9em;
 }
 
-.cs-test-list li {
-    padding: 5px;
-    border-radius: 4px;
-    transition: background-color var(--cs-transition-speed) ease;
-}
-
-.cs-test-list li:hover {
-    background-color: var(--cs-primary-color-faded);
-}
-
-/* --- Checkboxes --- */
-input[type="checkbox"] {
-    margin-right: 10px;
-    transform: scale(1.2);
-    accent-color: var(--cs-primary-color);
+/* Inherit font to match SillyTavern UI */
+#costume-switcher-settings .menu_button {
+  font-family: inherit;
 }
