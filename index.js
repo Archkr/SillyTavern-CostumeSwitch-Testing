@@ -2,10 +2,9 @@ import { extension_settings, getContext } from "../../../extensions.js";
 import { saveSettingsDebounced, event_types, eventSource } from "../../../../script.js";
 import { registerSlashCommand, executeSlashCommandsOnChatInput } from "../../../slash-commands.js";
 
-const extensionName = "SillyTavern-CostumeSwitch-Testing";
+const extensionName = "SillyTavern-CostumeSwitch";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
-// Default verb lists remain the same
 const DEFAULT_ATTRIBUTION_VERBS = ["acknowledged", "added", "admitted", "advised", "affirmed", "agreed", "announced", "answered", "argued", "asked", "barked", "began", "bellowed", "blurted", "boasted", "bragged", "called", "chirped", "choked", "commanded", "commented", "complained", "conceded", "concluded", "confessed", "confirmed", "continued", "corrected", "countered", "cried", "croaked", "crowed", "deadpanned", "declared", "decreed", "demanded", "denied", "drawled", "echoed", "emphasized", "enquired", "enthused", "estimated", "exclaimed", "explained", "gasped", "groaned", "grunted", "hissed", "insisted", "instructed", "interjected", "interrupted", "joked", "lamented", "laughed", "lied", "maintained", "moaned", "mumbled", "murmured", "mused", "muttered", "nagged", "nodded", "noted", "objected", "offered", "ordered", "perked up", "pleaded", "pondered", "prayed", "predicted", "proclaimed", "promised", "proposed", "protested", "queried", "questioned", "quipped", "rambled", "reasoned", "reassured", "recited", "rejoined", "remarked", "repeated", "replied", "responded", "retorted", "roared", "said", "scolded", "scoffed", "screamed", "shouted", "sighed", "smiled", "snapped", "snarled", "spat", "spoke", "stammered", "stated", "stuttered", "suggested", "surmised", "tapped", "theorized", "threatened", "turned", "urged", "volunteered", "vowed", "wailed", "warned", "whimpered", "whispered", "wondered", "yelled"];
 const DEFAULT_ACTION_VERBS = ["adjust", "adjusted", "appear", "appeared", "approach", "approached", "arrive", "arrived", "blink", "blinked", "bow", "bowed", "charge", "charged", "chase", "chased", "chew", "chewed", "clasp", "clasped", "clench", "clenched", "click", "clicked", "climb", "climbed", "collapse", "collapsed", "crack", "cracked", "crawl", "crawled", "crept", "cross", "crossed", "crouch", "crouched", "dance", "danced", "dart", "darted", "dash", "dashed", "deepen", "deepened", "depart", "departed", "dive", "dived", "dodge", "dodged", "drag", "dragged", "drift", "drifted", "drop", "dropped", "drum", "drummed", "emerge", "emerged", "enter", "entered", "exit", "exited", "fall", "fell", "firm", "firmed", "fix", "fixed", "flare", "flared", "flash", "flashed", "flee", "fled", "flex", "flexed", "flick", "flicked", "flicker", "flickered", "flinch", "flinched", "float", "floated", "fly", "flew", "fold", "folded", "follow", "followed", "freeze", "froze", "frown", "frowned", "furrow", "furrowed", "gesture", "gestured", "giggle", "giggled", "glance", "glanced", "glare", "glared", "grab", "grabbed", "grasp", "grasped", "grin", "grinned", "grip", "gripped", "groan", "groaned", "growl", "growled", "grumble", "grumbled", "grunt", "grunted", "hiss", "hissed", "hit", "hold", "held", "hop", "hopped", "huff", "huffed", "hurry", "hurried", "jerk", "jerked", "jog", "jogged", "jolt", "jolted", "jump", "jumped", "kneel", "knelt", "knock", "knocked", "laugh", "laughed", "lean", "leaned", "leap", "leapt", "left", "lift", "lifted", "limp", "limped", "look", "looked", "lower", "lowered", "lunge", "lunged", "march", "marched", "motion", "motioned", "move", "moved", "narrow", "narrowed", "nod", "nodded", "observe", "observed", "pace", "paced", "pause", "paused", "point", "pointed", "pop", "popped", "position", "positioned", "pounce", "pounced", "press", "pressed", "pull", "pulled", "puff", "puffed", "push", "pushed", "quiver", "quivered", "race", "raced", "raise", "raised", "reach", "reached", "retreat", "retreated", "rise", "rose", "rock", "rocked", "roll", "rolled", "rub", "rubbed", "run", "ran", "rush", "rushed", "scan", "scanned", "scowl", "scowled", "scramble", "scrambled", "scream", "screamed", "set", "shake", "shook", "shift", "shifted", "shove", "shoved", "shrug", "shrugged", "shudder", "shuddered", "sigh", "sighed", "sip", "sipped", "sit", "sat", "slam", "slammed", "slide", "slid", "slip", "slipped", "slump", "slumped", "smile", "smiled", "snap", "snapped", "snatch", "snatched", "snort", "snorted", "soften", "softened", "spin", "spun", "spread", "spreads", "squeeze", "squeezed", "sprint", "sprinted", "stagger", "staggered", "stand", "stood", "stare", "stared", "step", "stepped", "stiffen", "stiffened", "stomp", "stomped", "straighten", "straightened", "stumble", "stumbled", "swagger", "swaggered", "swallow", "swallowed", "swap", "swapped", "sweep", "swept", "swing", "swung", "tap", "tapped", "take", "took", "throw", "threw", "tighten", "tightened", "tilt", "tilted", "tiptoe", "tiptoed", "toss", "tossed", "tremble", "trembled", "trudge", "trudged", "turn", "turned", "twitch", "twitched", "twist", "twisted", "vanish", "vanished", "wake", "woke", "walk", "walked", "wander", "wandered", "watch", "watched", "wave", "waved", "widen", "widened", "wince", "winced", "withdraw", "withdrew"];
 
@@ -27,10 +26,10 @@ const PROFILE_DEFAULTS = {
     attributionVerbs: [...DEFAULT_ATTRIBUTION_VERBS],
     actionVerbs: [...DEFAULT_ACTION_VERBS],
     detectionBias: 0,
-    priorityWeight: 500,
-    biasMultiplierHigh: 6,
+    priorityWeight: 150,
+    biasMultiplierHigh: 4,
     biasMultiplierLow: 1,
-    stickinessWeight: 250,
+    stickinessWeight: 100,
 };
 
 const DEFAULTS = {
@@ -42,11 +41,6 @@ const DEFAULTS = {
     focusLock: { character: null },
 };
 
-// =================================================================
-// DETECTION & NORMALIZATION MODULE (v1.3.4 Patched)
-// =================================================================
-
-// Simple regex compile cache (cleared when patterns change)
 const __regexCompileCache = new Map();
 function compileRegexFromBody(body, flags = '') {
     const key = `${body}::${flags}`;
@@ -61,41 +55,26 @@ function compileRegexFromBody(body, flags = '') {
     }
 }
 
-// PATCHED: Normalizes Series/Character style names
 function normalizeCostumeName(n) {
     if (!n) return "";
     let s = String(n).trim();
-    // strip leading slash if user typed "/Kotori" etc
     if (s.startsWith("/")) s = s.slice(1).trim();
-
-    // If user uses the Series/Character form, take the last segment after '/'
     if (s.includes("/")) {
         const parts = s.split("/").map(p => String(p || "").trim()).filter(Boolean);
         s = parts.length ? parts[parts.length - 1] : s;
     }
-
-    // By default take the first token (folder names are often single words).
-    // This keeps backward compatibility with older behavior when there's no slash.
     const first = (s.split(/\s+/).filter(Boolean)[0]) || s;
-
-    // remove honorific-like suffixes sometimes tacked onto names
     return String(first).replace(/[-_](?:sama|san)$/i, "").trim();
 }
 
-
-// PATCHED: Build a safe /costume command string. Returns { command, folderName }.
 function buildCostumeCommand(folder) {
     const f = normalizeCostumeName(folder);
     if (!f) return { command: `/costume`, folderName: "" };
-
-    // If folder contains spaces or special chars, quote it (escape any internal quotes).
     const needsQuotes = /[\s"']/.test(f);
     const safeFolder = needsQuotes ? `"${String(f).replace(/"/g, '\\"')}"` : f;
     return { command: `/costume ${safeFolder}`, folderName: f };
 }
 
-
-// Quote ranges: pairs of quotes; unmatched trailing quote -> open-to-end
 function getQuoteRanges(s) {
     if (!s) return [];
     const q = /["'\u2018\u2019\u201C\u201D]/g;
@@ -107,12 +86,12 @@ function getQuoteRanges(s) {
     if (pos.length % 2 === 1) ranges.push([pos[pos.length - 1], s.length]);
     return ranges;
 }
+
 function isIndexInsideQuotesRanges(ranges, idx) {
     for (const [a, b] of ranges) if (idx >= a && idx <= b) return true;
     return false;
 }
 
-// Find matches and return consistent match objects
 function findMatches(combined, regex, quoteRanges, allowInsideQuotes = false) {
     if (!combined || !regex) return [];
     const flags = regex.flags.includes("g") ? regex.flags : regex.flags + "g";
@@ -139,7 +118,6 @@ function findMatches(combined, regex, quoteRanges, allowInsideQuotes = false) {
     return results;
 }
 
-// Robustly extract the name from named groups OR numbered groups OR fallback to the matched substring
 function getMatchedName(matchObjOrArray) {
     if (!matchObjOrArray) return null;
     if (typeof matchObjOrArray === 'object' && !Array.isArray(matchObjOrArray)) {
@@ -165,16 +143,15 @@ function getMatchedName(matchObjOrArray) {
     return null;
 }
 
-// Scaled scoring + stickiness using canonical names
 function findBestMatchFromList(combined, matches = [], settings = {}, lastAcceptedName = null) {
     if (!combined || !matches || matches.length === 0) return null;
     const bufferLen = Math.max(1, combined.length);
     const profile = getActiveProfile(settings) || {};
     const bias = Number(profile.detectionBias || 0);
-    const PRIORITY_WEIGHT = Number(profile.priorityWeight || 500);
-    const BIAS_MULT_HIGH = Number(profile.biasMultiplierHigh || 6);
+    const PRIORITY_WEIGHT = Number(profile.priorityWeight || 150);
+    const BIAS_MULT_HIGH = Number(profile.biasMultiplierHigh || 4);
     const BIAS_MULT_LOW = Number(profile.biasMultiplierLow || 1);
-    const STICKINESS_BONUS = Number(profile.stickinessWeight || (PRIORITY_WEIGHT / 2));
+    const STICKINESS_BONUS = Number(profile.stickinessWeight || 100);
     const lastAcceptedCanonical = lastAcceptedName ? normalizeCostumeName(lastAcceptedName).toLowerCase() : null;
     const scored = matches.map(m => {
         const recencyNorm = (m.matchIndex / bufferLen) * 1000;
@@ -196,7 +173,6 @@ function findBestMatchFromList(combined, matches = [], settings = {}, lastAccept
     return scored[0] || null;
 }
 
-// Helpers for building user-provided regexes
 function escapeRegex(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function parsePatternEntry(raw) {
     const t = String(raw || '').trim();
@@ -259,8 +235,10 @@ function buildActionRegex(patternList, verbList) {
     const names = entries.map(x => `(?:${x.body})`).join("|");
     const verbs = (verbList || []).map(escapeRegex).join("|");
     if (!verbs) return null;
-    const directAction = `\\b(${names})(?:\\s+\\w+)?\\s+(?:${verbs})\\b`;
-    const body = `(?:${directAction})`;
+    const possessivePronouns = 'his|her|its|their';
+    const directAction = `\\b(?<name>${names})(?:\\s+\\w+)?\\s+(?:${verbs})\\b`;
+    const possessiveAction = `\\b(?:${possessivePronouns}|(?<name2>${names})[’'\`’]s)\\s+\\w+\\s+(?:${verbs})\\b`;
+    const body = `(?:${directAction})|(?:${possessiveAction})`;
     const flags = computeFlagsFromEntries(entries, true);
     try { return compileRegexFromBody(body, flags) } catch (err) { console.warn("buildActionRegex failed:", err); return null; }
 }
@@ -284,7 +262,9 @@ function findAllMatches(combined, regexes, settings, quoteRanges) {
     if (settings?.detectPossessive && settings.patterns?.length) {
         const body = `\\b(${(settings.patterns || []).map(p => parsePatternEntry(p)?.body).filter(Boolean).join("|")})[’\`'’]s\\b`;
         const possRe = compileRegexFromBody(body, "gi");
-        pushFromMatches(findMatches(combined, possRe, quoteRanges, false), "possessive", priorities.possessive);
+        if (possRe) {
+             pushFromMatches(findMatches(combined, possRe, quoteRanges, false), "possessive", priorities.possessive);
+        }
     }
     if (settings?.detectGeneral) {
         const nameRegex = buildGenericRegex(settings.patterns);
@@ -326,11 +306,7 @@ function waitForSelector(selector, timeout = 3000) {
     });
 }
 
-// =================================================================
-// END OF DETECTION MODULE
-// =================================================================
-
-function normalizeStreamText(s) { return s ? String(s).replace(/[\uFEFF\u200B\u200C\u200D]/g, "").replace(/[\u2018\u2019\u201A\u201B]/g, "'").replace(/[\u201C\u201D\u201E\u201F]/g, '"').replace(/(\*\*|__|~~|`{1,3})/g, "").replace(/\u00A0/g, " ") : "" }
+const normalizeStreamText = (s) => s ? String(s).replace(/[\uFEFF\u200B\u200C\u200D]/g, "").replace(/[\u2018\u2019\u201A\u201B]/g, "'").replace(/[\u201C\u201D\u201E\u201F]/g, '"').replace(/(\*\*|__|~~|`{1,3})/g, "").replace(/\u00A0/g, " ") : "";
 const perMessageBuffers = new Map, perMessageStates = new Map;
 let lastIssuedCostume = null;
 let lastIssuedCharacter = null;
@@ -585,7 +561,6 @@ jQuery(async () => {
         return null;
     }
 
-    // PATCHED: Uses new buildCostumeCommand
     async function issueCostumeForName(name, opts = {}) {
         const profile = getActiveProfile(settings);
         if (!name || !profile) return;
@@ -616,7 +591,6 @@ jQuery(async () => {
         }
     }
     
-    // PATCHED: Uses new buildCostumeCommand
     async function manualReset() {
         const profile = getActiveProfile(settings);
         const cmdObj = buildCostumeCommand(profile?.defaultCostume?.trim());
@@ -693,7 +667,6 @@ jQuery(async () => {
     eventSource.on(event_types.GENERATION_ENDED, _genEndHandler);
     eventSource.on(event_types.CHAT_CHANGED, _chatChangedHandler);
 
-    // PATCHED: Register /scene for command palette
     try {
         registerSlashCommand?.({
             name: 'scene',
@@ -707,14 +680,13 @@ jQuery(async () => {
         console.warn("[CostumeSwitch] registerSlashCommand for /scene failed (ignored):", e);
     }
 
-    console.log("SillyTavern-CostumeSwitch v1.3.4 (Patched) loaded.");
+    console.log("SillyTavern-CostumeSwitch v1.4.0 (Hybrid) loaded.");
 });
 
 function getSettingsObj() {
     const ctx = getContext();
     const storeSource = ctx.extensionSettings;
     if (!storeSource[extensionName] || !storeSource[extensionName].profiles) {
-        console.log("[CostumeSwitch] Migrating old settings to new profile format.");
         const oldSettings = storeSource[extensionName] || {};
         const newSettings = structuredClone(DEFAULTS);
         Object.keys(PROFILE_DEFAULTS).forEach(key => {
