@@ -143,6 +143,20 @@
           </div>
 
           <div class="cs-block">
+            <label><b>Scene Analysis</b></label>
+            <small>At the end of a message, analyze the full text to identify the primary characters in the scene. Results are available for other extensions via `window.costumeSwitch.sceneCharacters`.</small>
+            <div style="margin-top: 15px;">
+              <input id="cs-scene-analysis-enable" type="checkbox" />
+              <label for="cs-scene-analysis-enable"><b>Enable Scene Analysis</b></label>
+            </div>
+            <div class="inline-group" style="margin-top: 10px;">
+              <label for="cs-scene-analysis-count">Top Characters to Select</label>
+              <input id="cs-scene-analysis-count" class="text_pole" type="number" min="1" max="10" />
+              <small>The number of top-ranked characters to include in the result.</small>
+            </div>
+          </div>
+
+          <div class="cs-block">
             <label for="cs-mappings"><b>Costume Mappings</b></label>
             <small>Map a detected name to a specific costume folder.</small>
             <table id="cs-mappings" class="text_pole" style="margin-top: 10px;">
