@@ -10,11 +10,11 @@
         <label for="cs-profile-select"><b>Profiles</b></label>
         <small>Save and load different configurations for various chats or characters.</small>
         <div style="display: flex; gap: 10px; margin-top: 10px;">
-          <select id="cs-profile-select" class="text_pole" style="flex-grow: 1;"></select>
+          <select id="cs-profile-select" class="text_pole"></select>
           <button id="cs-profile-delete" class="menu_button interactable" title="Delete Selected Profile">Delete</button>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 10px;">
-          <input id="cs-profile-name" class="text_pole" type="text" placeholder="Enter profile name..." style="flex-grow: 1;">
+          <input id="cs-profile-name" class="text_pole" type="text" placeholder="Enter profile name...">
           <button id="cs-profile-save" class="menu_button interactable">Save</button>
         </div>
         <small>Type a new name to create a duplicate profile. Using the existing name will overwrite the current one.</small>
@@ -24,7 +24,7 @@
         <label for="cs-focus-lock-select"><b>Manual Focus Lock</b></label>
         <small>Force the costume to a specific character, overriding all automatic detection.</small>
         <div style="display: flex; gap: 10px; margin-top: 10px;">
-            <select id="cs-focus-lock-select" class="text_pole" style="flex-grow: 1;"></select>
+            <select id="cs-focus-lock-select" class="text_pole"></select>
             <button id="cs-focus-lock-toggle" class="menu_button interactable">Lock</button>
         </div>
       </div>
@@ -110,34 +110,34 @@
 
           <div class="cs-block">
             <label><b>Performance Tuning</b></label>
-            <div class="inline-group" style="margin-top: 10px;">
+            <div class="inline-group">
               <label for="cs-global-cooldown">Global Cooldown (ms)</label>
               <input id="cs-global-cooldown" class="text_pole" type="number" min="0" />
               <small>Minimum time between any two switches to prevent flickering.</small>
             </div>
-             <div class="inline-group" style="margin-top: 10px;">
+             <div class="inline-group">
               <label for="cs-per-trigger-cooldown">Per-Trigger Cooldown (ms)</label>
               <input id="cs-per-trigger-cooldown" class="text_pole" type="number" min="0" />
               <small>Minimum time before a specific character can trigger a switch again.</small>
             </div>
-            <div class="inline-group" style="margin-top: 10px;">
+            <div class="inline-group">
               <label for="cs-failed-trigger-cooldown">Failed Trigger Cooldown (ms)</label>
               <input id="cs-failed-trigger-cooldown" class="text_pole" type="number" min="0" />
               <small>How long to wait before retrying a switch that previously failed.</small>
             </div>
-            <div class="inline-group" style="margin-top: 10px;">
+            <div class="inline-group">
               <label for="cs-repeat-suppress">Repeat Suppression (ms)</label>
               <input id="cs-repeat-suppress" class="text_pole" type="number" min="0" />
               <small>Minimum time before the *same* character can trigger another switch within the same message.</small>
             </div>
-            <div class="inline-group" style="margin-top: 10px;">
+            <div class="inline-group">
               <label for="cs-token-process-threshold">Token Process Threshold (chars)</label>
               <input id="cs-token-process-threshold" class="text_pole" type="number" min="0" />
               <small>How many characters to wait for before checking. Lower is more reactive but uses more CPU. Higher is smoother but may react slower.</small>
             </div>
-            <div class="inline-group" style="margin-top: 15px;">
+            <div class="inline-group">
               <label for="cs-detection-bias">Detection Bias (<span id="cs-detection-bias-value">0</span>)</label>
-              <input id="cs-detection-bias" type="range" min="-200" max="200" value="0" style="width: 100%;" />
+              <input id="cs-detection-bias" type="range" min="-200" max="200" value="0" />
               <small>Adjusts detection accuracy. Higher values favor action/dialogue tags; lower values favor the most recently mentioned character.</small>
             </div>
           </div>
