@@ -7,11 +7,14 @@
     <div class="inline-drawer-content">
       
       <div class="cs-block">
-        <label for="cs-profile-select"><b>Profiles</b></label>
+        <label for="cs-profile-select" class="cs-label-with-icon">
+          <i class="fa-solid fa-users"></i>
+          <b>Profiles</b>
+        </label>
         <small>Save and load different configurations for various chats or characters.</small>
         <div class="cs-flex-container">
           <select id="cs-profile-select" class="text_pole" style="flex-grow: 1;"></select>
-          <button id="cs-profile-delete" class="menu_button interactable" title="Delete Selected Profile">Delete</button>
+          <button id="cs-profile-delete" class="menu_button interactable cs-button-danger" title="Delete Selected Profile">Delete</button>
         </div>
         <div class="cs-flex-container">
           <input id="cs-profile-name" class="text_pole" type="text" placeholder="Enter profile name..." style="flex-grow: 1;">
@@ -26,7 +29,10 @@
       </div>
 
       <div class="cs-block">
-        <label for="cs-focus-lock-select"><b>Manual Focus Lock</b></label>
+        <label for="cs-focus-lock-select" class="cs-label-with-icon">
+          <i class="fa-solid fa-lock"></i>
+          <b>Manual Focus Lock</b>
+        </label>
         <small>Force the costume to a specific character, overriding all automatic detection.</small>
         <div class="cs-flex-container">
             <select id="cs-focus-lock-select" class="text_pole" style="flex-grow: 1;"></select>
@@ -41,7 +47,10 @@
       </div>
 
       <div class="cs-block">
-        <label for="cs-patterns"><b>Character Patterns</b></label>
+        <label for="cs-patterns" class="cs-label-with-icon">
+          <i class="fa-solid fa-address-card"></i>
+          <b>Character Patterns</b>
+        </label>
         <textarea id="cs-patterns" class="text_pole" rows="3" placeholder="Character One&#10;Character Two&#10;/Regular Expression/"></textarea>
         <small>Enter character names, one per line. Supports simple names or /regex/.</small>
         <small class="cs-tip"><b>Tip:</b> List longer names before shorter names that are part of them (e.g., list 'Arthur' before 'Art').</small>
@@ -55,7 +64,7 @@
 
       <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
-          <b>Advanced Settings</b>
+          <b class="cs-label-with-icon"><i class="fa-solid fa-cogs"></i>Advanced Settings</b>
           <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
@@ -75,30 +84,28 @@
           <div class="cs-block">
             <label><b>Detection Methods (for Novel Style)</b></label>
             <small>Enable these for flexible detection in narrative text. Uncheck all for simple `Name: "Dialogue"` style.</small>
-            <table style="width: 100%; margin-top: 15px; border-spacing: 0 12px; border-collapse: separate;">
-              <tbody>
-                <tr>
-                  <td style="width: 35%; vertical-align: top;"><input id="cs-detect-attribution" type="checkbox" /><label for="cs-detect-attribution"> Detect Attribution</label></td>
-                  <td><small>Finds dialogue attribution, like <em>"Hello," she said.</em></small></td>
-                </tr>
-                <tr>
-                  <td style="vertical-align: top;"><input id="cs-detect-action" type="checkbox" /><label for="cs-detect-action"> Detect Action</label></td>
-                  <td><small>Finds character actions, like <em>He nodded.</em></small></td>
-                </tr>
-                <tr>
-                  <td style="vertical-align: top;"><input id="cs-detect-vocative" type="checkbox" /><label for="cs-detect-vocative"> Detect Vocative</label></td>
-                  <td><small>Finds when a character is addressed by name.</small></td>
-                </tr>
-                <tr>
-                  <td style="vertical-align: top;"><input id="cs-detect-possessive" type="checkbox" /><label for="cs-detect-possessive"> Detect Possessive</label></td>
-                  <td><small>Finds ownership, like <em>Her eyes widened.</em></small></td>
-                </tr>
-                <tr>
-                  <td style="vertical-align: top;"><input id="cs-detect-general" type="checkbox" /><label for="cs-detect-general"> Detect General Mentions</label></td>
-                  <td><small><b>(Use with caution)</b> Triggers on any name mention. Can be inaccurate.</small></td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="cs-detection-methods">
+                <div class="cs-detection-method">
+                    <div><input id="cs-detect-attribution" type="checkbox" /><label for="cs-detect-attribution">Detect Attribution</label></div>
+                    <small>Finds dialogue attribution, like <em>"Hello," she said.</em></small>
+                </div>
+                <div class="cs-detection-method">
+                    <div><input id="cs-detect-action" type="checkbox" /><label for="cs-detect-action">Detect Action</label></div>
+                    <small>Finds character actions, like <em>He nodded.</em></small>
+                </div>
+                <div class="cs-detection-method">
+                    <div><input id="cs-detect-vocative" type="checkbox" /><label for="cs-detect-vocative">Detect Vocative</label></div>
+                    <small>Finds when a character is addressed by name.</small>
+                </div>
+                <div class="cs-detection-method">
+                    <div><input id="cs-detect-possessive" type="checkbox" /><label for="cs-detect-possessive">Detect Possessive</label></div>
+                    <small>Finds ownership, like <em>Her eyes widened.</em></small>
+                </div>
+                <div class="cs-detection-method">
+                    <div><input id="cs-detect-general" type="checkbox" /><label for="cs-detect-general">Detect General Mentions</label></div>
+                    <small><b>(Use with caution)</b> Triggers on any name mention.</small>
+                </div>
+            </div>
           </div>
 
           <div class="cs-block">
@@ -114,7 +121,7 @@
           </div>
 
           <div class="cs-block">
-            <label><b>Performance Tuning</b></label>
+            <label class="cs-label-with-icon"><i class="fa-solid fa-tachometer-alt"></i><b>Performance Tuning</b></label>
             <div class="inline-group cs-flex-container">
               <label for="cs-global-cooldown">Global Cooldown (ms)</label>
               <input id="cs-global-cooldown" class="text_pole" type="number" min="0" />
@@ -132,7 +139,7 @@
             <small>How many characters to wait before checking. Lower is more reactive but uses more CPU.</small>
             <div class="inline-group" style="margin-top: 15px;">
               <label for="cs-detection-bias">Detection Bias (<span id="cs-detection-bias-value">0</span>)</label>
-              <input id="cs-detection-bias" type="range" min="-200" max="200" value="0" class="cs-full-width"/>
+              <input id="cs-detection-bias" type="range" min="-200" max="200" value="0" class="cs-slider"/>
               <small>Adjusts detection accuracy. Higher values favor action/dialogue tags; lower values favor the most recently mentioned character.</small>
             </div>
           </div>
@@ -148,7 +155,7 @@
           </div>
 
           <div class="cs-block">
-            <label><b>Live Pattern Tester</b></label>
+            <label class="cs-label-with-icon"><i class="fa-solid fa-vial"></i><b>Live Pattern Tester</b></label>
             <small>Paste text to see detections based on your current settings.</small>
             <textarea id="cs-regex-test-input" class="text_pole" rows="4" placeholder="Paste a message here..." style="margin-top: 10px;"></textarea>
             <button id="cs-regex-test-button" class="menu_button interactable">Test Pattern</button>
@@ -183,7 +190,7 @@
       </div>
 
       <div class="cs-flex-container">
-        <button id="cs-save" class="menu_button interactable">Save Current Profile</button>
+        <button id="cs-save" class="menu_button interactable cs-button-primary">Save Current Profile</button>
         <button id="cs-reset" class="menu_button interactable">Manual Reset</button>
       </div>
 
