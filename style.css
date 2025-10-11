@@ -115,6 +115,8 @@ input[type="range"].cs-slider {
 input[type="range"].cs-slider:hover {
   opacity: 1;
 }
+
+/* -- Slider Thumb -- */
 input[type="range"].cs-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -131,8 +133,22 @@ input[type="range"].cs-slider::-moz-range-thumb {
   background: var(--primary-color);
   cursor: pointer;
   border-radius: 50%;
-  border: 2px solid var(--bg2);
+  border: 0; /* Important for Firefox */
+  box-shadow: 0 0 0 2px var(--bg2); /* Create border effect with box-shadow */
 }
+
+/* -- Slider Track (Improves compatibility) -- */
+input[type="range"].cs-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 5px;
+    background: var(--bg0);
+}
+input[type="range"].cs-slider::-moz-range-track {
+    height: 6px;
+    border-radius: 5px;
+    background: var(--bg0);
+}
+
 
 /* --- Live Tester --- */
 .cs-tester-output-container {
