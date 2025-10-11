@@ -1,151 +1,97 @@
 /* Main container for the extension settings */
 #costume-switcher-settings {
-    padding: 10px;
-    border-radius: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background-color: var(--bg1);
 }
 
-/* Styles the main collapsible header to match other extensions */
-#costume-switcher-settings .inline-drawer-toggle.inline-drawer-header {
-    background-color: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 15px;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px; /* Space between header and content */
-}
-
-/* Adds a subtle outline to the main content area when open */
-#costume-switcher-settings .inline-drawer.is-open .inline-drawer-content {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 5px;
-    background-color: var(--bg1);
-}
-
-/* Blocks for grouping related settings */
+/* General styling for distinct sections */
 .cs-block {
-    margin: 10px;
-    padding: 15px;
-    border-radius: 6px;
-    background-color: var(--bg2);
-    border: 1px solid var(--border);
+  margin-bottom: 20px;
+  padding: 15px;
+  border-radius: 6px;
+  background-color: var(--bg2);
+  border: 1px solid var(--border);
 }
 
-/* Small helper text */
+/* Helper text styling */
 #costume-switcher-settings small {
-    display: block;
-    margin-top: 5px;
-    color: var(--text-color-soft);
-    font-size: 0.85em;
+  display: block;
+  margin-top: 5px;
+  color: var(--text-color-soft);
+  font-size: 0.85em;
 }
 
-/* Flexbox container for buttons */
+/* Styling for small tip text */
+#costume-switcher-settings .cs-tip {
+  margin-top: 10px;
+  color: var(--text-color-soft-extra);
+}
+
+/* Flexbox container for buttons and inputs */
 .cs-flex-container {
-    display: flex;
-    gap: 10px;
-    margin: 15px 10px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
 }
 
 /* Status and Error message styling */
 .cs-status-message, .cs-error-message {
-    margin: 15px 10px;
-    padding: 10px;
-    border-radius: 4px;
-    font-weight: bold;
-    border: 1px solid var(--border);
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 4px;
+  font-weight: bold;
+  border: 1px solid transparent;
 }
 .cs-status-message {
-    background-color: rgba(var(--green-rgb), 0.15);
-    color: var(--green);
+  background-color: rgba(var(--green-rgb), 0.15);
+  color: var(--green);
+  border-color: rgba(var(--green-rgb), 0.3);
 }
 .cs-error-message {
-    background-color: rgba(var(--red-rgb), 0.15);
-    color: var(--red);
-    display: none;
+  background-color: rgba(var(--red-rgb), 0.15);
+  color: var(--red);
+  border-color: rgba(var(--red-rgb), 0.3);
+  display: none; /* Hidden by default */
 }
 
-/* General input and control styling */
-#costume-switcher-settings .menu_button,
-#costume-switcher-settings button {
-    font-family: inherit;
-    background-color: var(--button-background);
-    color: var(--button-text-color);
-    border: 1px solid var(--button-border-color);
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 0.9em;
-    cursor: pointer;
-}
-#costume-switcher-settings button:hover {
-    background-color: var(--button-background-hover);
+/* Ensure consistent font for buttons */
+#costume-switcher-settings .menu_button {
+  font-family: inherit;
 }
 
-#costume-switcher-settings input[type="text"],
-#costume-switcher-settings input[type="number"],
-#costume-switcher-settings textarea,
-#costume-switcher-settings select {
-    background-color: var(--input-background);
-    color: var(--text-color);
-    border: 1px solid var(--input-border-color);
-    border-radius: 4px;
-    padding: 6px;
-    font-size: 0.9em;
-    box-shadow: none;
-    outline: none;
-    box-sizing: border-box;
+/* Full-width input styling for range slider */
+.cs-full-width {
     width: 100%;
 }
 
-#costume-switcher-settings input:-webkit-autofill,
-#costume-switcher-settings textarea:-webkit-autofill {
-    background-color: var(--input-background) !important;
-    -webkit-box-shadow: 0 0 0px 1000px var(--input-background) inset !important;
-    -webkit-text-fill-color: var(--text-color) !important;
-}
-
-/* Inline group for label-input pairs */
-#costume-switcher-settings .inline-group {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-/* Performance tuning visual separation */
-.cs-block .inline-group + .inline-group {
-    border-top: 1px solid var(--border);
-    padding-top: 10px;
-    margin-top: 10px;
-}
-
-/* Mappings Table Styling */
-#cs-mappings {
-    width: 100%;
-    border-collapse: collapse;
-}
-#cs-mappings th, #cs-mappings td {
-    border: 1px solid var(--border);
-    padding: 8px;
-    text-align: left;
-}
-#cs-mappings th {
+/* Styling for the live tester output area */
+.cs-tester-output-container {
+    display: flex; 
+    gap: 10px; 
+    padding: 10px; 
+    min-height: 100px; 
+    margin-top: 10px; 
     background-color: var(--bg0);
 }
-#cs-mappings input {
-    width: 100%;
+.cs-tester-col {
+    flex: 1;
+    font-size: 0.9em;
 }
-#cs-mappings button {
-    width: 100%;
+.cs-tester-col--divider {
+    border-right: 1px solid var(--border); 
+    padding-right: 10px;
 }
-
-/* Live Tester output styling */
-#cs-regex-test-output-container {
-    border: 1px solid var(--border);
+.cs-tester-list {
+    list-style-position: inside; 
+    padding: 0; 
+    margin: 0; 
 }
-#cs-test-veto-result {
-    border: 1px solid transparent;
-    transition: all 0.2s ease-in-out;
-    min-height: 28px;
+.cs-tester-list-placeholder {
+    color: var(--text-color-soft);
+}
+.cs-tester-title {
+    font-weight: bold; 
+    margin-bottom: 5px;
 }
