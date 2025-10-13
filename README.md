@@ -184,7 +184,7 @@ This is your primary diagnostic tool. Paste any block of text into the tester an
 
 These extensions work well alongside Costume Switcher to enhance your storytelling experience.
 
-* **[Moonlit Echoes Theme]**: A brief description of what this extension does and why it's a good companion.
+* **[Moonlit Echoes Theme]**: A really good theme extension that improves your roleplay experience, and makes this extensions settings page look better.
     ```
     https://github.com/RivelleDays/SillyTavern-MoonlitEchoesTheme
     ```
