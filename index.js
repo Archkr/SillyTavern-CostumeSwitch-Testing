@@ -631,35 +631,35 @@ async function manualReset() {
 // SLASH COMMANDS
 // ======================================================================
 function registerCommands() {
-    registerSlashCommand("cs-addchar", "Adds a character to the current profile's pattern list for this session.", ["char"], (args) => {
+    registerSlashCommand("cs-addchar", (args) => {
         const profile = getActiveProfile();
         if (profile) {
             profile.patterns.push(args[0]);
             recompileRegexes();
             showStatus(`Added "<b>${args[0]}</b>" to patterns for this session.`, 'success');
         }
-    }, true);
+    }, ["char"], "Adds a character to the current profile's pattern list for this session.", true);
 
-    registerSlashCommand("cs-ignore", "Adds a character to the current profile's ignore list for this session.", ["char"], (args) => {
+    registerSlashCommand("cs-ignore", (args) => {
         const profile = getActiveProfile();
         if (profile) {
             profile.ignorePatterns.push(args[0]);
             recompileRegexes();
             showStatus(`Ignoring "<b>${args[0]}</b>" for this session.`, 'success');
         }
-    }, true);
+    }, ["char"], "Adds a character to the current profile's ignore list for this session.", true);
 
-    registerSlashCommand("cs-map", "Maps a character alias to a costume folder for this session. Use 'to' to separate.", ["alias", "to", "folder"], (args) => {
+    registerSlashCommand("cs-map", (args) => {
         const profile = getActiveProfile();
         const [alias, , folder] = args;
         if (profile && alias && folder) {
             profile.mappings.push({ name: alias, folder: folder });
             showStatus(`Mapped "<b>${alias}</b>" to "<b>${folder}</b>" for this session.`, 'success');
         }
-    }, true);
+    }, ["alias", "to", "folder"], "Maps a character alias to a costume folder for this session. Use 'to' to separate.", true);
 
     // NEW SLASH COMMAND
-    registerSlashCommand("cs-analyze", "Analyzes the last AI message for top characters and saves them to the {{cs_top_characters}} variable.", ["number_of_chars"], (args) => {
+    registerSlashCommand("cs-analyze", (args) => {
         const numChars = parseInt(args[0], 10) || 3; // Default to top 3 characters
         const context = getContext();
         
@@ -681,7 +681,7 @@ function registerCommands() {
         } else {
             showStatus("No characters found in the last message.", 'info');
         }
-    }, false); // Set to false to make it visible in the command list
+    }, ["number_of_chars"], "Analyzes the last AI message for top characters and saves them to the {{cs_top_characters}} variable.", false); // Set to false to make it visible in the command list
 }
 
 // ======================================================================
