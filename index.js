@@ -1,5 +1,5 @@
 import { extension_settings, getContext } from "../../../extensions.js";
-import { saveSettingsDebounced, event_types, eventSource } from "../../../../script.js";
+import { saveSettingsDebounced, event_types, eventSource, setVariable } from "../../../../script.js";
 import { executeSlashCommandsOnChatInput, registerSlashCommand } from "../../../slash-commands.js";
 
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
