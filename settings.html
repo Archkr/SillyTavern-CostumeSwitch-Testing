@@ -3,9 +3,7 @@
   padding: 10px;
   border-radius: 8px;
   background-color: var(--bg1);
-  font-family: 'Roboto', sans-serif; /* Ensure consistent font */
-
-  /* Define a custom color for the slider thumb */
+  font-family: 'Roboto', sans-serif;
   --cs-slider-thumb-color: var(--green);
 }
 
@@ -13,7 +11,7 @@
 .cs-block {
   margin-bottom: 20px;
   padding: 15px;
-  border-radius: 8px; /* Slightly more rounded corners */
+  border-radius: 8px;
   background-color: var(--bg2);
   border: 1px solid var(--border);
   transition: all 0.2s ease-in-out;
@@ -22,6 +20,13 @@
 .cs-block:hover {
   border-color: var(--primary-color-faded);
 }
+.cs-block .cs-block { /* Nested blocks */
+  margin-top: 15px;
+  margin-bottom: 0;
+  padding: 10px;
+  background-color: var(--bg1);
+}
+
 
 /* --- Typography & Icons --- */
 .cs-label-with-icon {
@@ -31,6 +36,8 @@
 }
 .cs-label-with-icon .fa-solid {
   color: var(--text-color-soft);
+  width: 1.2em; /* Ensure consistent alignment */
+  text-align: center;
 }
 #costume-switcher-settings small {
   display: block;
@@ -44,6 +51,7 @@
   padding: 8px;
   background-color: var(--bg0);
   border-radius: 4px;
+  border-left: 3px solid var(--green);
   color: var(--text-color-soft-extra);
 }
 
@@ -53,6 +61,15 @@
   gap: 10px;
   align-items: center;
   margin-top: 10px;
+}
+.inline-group {
+    margin-top: 10px;
+}
+.inline-group.cs-flex-container label {
+    flex-shrink: 0; /* Prevent label from shrinking */
+}
+.inline-group.cs-flex-container input {
+    flex-grow: 1;
 }
 
 /* --- Form Elements --- */
@@ -86,82 +103,55 @@
 
 /* --- Detection Methods Layout --- */
 .cs-detection-methods {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 15px;
   margin-top: 15px;
 }
 .cs-detection-method {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .cs-detection-method > div { /* Label and checkbox container */
   display: flex;
   align-items: center;
   gap: 5px;
 }
+.cs-detection-method small {
+  margin-top: 0;
+  padding-left: 21px; /* Align with label text */
+}
 
-/* --- Cross-Browser Range Slider (High Specificity) --- */
-#costume-switcher-settings input[type="range"].cs-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 6px;
-  background: transparent;
-  cursor: pointer;
+/* --- Modern Range Slider --- */
+input[type="range"].cs-slider {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 6px;
+  background: transparent; cursor: pointer;
   outline: none;
 }
-
-/* -- Track Styles -- */
-#costume-switcher-settings input[type="range"].cs-slider::-webkit-slider-runnable-track {
-  height: 6px;
-  background: var(--bg0, #444);
-  border-radius: 5px;
-}
-#costume-switcher-settings input[type="range"].cs-slider::-moz-range-track {
-  height: 6px;
-  background: var(--bg0, #444);
-  border-radius: 5px;
-}
-
-/* -- Thumb (Knob) Styles -- */
-#costume-switcher-settings input[type="range"].cs-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
+input[type="range"].cs-slider::-webkit-slider-runnable-track { height: 6px; background: var(--bg0); border-radius: 5px; }
+input[type="range"].cs-slider::-moz-range-track { height: 6px; background: var(--bg0); border-radius: 5px; }
+input[type="range"].cs-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
   margin-top: -6px;
-  height: 18px;
-  width: 18px;
-  background-color: var(--cs-slider-thumb-color, #28a745);
+  height: 18px; width: 18px;
+  background-color: var(--cs-slider-thumb-color);
   border-radius: 50%;
-  border: 2px solid var(--bg2, #333);
+  border: 2px solid var(--bg2);
   transition: transform 0.2s ease;
 }
-
-#costume-switcher-settings input[type="range"].cs-slider::-moz-range-thumb {
-  height: 18px;
-  width: 18px;
-  background-color: var(--cs-slider-thumb-color, #28a745);
-  border-radius: 50%;
-  border: none;
-  box-shadow: 0 0 0 2px var(--bg2, #333);
+input[type="range"].cs-slider::-moz-range-thumb {
+  height: 18px; width: 18px;
+  background-color: var(--cs-slider-thumb-color);
+  border-radius: 50%; border: none;
+  box-shadow: 0 0 0 2px var(--bg2); 
   transition: transform 0.2s ease;
 }
-
-/* -- Focus & Hover States -- */
-#costume-switcher-settings input[type="range"].cs-slider:hover::-webkit-slider-thumb {
-    transform: scale(1.1);
-}
-#costume-switcher-settings input[type="range"].cs-slider:hover::-moz-range-thumb {
-    transform: scale(1.1);
-}
-#costume-switcher-settings input[type="range"].cs-slider:focus::-webkit-slider-thumb {
-    box-shadow: 0 0 0 4px var(--primary-color-faded, rgba(0, 123, 255, 0.25));
-}
-#costume-switcher-settings input[type="range"].cs-slider:focus::-moz-range-thumb {
-    box-shadow: 0 0 0 2px var(--bg2, #333), 0 0 0 4px var(--primary-color-faded, rgba(0, 123, 255, 0.25));
-}
+input[type="range"].cs-slider:hover::-webkit-slider-thumb,
+input[type="range"].cs-slider:hover::-moz-range-thumb { transform: scale(1.1); }
+input[type="range"].cs-slider:focus::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--primary-color-faded); }
+input[type="range"].cs-slider:focus::-moz-range-thumb { box-shadow: 0 0 0 2px var(--bg2), 0 0 0 4px var(--primary-color-faded); }
 
 
 /* --- Live Tester --- */
@@ -171,20 +161,6 @@
 }
 .cs-tester-col { flex: 1; font-size: 0.9em; }
 .cs-tester-col--divider { border-right: 1px solid var(--border); padding-right: 10px; }
-.cs-tester-list { list-style-position: inside; padding: 0; margin: 0; }
+.cs-tester-list { list-style-position: inside; padding: 0; margin: 0; overflow-wrap: break-word; }
 .cs-tester-list-placeholder { color: var(--text-color-soft); }
 .cs-tester-title { font-weight: bold; margin-bottom: 5px; }
-
-/* --- Status Messages --- */
-.cs-status-message, .cs-error-message {
-  margin-top: 15px; padding: 10px; border-radius: 4px;
-  font-weight: bold; border: 1px solid transparent;
-}
-.cs-status-message {
-  background-color: rgba(var(--green-rgb), 0.15); color: var(--green);
-  border-color: rgba(var(--green-rgb), 0.3);
-}
-.cs-error-message {
-  background-color: rgba(var(--red-rgb), 0.15); color: var(--red);
-  border-color: rgba(var(--red-rgb), 0.3); display: none;
-}
