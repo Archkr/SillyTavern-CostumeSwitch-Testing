@@ -4,8 +4,8 @@
   border-radius: 8px;
   background-color: var(--bg1);
   font-family: 'Roboto', sans-serif;
-  --green: #4CAF50; /* Added this line */
-  --cs-slider-thumb-color: var(--green);
+  --green: #4CAF50;
+  --cs-slider-thumb-color: #51a0de;
 }
 
 /* --- Section Blocks --- */
