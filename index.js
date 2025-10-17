@@ -709,14 +709,18 @@ function logLastMessageStats() {
 }
 
 function calculateFinalMessageStats(messageId) {
-    const { chat } = getContext();
-    const message = chat.find(m => m.mesId === messageId);
-    if (!message || !message.mes) {
-        debugLog("Could not find message to calculate stats for:", messageId);
-        return;
+    const bufKey = `m${messageId}`;
+    const fullText = state.perMessageBuffers.get(bufKey);
+
+    if (!fullText) {
+        debugLog("Could not find message buffer to calculate stats for:", bufKey);
+        // As a fallback, try to get it from the chat context, but this is less reliable.
+        const { chat } = getContext();
+        const message = chat.find(m => m.mesId === messageId);
+        if (!message || !message.mes) return;
+        fullText = normalizeStreamText(message.mes);
     }
     
-    const fullText = normalizeStreamText(message.mes);
     const allMatches = findAllMatches(fullText);
     const stats = new Map();
     allMatches.forEach(m => {
@@ -724,7 +728,6 @@ function calculateFinalMessageStats(messageId) {
         stats.set(name, (stats.get(name) || 0) + 1);
     });
 
-    const bufKey = `m${messageId}`;
     state.messageStats.set(bufKey, stats);
     debugLog("Final stats calculated for", bufKey, stats);
 }
@@ -785,6 +788,7 @@ const handleGenerationStart = (messageId) => {
         lastSubject: oldState?.lastSubject || null,
         sceneRoster: new Set(oldState?.sceneRoster || []),
         rosterTTL: profile.sceneRosterTTL,
+        lastThreshold: 0,
     };
 
     if (newState.sceneRoster.size > 0) {
@@ -796,7 +800,7 @@ const handleGenerationStart = (messageId) => {
     }
     
     state.perMessageStates.set(bufKey, newState);
-    state.perMessageBuffers.delete(bufKey);
+    state.perMessageBuffers.set(bufKey, ''); // Explicitly clear/set buffer
 };
 
 const handleStream = (...args) => {
@@ -823,14 +827,17 @@ const handleStream = (...args) => {
         state.perMessageBuffers.set(bufKey, combined);
         
         if (combined.length < (msgState.nextThreshold || profile.tokenProcessThreshold)) return;
+        
+        const bestMatch = findBestMatch(combined);
+        debugLog(`Buffer len: ${combined.length}. Match:`, bestMatch ? `${bestMatch.name} (${bestMatch.matchKind})` : 'None');
         msgState.nextThreshold = combined.length + profile.tokenProcessThreshold;
+
 
         if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(combined)) {
             debugLog("Veto phrase matched. Halting detection for this message.");
             msgState.vetoed = true; return;
         }
 
-        const bestMatch = findBestMatch(combined);
 
         if (bestMatch) {
             const { name: matchedName, matchKind } = bestMatch;
@@ -863,8 +870,10 @@ const handleStream = (...args) => {
 
 const cleanupMessageState = (messageId) => { 
     if (messageId != null) { 
-        state.perMessageBuffers.delete(`m${messageId}`);
+        // The buffer is now the single source of truth for the final message content
         calculateFinalMessageStats(messageId);
+        // We don't delete the buffer here, so stats can be checked later.
+        // It will be overwritten by the next generation with the same ID, or cleared on chat change.
     }
 };
 
@@ -932,7 +941,7 @@ jQuery(async () => {
         load();
         
         window[`__${extensionName}_unload`] = unload;
-        console.log(`${logPrefix} v2.1.0 loaded successfully.`);
+        console.log(`${logPrefix} v2.1.1 loaded successfully.`);
     } catch (error) {
         console.error(`${logPrefix} failed to initialize:`, error);
         alert(`Failed to initialize Costume Switcher. Check console (F12) for details.`);
