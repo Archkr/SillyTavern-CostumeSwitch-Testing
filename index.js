@@ -248,18 +248,21 @@ function findBestMatch(combined) {
             const rosterMatches = allMatches.filter(m => msgState.sceneRoster.has(m.name.toLowerCase()));
             if (rosterMatches.length > 0) {
                 // Roster is active, only consider matches from the roster
-                return getWinner(rosterMatches, profile.detectionBias);
+                return getWinner(rosterMatches, profile.detectionBias, combined.length);
             }
         }
     }
-    
-    return getWinner(allMatches, profile.detectionBias);
+
+    return getWinner(allMatches, profile.detectionBias, combined.length);
 }
 
-function getWinner(matches, bias = 0) {
+function getWinner(matches, bias = 0, textLength = 0) {
     const scoredMatches = matches.map(match => {
         const isActive = match.priority >= 3; // speaker, attribution, action
-        const baseScore = match.priority * 1000 - match.matchIndex;
+        const distanceFromEnd = Number.isFinite(textLength)
+            ? Math.max(0, textLength - match.matchIndex)
+            : 0;
+        const baseScore = match.priority * 1000 - distanceFromEnd;
         const score = baseScore + (isActive ? bias : 0);
         return { ...match, score };
     });
