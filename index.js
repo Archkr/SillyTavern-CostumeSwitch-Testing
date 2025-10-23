@@ -262,7 +262,7 @@ function getWinner(matches, bias = 0, textLength = 0) {
         const distanceFromEnd = Number.isFinite(textLength)
             ? Math.max(0, textLength - match.matchIndex)
             : 0;
-        const baseScore = match.priority * 1000 - distanceFromEnd;
+        const baseScore = match.priority * 100 - distanceFromEnd;
         const score = baseScore + (isActive ? bias : 0);
         return { ...match, score };
     });
