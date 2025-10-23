@@ -646,12 +646,18 @@ function formatTesterReport(report) {
     lines.push(`Original input length: ${report.input?.length ?? 0} chars`);
     lines.push(`Processed length: ${report.normalizedInput?.length ?? 0} chars`);
     lines.push(`Veto triggered: ${report.vetoed ? `Yes (match: "${report.vetoMatch || 'unknown'}")` : 'No'}`);
+
+    const patternList = Array.isArray(report.profileSnapshot?.patterns)
+        ? report.profileSnapshot.patterns.map((entry) => String(entry ?? '').trim()).filter(Boolean)
+        : [];
+    lines.push(`Character Patterns: ${patternList.length ? patternList.join(', ') : '(none)'}`);
     lines.push('');
 
     lines.push('Detections:');
     if (report.matches?.length) {
         report.matches.forEach((m, idx) => {
-            lines.push(`  ${idx + 1}. ${m.name} – ${m.matchKind} @ char ${m.matchIndex + 1} (priority ${m.priority})`);
+            const charPos = Number.isFinite(m.matchIndex) ? m.matchIndex + 1 : '?';
+            lines.push(`  ${idx + 1}. ${m.name} – ${m.matchKind} @ char ${charPos} (priority ${m.priority})`);
         });
     } else {
         lines.push('  (none)');
@@ -664,9 +670,11 @@ function formatTesterReport(report) {
             if (event.type === 'switch') {
                 const detail = event.matchKind ? ` via ${event.matchKind}` : '';
                 const score = Number.isFinite(event.score) ? `, score ${event.score}` : '';
-                lines.push(`  ${idx + 1}. SWITCH → ${event.folder} (name: ${event.name}${detail}, char ${event.charIndex + 1}${score})`);
+                const charPos = Number.isFinite(event.charIndex) ? event.charIndex + 1 : '?';
+                lines.push(`  ${idx + 1}. SWITCH → ${event.folder} (name: ${event.name}${detail}, char ${charPos}${score})`);
             } else if (event.type === 'veto') {
-                lines.push(`  ${idx + 1}. VETO – matched "${event.match}" at char ${event.charIndex + 1}`);
+                const charPos = Number.isFinite(event.charIndex) ? event.charIndex + 1 : '?';
+                lines.push(`  ${idx + 1}. VETO – matched "${event.match}" at char ${charPos}`);
             } else {
                 const reason = describeSkipReason(event.reason);
                 lines.push(`  ${idx + 1}. SKIP – ${event.name} (${event.matchKind}) because ${reason}`);
@@ -688,6 +696,10 @@ function formatTesterReport(report) {
         lines.push(`  enableSceneRoster: ${report.profileSnapshot.enableSceneRoster ? 'true' : 'false'}`);
         lines.push(`  detectionBias: ${report.profileSnapshot.detectionBias}`);
     }
+
+    lines.push('');
+    lines.push('Message used:');
+    lines.push(report.input || '(none)');
 
     return lines.join('\n');
 }
@@ -893,7 +905,10 @@ function testRegexPattern() {
         const allMatches = findAllMatches(combined).sort((a, b) => a.matchIndex - b.matchIndex);
         allDetectionsList.empty();
         if (allMatches.length > 0) {
-            allMatches.forEach(m => allDetectionsList.append(`<li><b>${m.name}</b> <small>(${m.matchKind} @ ${m.matchIndex}, p:${m.priority})</small></li>`));
+            allMatches.forEach(m => {
+                const charPos = Number.isFinite(m.matchIndex) ? m.matchIndex + 1 : '?';
+                allDetectionsList.append(`<li><b>${m.name}</b> <small>(${m.matchKind} @ ${charPos}, p:${m.priority})</small></li>`);
+            });
         } else {
             allDetectionsList.html('<li class="cs-tester-list-placeholder">No detections found.</li>');
         }
