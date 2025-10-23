@@ -1,5 +1,11 @@
 <div id="costume-switcher-settings" class="extension_container cs-theme">
-  <div class="cs-shell">
+  <div class="inline-drawer is-open">
+    <div class="inline-drawer-toggle inline-drawer-header">
+      <b>Costume Switcher</b>
+      <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+    </div>
+    <div class="inline-drawer-content">
+      <div class="cs-shell">
     <section class="cs-card cs-header-card">
       <div class="cs-header-intro">
         <h2 class="cs-title">Costume Switcher</h2>
@@ -285,20 +291,21 @@
           </label>
         </section>
       </div>
-    </div>
+      </div>
 
-    <div class="cs-footer">
-      <div class="cs-toolbar cs-toolbar--wrap">
-        <button id="cs-save" class="menu_button interactable cs-button-primary">Save Current Profile</button>
-        <button id="cs-reset" class="menu_button interactable" title="Switch back to your default costume, or the main avatar if none is set.">Manual Reset</button>
-      </div>
-      <div id="cs-status" class="cs-status-message" aria-live="polite">
-        <i class="fa-solid fa-circle-info"></i>
-        <span class="cs-status-text">Ready</span>
-      </div>
-      <div id="cs-error" class="cs-error-message" role="alert" aria-live="assertive" hidden>
-        <i class="fa-solid fa-triangle-exclamation"></i>
-        <span class="cs-status-text"></span>
+      <div class="cs-footer">
+        <div class="cs-toolbar cs-toolbar--wrap">
+          <button id="cs-save" class="menu_button interactable cs-button-primary">Save Current Profile</button>
+          <button id="cs-reset" class="menu_button interactable" title="Switch back to your default costume, or the main avatar if none is set.">Manual Reset</button>
+        </div>
+        <div id="cs-status" class="cs-status-message" aria-live="polite">
+          <i class="fa-solid fa-circle-info"></i>
+          <span class="cs-status-text">Ready</span>
+        </div>
+        <div id="cs-error" class="cs-error-message" role="alert" aria-live="assertive" hidden>
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span class="cs-status-text"></span>
+        </div>
       </div>
     </div>
   </div>
