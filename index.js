@@ -112,6 +112,98 @@ const state = {
     buildMeta: null,
 };
 
+const TAB_STORAGE_KEY = `${extensionName}-active-tab`;
+
+function initTabNavigation() {
+    const container = document.getElementById('costume-switcher-settings');
+    if (!container) return;
+
+    const buttons = Array.from(container.querySelectorAll('.cs-tab-button'));
+    const panels = Array.from(container.querySelectorAll('.cs-tab-panel'));
+    if (!buttons.length || !panels.length) return;
+
+    const buttonByTab = new Map(buttons.map(btn => [btn.dataset.tab, btn]));
+    const panelByTab = new Map(panels.map(panel => [panel.dataset.tab, panel]));
+
+    let storedTab = null;
+    try {
+        storedTab = window.localStorage?.getItem(TAB_STORAGE_KEY) || null;
+    } catch (err) {
+        console.debug(`${logPrefix} Unable to read stored tab preference:`, err);
+    }
+
+    const activateTab = (tabId, { focusButton = false } = {}) => {
+        if (!buttonByTab.has(tabId) || !panelByTab.has(tabId)) return;
+
+        for (const [id, btn] of buttonByTab.entries()) {
+            const isActive = id === tabId;
+            btn.classList.toggle('is-active', isActive);
+            btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            btn.setAttribute('tabindex', isActive ? '0' : '-1');
+            if (isActive && focusButton) {
+                btn.focus();
+            }
+        }
+
+        for (const [id, panel] of panelByTab.entries()) {
+            const isActive = id === tabId;
+            panel.classList.toggle('is-active', isActive);
+            panel.toggleAttribute('hidden', !isActive);
+        }
+
+        try {
+            window.localStorage?.setItem(TAB_STORAGE_KEY, tabId);
+        } catch (err) {
+            console.debug(`${logPrefix} Unable to persist tab preference:`, err);
+        }
+    };
+
+    const defaultTab = buttonByTab.has(storedTab) ? storedTab : buttons[0].dataset.tab;
+    activateTab(defaultTab);
+
+    container.addEventListener('click', (event) => {
+        const target = event.target.closest('.cs-tab-button');
+        if (!target || !container.contains(target)) return;
+        const tabId = target.dataset.tab;
+        if (tabId) {
+            activateTab(tabId);
+        }
+    });
+
+    container.addEventListener('keydown', (event) => {
+        if (!event.target.classList.contains('cs-tab-button')) return;
+
+        const currentIndex = buttons.indexOf(event.target);
+        if (currentIndex === -1) return;
+
+        let nextIndex = null;
+        switch (event.key) {
+            case 'ArrowRight':
+            case 'ArrowDown':
+                nextIndex = (currentIndex + 1) % buttons.length;
+                break;
+            case 'ArrowLeft':
+            case 'ArrowUp':
+                nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+                break;
+            case 'Home':
+                nextIndex = 0;
+                break;
+            case 'End':
+                nextIndex = buttons.length - 1;
+                break;
+            default:
+                break;
+        }
+
+        if (nextIndex != null) {
+            event.preventDefault();
+            const nextButton = buttons[nextIndex];
+            activateTab(nextButton.dataset.tab, { focusButton: true });
+        }
+    });
+}
+
 // ======================================================================
 // REGEX & DETECTION LOGIC
 // ======================================================================
@@ -1235,6 +1327,7 @@ function testRegexPattern() {
 
 function wireUI() {
     const settings = getSettings();
+    initTabNavigation();
     $(document).on('change', '#cs-enable', function() { settings.enabled = $(this).prop("checked"); persistSettings("Extension " + (settings.enabled ? "Enabled" : "Disabled"), 'info'); });
     $(document).on('click', '#cs-save', () => { 
         const profile = getActiveProfile();
