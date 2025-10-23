@@ -238,6 +238,13 @@ input[type="range"].cs-slider:focus::-moz-range-thumb { box-shadow: 0 0 0 2px va
 }
 .cs-tester-col { flex: 1; font-size: 0.9em; }
 .cs-tester-col--divider { border-right: 1px solid var(--border); padding-right: 10px; }
-.cs-tester-list { list-style-position: inside; padding: 0; margin: 0; overflow-wrap: break-word; }
+.cs-tester-list { list-style-position: inside; padding: 0; margin: 0; overflow-wrap: break-word; max-height: 220px; overflow-y: auto; }
 .cs-tester-list-placeholder { color: var(--text-color-soft); }
 .cs-tester-title { font-weight: bold; margin-bottom: 5px; }
+.cs-tester-log-switch { color: var(--green); }
+.cs-tester-log-switch small { color: var(--text-color); margin-left: 6px; }
+.cs-tester-log-skip { color: var(--text-color-soft); font-style: italic; }
+.cs-tester-log-skip span { font-weight: 600; color: var(--text-color); font-style: normal; }
+.cs-tester-log-skip small { margin-left: 6px; }
+.cs-tester-log-veto { color: var(--red); font-weight: 600; }
+.cs-tester-log-veto small { color: var(--text-color); margin-left: 6px; font-weight: normal; }
