@@ -242,28 +242,41 @@ function findBestMatch(combined) {
     const allMatches = findAllMatches(combined);
     if (allMatches.length === 0) return null;
 
+    let rosterSet = null;
     if (profile.enableSceneRoster) {
         const msgState = Array.from(state.perMessageStates.values()).pop();
         if (msgState && msgState.sceneRoster.size > 0) {
-            const rosterMatches = allMatches.filter(m => msgState.sceneRoster.has(m.name.toLowerCase()));
-            if (rosterMatches.length > 0) {
-                // Roster is active, only consider matches from the roster
-                return getWinner(rosterMatches, profile.detectionBias, combined.length);
-            }
+            rosterSet = msgState.sceneRoster;
         }
     }
 
-    return getWinner(allMatches, profile.detectionBias, combined.length);
+    return getWinner(allMatches, profile.detectionBias, combined.length, { rosterSet });
 }
 
-function getWinner(matches, bias = 0, textLength = 0) {
+function getWinner(matches, bias = 0, textLength = 0, options = {}) {
+    const rosterSet = options?.rosterSet instanceof Set ? options.rosterSet : null;
+    const rosterBonus = Number.isFinite(options?.rosterBonus) ? options.rosterBonus : 150;
+    const rosterPriorityDropoff = Number.isFinite(options?.rosterPriorityDropoff)
+        ? options.rosterPriorityDropoff
+        : 0.5;
     const scoredMatches = matches.map(match => {
         const isActive = match.priority >= 3; // speaker, attribution, action
         const distanceFromEnd = Number.isFinite(textLength)
             ? Math.max(0, textLength - match.matchIndex)
             : 0;
         const baseScore = match.priority * 100 - distanceFromEnd;
-        const score = baseScore + (isActive ? bias : 0);
+        let score = baseScore + (isActive ? bias : 0);
+        if (rosterSet) {
+            const normalized = String(match.name || '').toLowerCase();
+            if (normalized && rosterSet.has(normalized)) {
+                let bonus = rosterBonus;
+                if (match.priority >= 3 && rosterPriorityDropoff > 0) {
+                    const dropoffMultiplier = 1 - rosterPriorityDropoff * (match.priority - 2);
+                    bonus *= Math.max(0, dropoffMultiplier);
+                }
+                score += bonus;
+            }
+        }
         return { ...match, score };
     });
     scoredMatches.sort((a, b) => b.score - a.score);
