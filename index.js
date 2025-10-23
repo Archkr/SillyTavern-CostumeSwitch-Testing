@@ -460,6 +460,9 @@ const uiMapping = {
     debug: { selector: '#cs-debug', type: 'checkbox' },
     globalCooldownMs: { selector: '#cs-global-cooldown', type: 'number' },
     repeatSuppressMs: { selector: '#cs-repeat-suppress', type: 'number' },
+    perTriggerCooldownMs: { selector: '#cs-per-trigger-cooldown', type: 'number' },
+    failedTriggerCooldownMs: { selector: '#cs-failed-trigger-cooldown', type: 'number' },
+    maxBufferChars: { selector: '#cs-max-buffer-chars', type: 'number' },
     tokenProcessThreshold: { selector: '#cs-token-process-threshold', type: 'number' },
     detectionBias: { selector: '#cs-detection-bias', type: 'range' },
     detectAttribution: { selector: '#cs-detect-attribution', type: 'checkbox' },
@@ -473,6 +476,31 @@ const uiMapping = {
     enableSceneRoster: { selector: '#cs-scene-roster-enable', type: 'checkbox' },
     sceneRosterTTL: { selector: '#cs-scene-roster-ttl', type: 'number' },
 };
+
+function normalizeProfileNameInput(name) {
+    return String(name ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function getUniqueProfileName(baseName = 'Profile') {
+    const settings = getSettings();
+    let attempt = normalizeProfileNameInput(baseName);
+    if (!attempt) attempt = 'Profile';
+    if (!settings?.profiles?.[attempt]) return attempt;
+
+    let counter = 2;
+    while (settings.profiles[`${attempt} (${counter})`]) {
+        counter += 1;
+    }
+    return `${attempt} (${counter})`;
+}
+
+function resolveMaxBufferChars(profile) {
+    const raw = Number(profile?.maxBufferChars);
+    if (Number.isFinite(raw) && raw > 0) {
+        return raw;
+    }
+    return PROFILE_DEFAULTS.maxBufferChars;
+}
 
 function populateProfileDropdown() {
     const select = $("#cs-profile-select");
@@ -521,7 +549,7 @@ function loadProfile(profileName) {
     }
     settings.activeProfile = profileName;
     const profile = getActiveProfile();
-    $("#cs-profile-name").val(profileName);
+    $("#cs-profile-name").val('').attr('placeholder', `Enter a name... (current: ${profileName})`);
     $("#cs-enable").prop('checked', !!settings.enabled);
     for (const key in uiMapping) {
         const { selector, type } = uiMapping[key];
@@ -932,7 +960,7 @@ function simulateTesterStream(combined, profile, bufKey) {
     };
 
     const threshold = Math.max(0, Number(profile.tokenProcessThreshold) || 0);
-    const maxBuffer = Number(profile.maxBufferChars) > 0 ? profile.maxBufferChars : PROFILE_DEFAULTS.maxBufferChars;
+    const maxBuffer = resolveMaxBufferChars(profile);
     const rosterTTL = profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL;
     const repeatSuppress = Number(profile.repeatSuppressMs) || 0;
     let buffer = '';
@@ -1155,20 +1183,59 @@ function wireUI() {
     });
     $(document).on('change', '#cs-profile-select', function() { loadProfile($(this).val()); });
     $(document).on('click', '#cs-profile-save', () => {
-        const newName = $("#cs-profile-name").val().trim(); if (!newName) return;
-        const oldName = settings.activeProfile;
-        if (newName !== oldName && settings.profiles[newName]) { showStatus("A profile with that name already exists.", 'error'); return; }
-        const profileData = saveCurrentProfileData();
-        if (newName !== oldName) {
-             settings.profiles[newName] = profileData;
-             settings.activeProfile = newName;
-             delete settings.profiles[oldName];
-        } else {
-            Object.assign(getActiveProfile(), profileData);
-        }
-        populateProfileDropdown();
+        const profile = getActiveProfile();
+        if (!profile) return;
+        Object.assign(profile, saveCurrentProfileData());
+        persistSettings('Profile saved.');
         loadProfile(settings.activeProfile);
-        persistSettings(`Profile saved as "${newName}"`);
+    });
+    $(document).on('click', '#cs-profile-saveas', () => {
+        const desiredName = normalizeProfileNameInput($("#cs-profile-name").val());
+        if (!desiredName) { showStatus('Enter a name to save a new profile.', 'error'); return; }
+        if (settings.profiles[desiredName]) { showStatus('A profile with that name already exists.', 'error'); return; }
+        const profileData = Object.assign({}, structuredClone(PROFILE_DEFAULTS), saveCurrentProfileData());
+        settings.profiles[desiredName] = profileData;
+        settings.activeProfile = desiredName;
+        populateProfileDropdown();
+        loadProfile(desiredName);
+        $("#cs-profile-name").val('');
+        persistSettings(`Saved a new profile as "${desiredName}".`);
+    });
+    $(document).on('click', '#cs-profile-rename', () => {
+        const newName = normalizeProfileNameInput($("#cs-profile-name").val());
+        const oldName = settings.activeProfile;
+        if (!newName) { showStatus('Enter a new name to rename this profile.', 'error'); return; }
+        if (newName === oldName) { showStatus('The profile already uses that name.', 'info'); return; }
+        if (settings.profiles[newName]) { showStatus('A profile with that name already exists.', 'error'); return; }
+        settings.profiles[newName] = settings.profiles[oldName];
+        delete settings.profiles[oldName];
+        settings.activeProfile = newName;
+        populateProfileDropdown();
+        loadProfile(newName);
+        $("#cs-profile-name").val('');
+        persistSettings(`Renamed profile to "${newName}".`, 'info');
+    });
+    $(document).on('click', '#cs-profile-new', () => {
+        const baseName = normalizeProfileNameInput($("#cs-profile-name").val()) || 'New Profile';
+        const uniqueName = getUniqueProfileName(baseName);
+        settings.profiles[uniqueName] = structuredClone(PROFILE_DEFAULTS);
+        settings.activeProfile = uniqueName;
+        populateProfileDropdown();
+        loadProfile(uniqueName);
+        $("#cs-profile-name").val('');
+        persistSettings(`Created profile "${uniqueName}" from defaults.`, 'info');
+    });
+    $(document).on('click', '#cs-profile-duplicate', () => {
+        const activeProfile = getActiveProfile();
+        if (!activeProfile) return;
+        const baseName = normalizeProfileNameInput($("#cs-profile-name").val()) || `${settings.activeProfile} Copy`;
+        const uniqueName = getUniqueProfileName(baseName);
+        settings.profiles[uniqueName] = Object.assign({}, structuredClone(PROFILE_DEFAULTS), structuredClone(activeProfile));
+        settings.activeProfile = uniqueName;
+        populateProfileDropdown();
+        loadProfile(uniqueName);
+        $("#cs-profile-name").val('');
+        persistSettings(`Duplicated profile as "${uniqueName}".`, 'info');
     });
     $(document).on('click', '#cs-profile-delete', () => {
         if (Object.keys(settings.profiles).length <= 1) { showStatus("Cannot delete the last profile.", 'error'); return; }
@@ -1177,6 +1244,7 @@ function wireUI() {
             delete settings.profiles[profileNameToDelete];
             settings.activeProfile = Object.keys(settings.profiles)[0];
             populateProfileDropdown(); loadProfile(settings.activeProfile);
+            $("#cs-profile-name").val('');
             persistSettings(`Deleted profile "${profileNameToDelete}".`);
         }
     });
@@ -1415,7 +1483,8 @@ const handleStream = (...args) => {
         if (msgState.vetoed) return;
 
         const prev = state.perMessageBuffers.get(bufKey) || "";
-        const combined = (prev + normalizeStreamText(tokenText)).slice(-profile.maxBufferChars);
+        const maxBuffer = resolveMaxBufferChars(profile);
+        const combined = (prev + normalizeStreamText(tokenText)).slice(-maxBuffer);
         state.perMessageBuffers.set(bufKey, combined);
         
         if (combined.length < msgState.processedLength + profile.tokenProcessThreshold) {

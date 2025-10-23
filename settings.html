@@ -14,11 +14,18 @@
         <small>Save and load different configurations for various chats or characters.</small>
         <div class="cs-flex-container">
           <select id="cs-profile-select" class="text_pole" style="flex-grow: 1;" title="Select a saved profile to load it."></select>
-          <button id="cs-profile-delete" class="menu_button interactable cs-button-danger" title="Delete Selected Profile">Delete</button>
+          <button id="cs-profile-save" class="menu_button interactable" title="Save changes to the active profile.">Save</button>
         </div>
         <div class="cs-flex-container">
-          <input id="cs-profile-name" class="text_pole" type="text" placeholder="Enter profile name..." style="flex-grow: 1;" title="Type a new name to create a new profile, or use an existing name to overwrite.">
-          <button id="cs-profile-save" class="menu_button interactable" title="Save changes to the current profile.">Save</button>
+          <input id="cs-profile-name" class="text_pole" type="text" placeholder="Enter a name..." style="flex-grow: 1;" title="Enter a name to rename the active profile or create a new one.">
+          <button id="cs-profile-saveas" class="menu_button interactable" title="Save the active profile's settings under a new name.">Save As</button>
+          <button id="cs-profile-rename" class="menu_button interactable" title="Rename the active profile to the entered name.">Rename</button>
+        </div>
+        <small>Use the name box above to create or rename profiles. Leave it blank when simply saving edits to the current profile.</small>
+        <div class="cs-flex-container">
+          <button id="cs-profile-new" class="menu_button interactable" title="Create a fresh profile using default settings.">New (Defaults)</button>
+          <button id="cs-profile-duplicate" class="menu_button interactable" title="Duplicate the active profile to a new name.">Duplicate Current</button>
+          <button id="cs-profile-delete" class="menu_button interactable cs-button-danger" title="Delete the active profile.">Delete</button>
         </div>
         <div class="cs-flex-container">
           <button id="cs-profile-import" class="menu_button interactable" title="Import a profile from a .json file.">Import Profile</button>
@@ -146,6 +153,18 @@
             <div class="inline-group cs-flex-container">
               <label for="cs-repeat-suppress">Repeat Suppression (ms)</label>
               <input id="cs-repeat-suppress" class="text_pole" type="number" min="0" title="Minimum time before the SAME character can trigger another switch."/>
+            </div>
+            <div class="inline-group cs-flex-container">
+              <label for="cs-per-trigger-cooldown">Per-Trigger Cooldown (ms)</label>
+              <input id="cs-per-trigger-cooldown" class="text_pole" type="number" min="0" title="How long to wait before the same detection type can fire again."/>
+            </div>
+            <div class="inline-group cs-flex-container">
+              <label for="cs-failed-trigger-cooldown">Failed Trigger Cooldown (ms)</label>
+              <input id="cs-failed-trigger-cooldown" class="text_pole" type="number" min="0" title="Backoff delay after a failed switch attempt before trying again."/>
+            </div>
+            <div class="inline-group cs-flex-container">
+              <label for="cs-max-buffer-chars">Max Buffer Size (chars)</label>
+              <input id="cs-max-buffer-chars" class="text_pole" type="number" min="0" title="Maximum characters of recent text to keep while scanning the stream."/>
             </div>
             <div class="inline-group cs-flex-container">
               <label for="cs-token-process-threshold">Token Process Threshold (chars)</label>
