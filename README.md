@@ -12,6 +12,7 @@ Costume Switcher keeps the right avatar in focus while you write. It listens to 
 - **Performance tuning** – Adjust global, per-trigger, and failed-trigger cooldowns plus the maximum buffer size and processing cadence.
 - **Live Pattern Tester** – Paste sample prose, inspect every detection, review switch decisions, and copy a rich report for debugging or support requests.
 - **Slash command helpers** – Add, ignore, or map characters on the fly without leaving the chat window, and log mention stats for the last message.
+- **Scene cast exports** – Surface the top detected characters as slash commands or prompt variables so other extensions can react instantly.
 
 ---
 
@@ -92,6 +93,7 @@ Map any detected name or alias to a specific costume folder. Use **Add Mapping**
 Paste sample prose and inspect:
 - **All Detections** – Every match in order with its type and priority.
 - **Live Switch Decisions** – Real-time simulation showing switches, skips, scores, and veto events.
+- **Top Characters** – A live summary of the best scoring speakers pulled from the same logic driving the stream.
 - **Copy Report** – Generates an extensive plain-text report containing summaries, skip breakdowns, switch stats, final state details, and key settings so you can share diagnostics quickly.
 
 ### Footer Controls
@@ -108,6 +110,7 @@ Every report copied from the tester includes:
 - **Switch summary** – Total and unique costumes, the last switch, and the top scoring triggers.
 - **Skip reasons** – Counts of why detections were ignored (cooldowns, existing costume, veto, etc.).
 - **Final stream state** – Scene roster contents, last accepted name, last subject, processed length, and simulated duration.
+- **Top characters** – Ranking of the four strongest contenders including mention counts, roster status, and weighted scores.
 - **Key settings snapshot** – Cooldowns, thresholds, roster flag, and bias value in effect during the test.
 Attach these reports when filing bug reports or asking for tuning advice—everything needed to reproduce the issue is included.
 
@@ -130,6 +133,20 @@ All commands are session-scoped—they modify the active profile until you reloa
 | `/cs-ignore <name>` | Adds a character or regex to the ignore list for the current session. |
 | `/cs-map <alias> to <folder>` | Creates a temporary mapping from `alias` to the specified costume folder. |
 | `/cs-stats` | Logs a breakdown of detected character mentions for the most recent AI message to the browser console. |
+| `/cs-top [count]` | Returns a comma-separated list of the top detected characters from the last AI message. Accepts `1`–`4`; defaults to four names. |
+| `/cs-top1` – `/cs-top4` | Shortcuts for pulling exactly the top 1–4 characters without specifying an argument. |
+
+---
+
+## Sharing Top Characters with Other Extensions
+After each AI message finishes streaming, Costume Switcher ranks every detected character and exposes the results in two convenient ways:
+
+- **Prompt variables** – The latest data lives under `extensions.SillyTavern-CostumeSwitch-Testing.session` in SillyTavern templates.
+  - `topCharactersString` provides a ready-to-use comma-separated list (ideal for Group Expressions).
+  - `topCharacters` (array) and `topCharacterDetails` (objects with `name`, `count`, `score`, and `inSceneRoster`) offer structured access for advanced prompts.
+- **Slash commands** – Use `/cs-top [count]` or the `/cs-top1` … `/cs-top4` shortcuts inside chat inputs, macros, or automations to inject the ranked list on demand.
+
+Because these exports are refreshed on every message, you can wire them directly into Lenny’s **Group Expressions** extension or any other automation that needs to know who dominated the scene without burdening the model with extra thinking instructions.
 
 ---
 

@@ -110,6 +110,8 @@ const state = {
     testerTimers: [],
     lastTesterReport: null,
     buildMeta: null,
+    topSceneRanking: new Map(),
+    latestTopRanking: { bufKey: null, ranking: [], fullRanking: [], updatedAt: 0 },
 };
 
 const TAB_STORAGE_KEY = `${extensionName}-active-tab`;
@@ -374,6 +376,170 @@ function getWinner(matches, bias = 0, textLength = 0, options = {}) {
     });
     scoredMatches.sort((a, b) => b.score - a.score);
     return scoredMatches[0];
+}
+
+function buildLowercaseSet(values) {
+    if (!values) return null;
+    const iterable = values instanceof Set ? values : new Set(values);
+    const lower = new Set();
+    for (const value of iterable) {
+        const normalized = String(value ?? '').trim().toLowerCase();
+        if (normalized) {
+            lower.add(normalized);
+        }
+    }
+    return lower.size ? lower : null;
+}
+
+function rankSceneCharacters(matches, options = {}) {
+    if (!Array.isArray(matches) || matches.length === 0) {
+        return [];
+    }
+
+    const rosterSet = buildLowercaseSet(options?.rosterSet);
+    const summary = new Map();
+
+    matches.forEach((match, idx) => {
+        if (!match || !match.name) return;
+        const normalized = normalizeCostumeName(match.name);
+        if (!normalized) return;
+
+        const displayName = String(match.name).trim() || normalized;
+        const key = normalized.toLowerCase();
+        let entry = summary.get(key);
+        if (!entry) {
+            entry = {
+                name: displayName,
+                normalized,
+                count: 0,
+                bestPriority: -Infinity,
+                earliest: Number.POSITIVE_INFINITY,
+                latest: Number.NEGATIVE_INFINITY,
+                inSceneRoster: rosterSet ? rosterSet.has(key) : false,
+            };
+            summary.set(key, entry);
+        }
+
+        entry.count += 1;
+        const priority = Number.isFinite(match.priority) ? match.priority : 0;
+        if (priority > entry.bestPriority) {
+            entry.bestPriority = priority;
+        }
+        const index = Number.isFinite(match.matchIndex) ? match.matchIndex : idx;
+        if (index < entry.earliest) {
+            entry.earliest = index;
+            entry.firstMatchKind = match.matchKind || entry.firstMatchKind || null;
+        }
+        if (index > entry.latest) {
+            entry.latest = index;
+        }
+        if (!entry.inSceneRoster && rosterSet) {
+            entry.inSceneRoster = rosterSet.has(key);
+        }
+    });
+
+    const ranked = Array.from(summary.values()).map((entry) => {
+        const priorityScore = Number.isFinite(entry.bestPriority) ? entry.bestPriority : 0;
+        const earliest = Number.isFinite(entry.earliest) ? entry.earliest : Number.MAX_SAFE_INTEGER;
+        const rosterBonus = entry.inSceneRoster ? 50 : 0;
+        const score = entry.count * 1000 + priorityScore * 100 + rosterBonus - earliest;
+        return {
+            name: entry.name,
+            normalized: entry.normalized,
+            count: entry.count,
+            bestPriority: priorityScore,
+            earliest: Number.isFinite(entry.earliest) ? entry.earliest : null,
+            latest: Number.isFinite(entry.latest) ? entry.latest : null,
+            inSceneRoster: Boolean(entry.inSceneRoster),
+            firstMatchKind: entry.firstMatchKind || null,
+            score,
+        };
+    });
+
+    ranked.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.count !== a.count) return b.count - a.count;
+        if (b.bestPriority !== a.bestPriority) return b.bestPriority - a.bestPriority;
+        const aEarliest = Number.isFinite(a.earliest) ? a.earliest : Number.MAX_SAFE_INTEGER;
+        const bEarliest = Number.isFinite(b.earliest) ? b.earliest : Number.MAX_SAFE_INTEGER;
+        if (aEarliest !== bEarliest) return aEarliest - bEarliest;
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+
+    return ranked;
+}
+
+function ensureSessionData() {
+    const settings = getSettings();
+    if (!settings) return null;
+    if (typeof settings.session !== 'object' || settings.session === null) {
+        settings.session = {};
+    }
+    return settings.session;
+}
+
+function updateSessionTopCharacters(bufKey, ranking) {
+    const session = ensureSessionData();
+    if (!session) return;
+
+    const topRanking = Array.isArray(ranking) ? ranking.slice(0, 4) : [];
+    const names = topRanking.map(entry => entry.name);
+    const normalizedNames = topRanking.map(entry => entry.normalized);
+    const details = topRanking.map(entry => ({
+        name: entry.name,
+        normalized: entry.normalized,
+        count: entry.count,
+        bestPriority: entry.bestPriority,
+        inSceneRoster: entry.inSceneRoster,
+        score: Number.isFinite(entry.score) ? Math.round(entry.score) : 0,
+    }));
+
+    session.topCharacters = names;
+    session.topCharactersNormalized = normalizedNames;
+    session.topCharactersString = names.join(', ');
+    session.topCharacterDetails = details;
+    session.lastMessageKey = bufKey || null;
+    session.lastUpdated = Date.now();
+
+    state.latestTopRanking = {
+        bufKey: bufKey || null,
+        ranking: topRanking,
+        fullRanking: Array.isArray(ranking) ? ranking : [],
+        updatedAt: session.lastUpdated,
+    };
+}
+
+function clearSessionTopCharacters() {
+    const session = ensureSessionData();
+    if (!session) return;
+    session.topCharacters = [];
+    session.topCharactersNormalized = [];
+    session.topCharactersString = '';
+    session.topCharacterDetails = [];
+    session.lastMessageKey = null;
+    session.lastUpdated = Date.now();
+
+    state.latestTopRanking = {
+        bufKey: null,
+        ranking: [],
+        fullRanking: [],
+        updatedAt: session.lastUpdated,
+    };
+}
+
+function getLastTopCharacters(count = 4) {
+    const limit = Math.min(Math.max(Number(count) || 4, 1), 4);
+    if (Array.isArray(state.latestTopRanking?.ranking) && state.latestTopRanking.ranking.length) {
+        return state.latestTopRanking.ranking.slice(0, limit);
+    }
+
+    if (state.topSceneRanking instanceof Map && state.topSceneRanking.size > 0) {
+        const lastRanking = Array.from(state.topSceneRanking.values()).pop();
+        if (Array.isArray(lastRanking) && lastRanking.length) {
+            return lastRanking.slice(0, limit);
+        }
+    }
+    return [];
 }
 
 
@@ -805,6 +971,26 @@ function updateTesterCopyButton() {
     button.prop('disabled', !hasReport);
 }
 
+function updateTesterTopCharactersDisplay(entries) {
+    const el = document.getElementById('cs-test-top-characters');
+    if (!el) return;
+
+    if (entries === null) {
+        el.textContent = 'N/A';
+        el.classList.add('cs-tester-list-placeholder');
+        return;
+    }
+
+    if (!Array.isArray(entries) || entries.length === 0) {
+        el.textContent = '(none)';
+        el.classList.add('cs-tester-list-placeholder');
+        return;
+    }
+
+    el.textContent = entries.map(entry => entry.name).join(', ');
+    el.classList.remove('cs-tester-list-placeholder');
+}
+
 function copyTextToClipboard(text) {
     if (typeof navigator !== 'undefined' && navigator?.clipboard?.writeText) {
         return navigator.clipboard.writeText(text).catch(() => fallbackCopy());
@@ -1054,6 +1240,20 @@ function formatTesterReport(report) {
         }
     }
 
+    if (Array.isArray(report.topCharacters)) {
+        lines.push('');
+        lines.push('Top Characters:');
+        if (report.topCharacters.length) {
+            report.topCharacters.slice(0, 4).forEach((entry, idx) => {
+                const rosterTag = entry.inSceneRoster ? ' [scene roster]' : '';
+                const scorePart = Number.isFinite(entry.score) ? ` (score ${entry.score})` : '';
+                lines.push(`  ${idx + 1}. ${entry.name} – ${entry.count} detections${rosterTag}${scorePart}`);
+            });
+        } else {
+            lines.push('  (none)');
+        }
+    }
+
     if (report.profileSnapshot) {
         const summaryKeys = ['globalCooldownMs', 'perTriggerCooldownMs', 'repeatSuppressMs', 'tokenProcessThreshold'];
         lines.push('');
@@ -1234,10 +1434,12 @@ function testRegexPattern() {
     clearTesterTimers();
     state.lastTesterReport = null;
     updateTesterCopyButton();
+    updateTesterTopCharactersDisplay(null);
     $("#cs-test-veto-result").text('N/A').css('color', 'var(--text-color-soft)');
     const text = $("#cs-regex-test-input").val();
     if (!text) {
         $("#cs-test-all-detections, #cs-test-winner-list").html('<li class="cs-tester-list-placeholder">Enter text to test.</li>');
+        updateTesterTopCharactersDisplay(null);
         return;
     }
 
@@ -1280,7 +1482,8 @@ function testRegexPattern() {
         allDetectionsList.html('<li class="cs-tester-list-placeholder">Message vetoed.</li>');
         const vetoEvents = [{ type: 'veto', match: vetoMatch, charIndex: combined.length - 1 }];
         renderTesterStream(streamList, vetoEvents);
-        state.lastTesterReport = { ...reportBase, vetoed: true, vetoMatch, events: vetoEvents, matches: [] };
+        state.lastTesterReport = { ...reportBase, vetoed: true, vetoMatch, events: vetoEvents, matches: [], topCharacters: [] };
+        updateTesterTopCharactersDisplay([]);
         updateTesterCopyButton();
     } else {
         $("#cs-test-veto-result").text('No veto phrases matched.').css('color', 'var(--green)');
@@ -1300,6 +1503,9 @@ function testRegexPattern() {
         const simulationResult = simulateTesterStream(combined, tempProfile, bufKey);
         const events = Array.isArray(simulationResult?.events) ? simulationResult.events : [];
         renderTesterStream(streamList, events);
+        const testerRoster = simulationResult?.finalState?.sceneRoster || [];
+        const topCharacters = rankSceneCharacters(allMatches, { rosterSet: testerRoster });
+        updateTesterTopCharactersDisplay(topCharacters);
         state.lastTesterReport = {
             ...reportBase,
             vetoed: false,
@@ -1314,6 +1520,14 @@ function testRegexPattern() {
                         : [],
                 }
                 : null,
+            topCharacters: topCharacters.map(entry => ({
+                name: entry.name,
+                normalized: entry.normalized,
+                count: entry.count,
+                bestPriority: entry.bestPriority,
+                inSceneRoster: entry.inSceneRoster,
+                score: Number.isFinite(entry.score) ? Math.round(entry.score) : 0,
+            })),
         };
         updateTesterCopyButton();
     }
@@ -1523,6 +1737,20 @@ function logLastMessageStats() {
     });
     logOutput += "========================================";
 
+    const ranking = state.topSceneRanking instanceof Map
+        ? state.topSceneRanking.get(lastMessageId)
+        : null;
+    logOutput += "\n\nTop Ranked Characters:\n";
+    if (Array.isArray(ranking) && ranking.length) {
+        ranking.slice(0, 4).forEach((entry, idx) => {
+            const rosterTag = entry.inSceneRoster ? ' [scene roster]' : '';
+            const scorePart = Number.isFinite(entry.score) ? ` (score ${Math.round(entry.score)})` : '';
+            logOutput += `  ${idx + 1}. ${entry.name} – ${entry.count} detections${rosterTag}${scorePart}\n`;
+        });
+    } else {
+        logOutput += '  (none)\n';
+    }
+
     console.log(logOutput);
     showStatus("Last message stats logged to browser console (F12).", "success");
 }
@@ -1539,7 +1767,7 @@ function calculateFinalMessageStats(messageId) {
         if (!message || !message.mes) return;
         fullText = normalizeStreamText(message.mes);
     }
-    
+
     const allMatches = findAllMatches(fullText);
     const stats = new Map();
     allMatches.forEach(m => {
@@ -1548,6 +1776,16 @@ function calculateFinalMessageStats(messageId) {
     });
 
     state.messageStats.set(bufKey, stats);
+    if (!(state.topSceneRanking instanceof Map)) {
+        state.topSceneRanking = new Map();
+    }
+
+    const msgState = state.perMessageStates.get(bufKey);
+    const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : null;
+    const ranking = rankSceneCharacters(allMatches, { rosterSet });
+    state.topSceneRanking.set(bufKey, ranking);
+    updateSessionTopCharacters(bufKey, ranking);
+
     debugLog("Final stats calculated for", bufKey, stats);
 }
 
@@ -1556,6 +1794,15 @@ function calculateFinalMessageStats(messageId) {
 // SLASH COMMANDS
 // ======================================================================
 function registerCommands() {
+    const emitTopCharacters = (count) => {
+        const ranking = getLastTopCharacters(count);
+        if (!ranking.length) {
+            showStatus('No character detections available for the last message.', 'info');
+            return '';
+        }
+        return ranking.map(entry => entry.name).join(', ');
+    };
+
     registerSlashCommand("cs-addchar", (args) => {
         const profile = getActiveProfile();
         if (profile) {
@@ -1586,6 +1833,16 @@ function registerCommands() {
     registerSlashCommand("cs-stats", () => {
         logLastMessageStats();
     }, [], "Logs mention statistics for the last generated message to the console.", true);
+
+    registerSlashCommand("cs-top", (args) => {
+        const desired = Number(args?.[0]);
+        const count = Number.isFinite(desired) ? desired : 4;
+        return emitTopCharacters(count);
+    }, ["count?"], "Returns a comma-separated list of the top detected characters from the last message (1-4).", true);
+
+    [1, 2, 3, 4].forEach((num) => {
+        registerSlashCommand(`cs-top${num}`, () => emitTopCharacters(num), [], `Shortcut for the top ${num} detected character${num > 1 ? 's' : ''} from the last message.`, true);
+    });
 }
 
 // ======================================================================
@@ -1708,7 +1965,10 @@ const resetGlobalState = () => {
         perMessageBuffers: new Map(),
         perMessageStates: new Map(),
         messageStats: new Map(),
+        topSceneRanking: new Map(),
+        latestTopRanking: { bufKey: null, ranking: [], fullRanking: [], updatedAt: Date.now() },
     });
+    clearSessionTopCharacters();
 };
 
 function load() {
@@ -1753,7 +2013,21 @@ function getSettingsObj() {
     for (const profileName in storeSource[extensionName].profiles) {
         storeSource[extensionName].profiles[profileName] = Object.assign({}, structuredClone(PROFILE_DEFAULTS), storeSource[extensionName].profiles[profileName]);
     }
-    
+
+    const sessionDefaults = {
+        topCharacters: [],
+        topCharactersNormalized: [],
+        topCharactersString: '',
+        topCharacterDetails: [],
+        lastMessageKey: null,
+        lastUpdated: 0,
+    };
+    if (typeof storeSource[extensionName].session !== 'object' || storeSource[extensionName].session === null) {
+        storeSource[extensionName].session = { ...sessionDefaults };
+    } else {
+        storeSource[extensionName].session = Object.assign({}, sessionDefaults, storeSource[extensionName].session);
+    }
+
     return { store: storeSource, save: ctx.saveSettingsDebounced, ctx };
 }
 
