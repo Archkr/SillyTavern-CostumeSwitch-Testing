@@ -11,31 +11,35 @@
   --surface-contrast: var(--bg0);
   --text-muted: var(--text-color-soft);
   --text-subtle: var(--text-color-soft-extra, rgba(255, 255, 255, 0.6));
+}
+
+#costume-switcher-settings.cs-theme .inline-drawer {
+  margin: 0;
+}
+
+#costume-switcher-settings.cs-theme .inline-drawer-content {
   padding: 18px;
   border-radius: 20px;
   background: linear-gradient(165deg, rgba(108, 92, 231, 0.12), rgba(46, 213, 115, 0.08)) var(--surface);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-  display: block;
   color: var(--text-color);
   font-family: "Inter", "Roboto", sans-serif;
+  margin-top: 10px;
 }
 
-/* Make the <details> tag fill the container */
-#costume-switcher-settings.cs-theme > details {
-  width: 100%;
+#costume-switcher-settings.cs-theme .inline-drawer-toggle {
+  border-bottom: none;
 }
 
-.cs-shell {
+#costume-switcher-settings.cs-theme .cs-shell {
   display: flex;
   flex-direction: column;
   gap: 22px;
   max-width: 1080px;
   margin: 0 auto;
-  /* Add padding-top to separate content from the new sticky header */
-  padding-top: 22px;
 }
 
-.cs-card {
+#costume-switcher-settings.cs-theme .cs-card {
   background: rgba(0, 0, 0, 0.18);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.18));
   border-radius: var(--card-radius);
@@ -49,7 +53,7 @@
   overflow: hidden;
 }
 
-.cs-card::before {
+#costume-switcher-settings.cs-theme .cs-card::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -58,82 +62,89 @@
   pointer-events: none;
 }
 
-.cs-card-header {
+#costume-switcher-settings.cs-theme .cs-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
 }
 
-.cs-card-title {
+#costume-switcher-settings.cs-theme .cs-card-title {
   display: flex;
   align-items: flex-start;
   gap: 14px;
 }
 
-.cs-card-title i {
+#costume-switcher-settings.cs-theme .cs-card-title i {
   font-size: 1.4em;
   color: var(--accent);
   margin-top: 2px;
 }
 
-.cs-card-title h3 {
+#costume-switcher-settings.cs-theme .cs-card-title h3 {
   font-size: 1.15rem;
   margin: 0;
 }
 
-.cs-card-title p {
+#costume-switcher-settings.cs-theme .cs-card-title p {
   margin: 4px 0 0 0;
   color: var(--text-muted);
   font-size: 0.92rem;
   line-height: 1.4;
 }
 
-.cs-card-body {
+#costume-switcher-settings.cs-theme .cs-card-body {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.cs-card-body--stacked {
+#costume-switcher-settings.cs-theme .cs-card-body--stacked {
   gap: 20px;
 }
 
-.cs-card--compact {
+#costume-switcher-settings.cs-theme .cs-card--compact {
   padding: 16px 22px;
 }
 
-/* This class is no longer used, as the header is removed */
-.cs-header-card {
- display: none;
+#costume-switcher-settings.cs-theme .cs-header-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 28px;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.26), rgba(46, 213, 115, 0.18));
+  color: #fff;
 }
 
-.cs-header-intro {
+#costume-switcher-settings.cs-theme .cs-header-card::before {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+#costume-switcher-settings.cs-theme .cs-header-intro {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.cs-title {
+#costume-switcher-settings.cs-theme .cs-title {
   margin: 0;
   font-size: 1.8rem;
   font-weight: 700;
 }
 
-.cs-subtitle {
+#costume-switcher-settings.cs-theme .cs-subtitle {
   margin: 0;
   font-size: 1rem;
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.75);
 }
 
-.cs-pill-row {
+#costume-switcher-settings.cs-theme .cs-pill-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.cs-pill {
+#costume-switcher-settings.cs-theme .cs-pill {
   display: inline-flex;
   align-items: center;
   padding: 4px 12px;
@@ -145,7 +156,7 @@
   color: rgba(255, 255, 255, 0.65);
 }
 
-.cs-master-toggle {
+#costume-switcher-settings.cs-theme .cs-master-toggle {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -157,7 +168,7 @@
   cursor: pointer;
 }
 
-.cs-master-toggle input {
+#costume-switcher-settings.cs-theme .cs-master-toggle input {
   appearance: none;
   width: 46px;
   height: 26px;
@@ -168,7 +179,7 @@
   border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
-.cs-master-toggle input::after {
+#costume-switcher-settings.cs-theme .cs-master-toggle input::after {
   content: "";
   position: absolute;
   inset: 3px;
@@ -181,95 +192,95 @@
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
 }
 
-.cs-master-toggle input:checked {
+#costume-switcher-settings.cs-theme .cs-master-toggle input:checked {
   background: var(--accent);
   border-color: var(--accent);
 }
 
-.cs-master-toggle input:checked::after {
+#costume-switcher-settings.cs-theme .cs-master-toggle input:checked::after {
   transform: translateX(20px);
 }
 
-.cs-master-toggle .cs-switch-copy strong {
+#costume-switcher-settings.cs-theme .cs-master-toggle .cs-switch-copy strong {
   font-size: 1rem;
   display: block;
   margin-bottom: 2px;
 }
 
-.cs-master-toggle .cs-switch-copy small {
+#costume-switcher-settings.cs-theme .cs-master-toggle .cs-switch-copy small {
   color: rgba(255, 255, 255, 0.7);
   display: block;
   line-height: 1.4;
 }
 
-.cs-layout {
+#costume-switcher-settings.cs-theme .cs-layout {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 22px;
 }
 
-.cs-toolbar {
+#costume-switcher-settings.cs-theme .cs-toolbar {
   display: flex;
   gap: 12px;
   align-items: center;
 }
 
-.cs-toolbar--wrap {
+#costume-switcher-settings.cs-theme .cs-toolbar--wrap {
   flex-wrap: wrap;
 }
 
-.cs-helper-text,
-.cs-card small {
+#costume-switcher-settings.cs-theme .cs-helper-text,
+#costume-switcher-settings.cs-theme .cs-card small {
   color: var(--text-muted);
   font-size: 0.85rem;
   line-height: 1.5;
 }
 
-.cs-field,
-.cs-field-group {
+#costume-switcher-settings.cs-theme .cs-field,
+#costume-switcher-settings.cs-theme .cs-field-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.cs-inline-label {
+#costume-switcher-settings.cs-theme .cs-inline-label {
   font-weight: 600;
 }
 
-.cs-grid {
+#costume-switcher-settings.cs-theme .cs-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px 18px;
   align-items: center;
 }
 
-.cs-grid > label {
+#costume-switcher-settings.cs-theme .cs-grid > label {
   font-weight: 600;
   color: var(--text-muted);
 }
 
-.cs-slider-field {
+#costume-switcher-settings.cs-theme .cs-slider-field {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.cs-slider-field label {
+#costume-switcher-settings.cs-theme .cs-slider-field label {
   font-weight: 600;
   color: var(--text-muted);
 }
 
-.cs-slider {
+#costume-switcher-settings.cs-theme .cs-slider {
   width: 100%;
 }
 
-.cs-detection-grid {
+#costume-switcher-settings.cs-theme .cs-detection-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
 }
 
-.cs-toggle {
+#costume-switcher-settings.cs-theme .cs-toggle {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -282,12 +293,12 @@
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
-.cs-toggle:hover {
+#costume-switcher-settings.cs-theme .cs-toggle:hover {
   border-color: var(--accent);
   background: rgba(255, 255, 255, 0.07);
 }
 
-.cs-toggle input {
+#costume-switcher-settings.cs-theme .cs-toggle input {
   appearance: none;
   width: 18px;
   height: 18px;
@@ -298,7 +309,7 @@
   transition: all 0.2s ease;
 }
 
-.cs-toggle input::after {
+#costume-switcher-settings.cs-theme .cs-toggle input::after {
   content: "";
   width: 8px;
   height: 8px;
@@ -308,33 +319,33 @@
   transition: transform 0.2s ease, background 0.2s ease;
 }
 
-.cs-toggle input:checked {
+#costume-switcher-settings.cs-theme .cs-toggle input:checked {
   border-color: var(--accent);
   background: var(--accent);
 }
 
-.cs-toggle input:checked::after {
+#costume-switcher-settings.cs-theme .cs-toggle input:checked::after {
   transform: scale(1);
   background: #fff;
 }
 
-.cs-toggle span i {
+#costume-switcher-settings.cs-theme .cs-toggle span i {
   color: var(--accent);
   margin-right: 6px;
 }
 
-.cs-toggle--inline {
+#costume-switcher-settings.cs-theme .cs-toggle--inline {
   padding: 8px 12px;
 }
 
-.cs-number-field {
+#costume-switcher-settings.cs-theme .cs-number-field {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding-top: 4px;
 }
 
-.cs-tester-meta {
+#costume-switcher-settings.cs-theme .cs-tester-meta {
   display: flex;
   gap: 8px;
   font-size: 0.9rem;
@@ -342,12 +353,12 @@
   align-items: center;
 }
 
-.cs-meta-label {
+#costume-switcher-settings.cs-theme .cs-meta-label {
   font-weight: 600;
   color: var(--text-color);
 }
 
-.cs-tester-output-container {
+#costume-switcher-settings.cs-theme .cs-tester-output-container {
   margin-top: 6px;
   border-radius: 14px;
   background: rgba(0, 0, 0, 0.3);
@@ -357,23 +368,23 @@
   overflow: hidden;
 }
 
-.cs-tester-col {
+#costume-switcher-settings.cs-theme .cs-tester-col {
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.cs-tester-col--divider {
+#costume-switcher-settings.cs-theme .cs-tester-col--divider {
   border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.cs-tester-title {
+#costume-switcher-settings.cs-theme .cs-tester-title {
   font-weight: 600;
   font-size: 0.95rem;
 }
 
-.cs-tester-list {
+#costume-switcher-settings.cs-theme .cs-tester-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -384,7 +395,7 @@
   overflow-y: auto;
 }
 
-.cs-tester-list li {
+#costume-switcher-settings.cs-theme .cs-tester-list li {
   padding: 6px 10px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
@@ -392,12 +403,12 @@
   font-size: 0.9rem;
 }
 
-.cs-tester-list-placeholder {
+#costume-switcher-settings.cs-theme .cs-tester-list-placeholder {
   color: var(--text-muted);
   font-style: italic;
 }
 
-#cs-mappings {
+#costume-switcher-settings.cs-theme #cs-mappings {
   width: 100%;
   border-collapse: collapse;
   background: rgba(255, 255, 255, 0.02);
@@ -405,30 +416,30 @@
   overflow: hidden;
 }
 
-#cs-mappings thead {
+#costume-switcher-settings.cs-theme #cs-mappings thead {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-color);
 }
 
-#cs-mappings th,
-#cs-mappings td {
+#costume-switcher-settings.cs-theme #cs-mappings th,
+#costume-switcher-settings.cs-theme #cs-mappings td {
   padding: 10px 12px;
   text-align: left;
   font-size: 0.92rem;
 }
 
-#cs-mappings tbody tr:nth-child(even) {
+#costume-switcher-settings.cs-theme #cs-mappings tbody tr:nth-child(even) {
   background: rgba(255, 255, 255, 0.03);
 }
 
-#cs-mappings .map-name,
-#cs-mappings .map-folder {
+#costume-switcher-settings.cs-theme #cs-mappings .map-name,
+#costume-switcher-settings.cs-theme #cs-mappings .map-folder {
   width: 100%;
   padding: 6px 8px;
 }
 
-.menu_button,
-.text_pole {
+#costume-switcher-settings.cs-theme .menu_button,
+#costume-switcher-settings.cs-theme .text_pole {
   border-radius: 10px !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   background: rgba(0, 0, 0, 0.35);
@@ -436,51 +447,51 @@
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
-.text_pole:focus {
+#costume-switcher-settings.cs-theme .text_pole:focus {
   border-color: var(--accent) !important;
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.menu_button:hover,
-.text_pole:hover {
+#costume-switcher-settings.cs-theme .menu_button:hover,
+#costume-switcher-settings.cs-theme .text_pole:hover {
   border-color: var(--accent) !important;
 }
 
-.menu_button {
+#costume-switcher-settings.cs-theme .menu_button {
   padding: 8px 16px;
   font-weight: 600;
   background: rgba(255, 255, 255, 0.08);
 }
 
-.menu_button:hover {
+#costume-switcher-settings.cs-theme .menu_button:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
 }
 
-.cs-button-primary {
+#costume-switcher-settings.cs-theme .cs-button-primary {
   background: var(--accent) !important;
   color: #fff !important;
   border-color: transparent !important;
 }
 
-.cs-button-primary:hover {
+#costume-switcher-settings.cs-theme .cs-button-primary:hover {
   box-shadow: 0 10px 22px var(--accent-strong);
 }
 
-.cs-button-danger {
+#costume-switcher-settings.cs-theme .cs-button-danger {
   background: var(--danger) !important;
   color: #fff !important;
   border-color: transparent !important;
 }
 
-.cs-footer {
+#costume-switcher-settings.cs-theme .cs-footer {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.cs-status-message,
-.cs-error-message {
+#costume-switcher-settings.cs-theme .cs-status-message,
+#costume-switcher-settings.cs-theme .cs-error-message {
   margin: 0;
   padding: 14px 16px;
   border-radius: 12px;
@@ -492,135 +503,63 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-.cs-status-message i,
-.cs-error-message i {
+#costume-switcher-settings.cs-theme .cs-status-message i,
+#costume-switcher-settings.cs-theme .cs-error-message i {
   font-size: 1.1rem;
 }
 
-.cs-status-text {
+#costume-switcher-settings.cs-theme .cs-status-text {
   flex: 1;
 }
 
-.cs-error-message {
+#costume-switcher-settings.cs-theme .cs-error-message {
   border-color: rgba(231, 76, 60, 0.6);
   background: rgba(231, 76, 60, 0.15);
   color: #ffd7d2;
 }
 
-.cs-error-message[hidden] {
+#costume-switcher-settings.cs-theme .cs-error-message[hidden] {
   display: none;
 }
 
 @media (max-width: 768px) {
-  #costume-switcher-settings.cs-theme {
+  #costume-switcher-settings.cs-theme .inline-drawer-content {
     padding: 14px;
   }
 
-  .cs-card {
+  #costume-switcher-settings.cs-theme .cs-card {
     padding: 18px;
   }
 
-  .cs-master-toggle {
+  #costume-switcher-settings.cs-theme .cs-master-toggle {
     grid-template-columns: 1fr;
   }
 
-  .cs-master-toggle input {
+  #costume-switcher-settings.cs-theme .cs-master-toggle input {
     justify-self: flex-start;
   }
 }
 
-.cs-toggle-indicator {
+#costume-switcher-settings.cs-theme .cs-toggle-indicator {
   display: none;
 }
-.cs-switch-thumb { display: none; }
+#costume-switcher-settings.cs-theme .cs-switch-thumb { display: none; }
 
-.cs-status-message.is-success {
+#costume-switcher-settings.cs-theme .cs-status-message.is-success {
   border-color: rgba(46, 213, 115, 0.6);
   background: rgba(46, 213, 115, 0.16);
   color: #d4ffe5;
 }
 
-.cs-status-message.is-error {
+#costume-switcher-settings.cs-theme .cs-status-message.is-error {
   border-color: rgba(231, 76, 60, 0.6);
   background: rgba(231, 76, 60, 0.18);
   color: #ffd7d2;
 }
 
-#cs-regex-test-copy[disabled] {
+#costume-switcher-settings.cs-theme #cs-regex-test-copy[disabled] {
   opacity: 0.55;
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
-}
-
-
-/* --- NEW STYLES FOR COLLAPSIBLE HEADER --- */
-
-/* Style the <summary> tag to be our new header */
-.cs-summary-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 20px 22px;
-  border-radius: var(--card-radius);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: linear-gradient(135deg, rgba(108, 92, 231, 0.26), rgba(46, 213, 115, 0.18));
-  cursor: pointer;
-  transition: border-radius 0.2s ease-in-out;
-}
-
-/* Hide the default dropdown triangle */
-.cs-summary-header::-webkit-details-marker,
-.cs-summary-header::marker {
-  display: none;
-}
-
-/* When the <details> is open, square off the bottom corners of the header */
-details[open] > .cs-summary-header {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-/* Style the title and subtitle in the new header */
-.cs-summary-header .cs-summary-title {
-  flex: 1;
-}
-.cs-summary-header .cs-title {
-  font-size: 1.5rem;
-  color: #fff;
-}
-.cs-summary-header .cs-subtitle {
-  font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-/* Tweak the master toggle to fit nicely in the new header */
-.cs-summary-header .cs-master-toggle {
-  padding: 12px 16px;
-  /* Make the copy smaller */
-  grid-template-columns: auto auto;
-  gap: 12px;
-}
-
-.cs-summary-header .cs-master-toggle .cs-switch-copy strong {
-  font-size: 0.95rem;
-  margin-bottom: 0;
-}
-
-.cs-summary-header .cs-master-toggle .cs-switch-copy small {
-  display: none; /* Hide the sub-text */
-}
-
-/* When screen is small, make toggle simpler */
-@media (max-width: 768px) {
-  .cs-summary-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
-  .cs-summary-header .cs-master-toggle {
-    width: 100%;
-  }
 }
