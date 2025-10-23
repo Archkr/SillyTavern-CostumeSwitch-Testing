@@ -106,6 +106,7 @@ const state = {
     messageStats: new Map(), // For statistical logging
     eventHandlers: {},
     compiledRegexes: {},
+    statusTimer: null,
 };
 
 // ======================================================================
@@ -256,7 +257,8 @@ function findBestMatch(combined) {
 function getWinner(matches, bias = 0) {
     const scoredMatches = matches.map(match => {
         const isActive = match.priority >= 3; // speaker, attribution, action
-        let score = match.matchIndex + (isActive ? bias : 0);
+        const baseScore = match.priority * 1000 - match.matchIndex;
+        const score = baseScore + (isActive ? bias : 0);
         return { ...match, score };
     });
     scoredMatches.sort((a, b) => b.score - a.score);
@@ -268,16 +270,39 @@ function getWinner(matches, bias = 0) {
 // UTILITY & HELPER FUNCTIONS
 // ======================================================================
 function normalizeStreamText(s) { return s ? String(s).replace(/[\uFEFF\u200B\u200C\u200D]/g, "").replace(/[\u2018\u2019\u201A\u201B]/g, "'").replace(/[\u201C\u201D\u201E\u201F]/g, '"').replace(/(\*\*|__|~~|`{1,3})/g, "").replace(/\u00A0/g, " ") : ""; }
-function normalizeCostumeName(n) { if (!n) return ""; let s = String(n).trim(); if (s.startsWith("/")) { s = s.slice(1).trim(); } const first = s.split(/[\/\s]+/).filter(Boolean)[0] || s; return String(first).replace(/[-_](?:sama|san)$/i, "").trim(); }
+function normalizeCostumeName(n) {
+    if (!n) return "";
+    let s = String(n).trim();
+    if (s.startsWith("/") || s.startsWith("\\")) {
+        s = s.slice(1).trim();
+    }
+    const first = s.split(/[\/\s]+/).filter(Boolean)[0] || s;
+    return String(first).replace(/[-_](?:sama|san)$/i, "").trim();
+}
 function getSettings() { return extension_settings[extensionName]; }
 function getActiveProfile() { const settings = getSettings(); return settings?.profiles?.[settings.activeProfile]; }
 function debugLog(...args) { try { if (getActiveProfile()?.debug) console.debug(logPrefix, ...args); } catch (e) { } }
 
 function showStatus(message, type = 'info', duration = 3000) {
     const statusEl = $("#cs-status");
-    statusEl.removeClass('cs-status-message cs-error-message').addClass(type === 'error' ? 'cs-error-message' : 'cs-status-message');
-    statusEl.html(message).fadeIn();
-    setTimeout(() => { statusEl.fadeOut(400, () => statusEl.html("Ready").fadeIn().removeClass('cs-error-message')); }, duration);
+    const textEl = statusEl.find('.cs-status-text');
+    if (state.statusTimer) {
+        clearTimeout(state.statusTimer);
+        state.statusTimer = null;
+    }
+
+    statusEl.toggleClass('is-error', type === 'error');
+    statusEl.toggleClass('is-success', type === 'success');
+    textEl.html(message);
+    statusEl.stop(true, true).fadeIn();
+
+    state.statusTimer = setTimeout(() => {
+        statusEl.fadeOut(400, () => {
+            textEl.text('Ready');
+            statusEl.removeClass('is-error is-success').fadeIn();
+        });
+        state.statusTimer = null;
+    }, Math.max(duration, 1000));
 }
 
 // ======================================================================
@@ -290,19 +315,34 @@ function recompileRegexes() {
         const lowerIgnored = (profile.ignorePatterns || []).map(p => String(p).trim().toLowerCase());
         const effectivePatterns = (profile.patterns || []).filter(p => !lowerIgnored.includes(String(p).trim().toLowerCase()));
 
+        const escapeVerbList = (list) => (list || [])
+            .map(entry => parsePatternEntry(entry)?.body || escapeRegex(entry))
+            .filter(Boolean)
+            .join('|');
+        const attributionVerbsPattern = escapeVerbList(profile.attributionVerbs);
+        const actionVerbsPattern = escapeVerbList(profile.actionVerbs);
+
+        const speakerTemplate = '(?:^|[\r\n]+|[>\]]\s*)({{PATTERNS}})\s*:';
+        const attributionTemplate = attributionVerbsPattern
+            ? `(?:,\s*|["”]\s*|(?:^|[.?!]\s+|[\r\n]+))({{PATTERNS}})\s+(?:${attributionVerbsPattern})`
+            : null;
+        const actionTemplate = actionVerbsPattern
+            ? `(?:^|[\r\n]+)\s*({{PATTERNS}})(?:['’]s)?\s+(?:\\w+\\s+){0,3}?(?:${actionVerbsPattern})`
+            : null;
+
         state.compiledRegexes = {
-            speakerRegex: buildRegex(effectivePatterns, '^(?:{{PATTERNS}}):'),
-            attributionRegex: buildRegex(effectivePatterns, `(?:,\\s*|["”])\\s*({{PATTERNS}})\\s+(?:${profile.attributionVerbs.join('|')})`),
-            actionRegex: buildRegex(effectivePatterns, `^({{PATTERNS}})(?:'s)?\\s+(?:\\w+\\s+){0,3}?(?:${profile.actionVerbs.join('|')})`),
-            pronounRegex: new RegExp(`^(he|she|they)(?:'s)?\\s+(?:\\w+\\s+){0,3}?(?:${profile.actionVerbs.join('|')})`, 'i'),
+            speakerRegex: buildRegex(effectivePatterns, speakerTemplate),
+            attributionRegex: attributionTemplate ? buildRegex(effectivePatterns, attributionTemplate) : null,
+            actionRegex: actionTemplate ? buildRegex(effectivePatterns, actionTemplate) : null,
+            pronounRegex: actionVerbsPattern ? new RegExp(`(?:^|[\r\n]+)\s*(he|she|they)(?:'s)?\s+(?:\\w+\\s+){0,3}?(?:${actionVerbsPattern})`, 'i') : null,
             vocativeRegex: buildRegex(effectivePatterns, `["“'\\s]({{PATTERNS}})[,.!?]`),
             possessiveRegex: buildRegex(effectivePatterns, `\\b({{PATTERNS}})['’]s\\b`),
             nameRegex: buildRegex(effectivePatterns, `\\b({{PATTERNS}})\\b`),
             vetoRegex: buildGenericRegex(profile.vetoPatterns),
         };
-        $("#cs-error").text("").hide();
+        $("#cs-error").prop('hidden', true).find('.cs-status-text').text('');
     } catch (e) {
-        $("#cs-error").text(`Pattern compile error: ${String(e)}`).show();
+        $("#cs-error").prop('hidden', false).find('.cs-status-text').text(`Pattern compile error: ${String(e)}`);
         showStatus(`Pattern compile error: ${String(e)}`, 'error', 5000);
     }
 }
@@ -325,7 +365,8 @@ async function issueCostumeForName(name, opts = {}) {
         return;
     }
     
-    let argFolder = (profile.mappings.find(m => m.name.toLowerCase() === name.toLowerCase())?.folder) || name;
+    let argFolder = profile.mappings.find(m => m.name.toLowerCase() === name.toLowerCase())?.folder;
+    argFolder = argFolder ? argFolder.trim() : name;
 
     if (!opts.isLock) {
         const lastSuccess = state.lastTriggerTimes.get(argFolder) || 0;
@@ -345,7 +386,7 @@ async function issueCostumeForName(name, opts = {}) {
     try {
         await executeSlashCommandsOnChatInput(command);
         state.lastTriggerTimes.set(argFolder, now);
-        state.lastIssuedCostume = argFolder;
+        state.lastIssuedCostume = name;
         state.lastSwitchTimestamp = now;
         showStatus(`Switched -> <b>${argFolder}</b>`, 'success');
     } catch (err) {
@@ -384,6 +425,7 @@ function populateProfileDropdown() {
     const select = $("#cs-profile-select");
     const settings = getSettings();
     select.empty();
+    if (!settings?.profiles) return;
     Object.keys(settings.profiles).forEach(name => {
         select.append($('<option>', { value: name, text: name }));
     });
@@ -427,6 +469,7 @@ function loadProfile(profileName) {
     settings.activeProfile = profileName;
     const profile = getActiveProfile();
     $("#cs-profile-name").val(profileName);
+    $("#cs-enable").prop('checked', !!settings.enabled);
     for (const key in uiMapping) {
         const { selector, type } = uiMapping[key];
         const value = profile[key] ?? PROFILE_DEFAULTS[key];
@@ -449,12 +492,25 @@ function saveCurrentProfileData() {
         const { selector, type } = uiMapping[key];
         let value;
         switch (type) {
-            case 'checkbox': value = $(selector).prop('checked'); break;
-            case 'textarea': value = $(selector).val().split(/\r?\n/).map(s => s.trim()).filter(Boolean); break;
-            case 'csvTextarea': value = $(selector).val().split(',').map(s => s.trim()).filter(Boolean); break;
+            case 'checkbox':
+                value = $(selector).prop('checked');
+                break;
+            case 'textarea':
+                value = $(selector).val().split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+                break;
+            case 'csvTextarea':
+                value = $(selector).val().split(',').map(s => s.trim()).filter(Boolean);
+                break;
             case 'number':
-            case 'range': value = parseInt($(selector).val(), 10) || 0; break;
-            default: value = $(selector).val().trim(); break;
+            case 'range': {
+                const parsed = parseInt($(selector).val(), 10);
+                const fallback = PROFILE_DEFAULTS[key] ?? 0;
+                value = Number.isFinite(parsed) ? parsed : fallback;
+                break;
+            }
+            default:
+                value = $(selector).val().trim();
+                break;
         }
         profileData[key] = value;
     }
@@ -479,9 +535,9 @@ function renderMappings(profile) {
     });
 }
 
-function persistSettings(message) {
+function persistSettings(message, type = 'success') {
     saveSettingsDebounced();
-    if(message) showStatus(message, 'success');
+    if (message) showStatus(message, type);
 }
 
 function testRegexPattern() {
@@ -553,7 +609,7 @@ function testRegexPattern() {
 
 function wireUI() {
     const settings = getSettings();
-    $(document).on('change', '#cs-enable', function() { settings.enabled = $(this).prop("checked"); persistSettings("Extension " + (settings.enabled ? "Enabled" : "Disabled")); });
+    $(document).on('change', '#cs-enable', function() { settings.enabled = $(this).prop("checked"); persistSettings("Extension " + (settings.enabled ? "Enabled" : "Disabled"), 'info'); });
     $(document).on('click', '#cs-save', () => { 
         const profile = getActiveProfile();
         if(profile) {
@@ -577,6 +633,7 @@ function wireUI() {
             Object.assign(getActiveProfile(), profileData);
         }
         populateProfileDropdown();
+        loadProfile(settings.activeProfile);
         persistSettings(`Profile saved as "${newName}"`);
     });
     $(document).on('click', '#cs-profile-delete', () => {
@@ -649,7 +706,7 @@ function wireUI() {
             const selectedChar = $("#cs-focus-lock-select").val();
             if (selectedChar) { settings.focusLock.character = selectedChar; await issueCostumeForName(selectedChar, { isLock: true }); }
         }
-        updateFocusLockUI(); persistSettings("Focus lock " + (settings.focusLock.character ? "set." : "removed."));
+        updateFocusLockUI(); persistSettings("Focus lock " + (settings.focusLock.character ? "set." : "removed."), 'info');
     });
     $(document).on('input', '#cs-detection-bias', function() { $("#cs-detection-bias-value").text($(this).val()); });
     $(document).on('click', '#cs-reset', manualReset);
@@ -674,7 +731,7 @@ async function manualReset() {
     debugLog("Attempting manual reset with command:", command);
     try {
         await executeSlashCommandsOnChatInput(command);
-        state.lastIssuedCostume = costumeArg;
+        state.lastIssuedCostume = profile?.defaultCostume?.trim() || '';
         showStatus(`Reset to <b>${costumeArg}</b>`, 'success');
     } catch (err) {
         showStatus(`Manual reset failed.`, 'error');
@@ -710,7 +767,7 @@ function logLastMessageStats() {
 
 function calculateFinalMessageStats(messageId) {
     const bufKey = `m${messageId}`;
-    const fullText = state.perMessageBuffers.get(bufKey);
+    let fullText = state.perMessageBuffers.get(bufKey);
 
     if (!fullText) {
         debugLog("Could not find message buffer to calculate stats for:", bufKey);
@@ -869,7 +926,21 @@ const handleMessageRendered = (messageId) => {
     }
 };
 
-const resetGlobalState = () => { Object.assign(state, { lastIssuedCostume: null, lastSwitchTimestamp: 0, lastTriggerTimes: new Map(), failedTriggerTimes: new Map(), perMessageBuffers: new Map(), perMessageStates: new Map(), messageStats: new Map() }); };
+const resetGlobalState = () => {
+    if (state.statusTimer) {
+        clearTimeout(state.statusTimer);
+        state.statusTimer = null;
+    }
+    Object.assign(state, {
+        lastIssuedCostume: null,
+        lastSwitchTimestamp: 0,
+        lastTriggerTimes: new Map(),
+        failedTriggerTimes: new Map(),
+        perMessageBuffers: new Map(),
+        perMessageStates: new Map(),
+        messageStats: new Map(),
+    });
+};
 
 function load() {
     state.eventHandlers = {

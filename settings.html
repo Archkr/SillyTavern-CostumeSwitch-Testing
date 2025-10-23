@@ -212,8 +212,14 @@
         <button id="cs-reset" class="menu_button interactable" title="Switch back to your default costume, or the main avatar if none is set.">Manual Reset</button>
       </div>
 
-      <div id="cs-status" class="cs-status-message">Ready</div>
-      <div id="cs-error" class="cs-error-message"></div>
+      <div id="cs-status" class="cs-status-message" aria-live="polite">
+        <i class="fa-solid fa-circle-info"></i>
+        <span class="cs-status-text">Ready</span>
+      </div>
+      <div id="cs-error" class="cs-error-message" role="alert" aria-live="assertive" hidden>
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span class="cs-status-text"></span>
+      </div>
     </div>
   </div>
 </div>

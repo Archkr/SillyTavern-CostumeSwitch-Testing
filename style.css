@@ -8,6 +8,52 @@
   --cs-slider-thumb-color: #51a0de;
 }
 
+.cs-status-message,
+.cs-error-message {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+  border: 1px solid var(--border);
+  background-color: var(--bg2);
+  color: var(--text-color);
+}
+
+.cs-status-message.is-error {
+  border-color: var(--red, #dc3545);
+  background-color: rgba(220, 53, 69, 0.12);
+  color: var(--red, #dc3545);
+}
+
+.cs-status-message.is-success {
+  border-color: var(--green, #4CAF50);
+  background-color: rgba(76, 175, 80, 0.12);
+  color: var(--green, #4CAF50);
+}
+
+.cs-error-message {
+  border-color: var(--red, #dc3545);
+  background-color: rgba(220, 53, 69, 0.12);
+  color: var(--red, #dc3545);
+  margin-top: 8px;
+}
+
+.cs-status-message i,
+.cs-error-message i {
+  color: inherit;
+}
+
+.cs-status-text {
+  flex: 1;
+}
+
+.cs-error-message[hidden] {
+  display: none;
+}
+
 /* --- Section Blocks --- */
 .cs-block {
   margin-bottom: 20px;
@@ -62,6 +108,14 @@
   gap: 10px;
   align-items: center;
   margin-top: 10px;
+  flex-wrap: wrap;
+}
+.cs-flex-container > * {
+  flex: 1 1 160px;
+}
+.cs-flex-container > .menu_button,
+.cs-flex-container > button {
+  flex: 0 0 auto;
 }
 .inline-group {
     margin-top: 10px;
@@ -118,6 +172,32 @@
   display: flex;
   align-items: center;
   gap: 5px;
+}
+
+#cs-mappings {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+#cs-mappings th,
+#cs-mappings td {
+  padding: 6px 8px;
+  text-align: left;
+}
+
+#cs-mappings tbody tr:nth-child(even) {
+  background-color: var(--bg1);
+}
+
+#cs-mappings thead {
+  background-color: var(--bg0);
+  border-bottom: 1px solid var(--border);
+}
+
+#cs-mappings .map-name,
+#cs-mappings .map-folder {
+  width: 100%;
 }
 
 /* --- Modern Range Slider --- */
