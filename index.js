@@ -108,6 +108,7 @@ const state = {
     compiledRegexes: {},
     statusTimer: null,
     testerTimers: [],
+    lastTesterReport: null,
 };
 
 // ======================================================================
@@ -596,6 +597,116 @@ function describeSkipReason(code) {
     return messages[code] || 'not eligible to switch yet';
 }
 
+function updateTesterCopyButton() {
+    const button = $("#cs-regex-test-copy");
+    if (!button.length) return;
+    const hasReport = Boolean(state.lastTesterReport);
+    button.prop('disabled', !hasReport);
+}
+
+function copyTextToClipboard(text) {
+    if (typeof navigator !== 'undefined' && navigator?.clipboard?.writeText) {
+        return navigator.clipboard.writeText(text).catch(() => fallbackCopy());
+    }
+    return fallbackCopy();
+
+    function fallbackCopy() {
+        return new Promise((resolve, reject) => {
+            const temp = $('<textarea>').css({
+                position: 'fixed',
+                top: '-9999px',
+                left: '-9999px',
+                width: '1px',
+                height: '1px',
+                opacity: '0',
+            }).val(text).appendTo('body');
+            try {
+                const node = temp.get(0);
+                node.focus();
+                node.select();
+                const successful = document.execCommand('copy');
+                temp.remove();
+                if (successful) resolve();
+                else reject(new Error('execCommand failed'));
+            } catch (err) {
+                temp.remove();
+                reject(err);
+            }
+        });
+    }
+}
+
+function formatTesterReport(report) {
+    const lines = [];
+    const created = new Date(report.generatedAt || Date.now());
+    lines.push('Costume Switcher – Live Pattern Tester Report');
+    lines.push('---------------------------------------------');
+    lines.push(`Profile: ${report.profileName || 'Unknown profile'}`);
+    lines.push(`Generated: ${created.toLocaleString()}`);
+    lines.push(`Original input length: ${report.input?.length ?? 0} chars`);
+    lines.push(`Processed length: ${report.normalizedInput?.length ?? 0} chars`);
+    lines.push(`Veto triggered: ${report.vetoed ? `Yes (match: "${report.vetoMatch || 'unknown'}")` : 'No'}`);
+    lines.push('');
+
+    lines.push('Detections:');
+    if (report.matches?.length) {
+        report.matches.forEach((m, idx) => {
+            lines.push(`  ${idx + 1}. ${m.name} – ${m.matchKind} @ char ${m.matchIndex + 1} (priority ${m.priority})`);
+        });
+    } else {
+        lines.push('  (none)');
+    }
+    lines.push('');
+
+    lines.push('Switch Decisions:');
+    if (report.events?.length) {
+        report.events.forEach((event, idx) => {
+            if (event.type === 'switch') {
+                const detail = event.matchKind ? ` via ${event.matchKind}` : '';
+                const score = Number.isFinite(event.score) ? `, score ${event.score}` : '';
+                lines.push(`  ${idx + 1}. SWITCH → ${event.folder} (name: ${event.name}${detail}, char ${event.charIndex + 1}${score})`);
+            } else if (event.type === 'veto') {
+                lines.push(`  ${idx + 1}. VETO – matched "${event.match}" at char ${event.charIndex + 1}`);
+            } else {
+                const reason = describeSkipReason(event.reason);
+                lines.push(`  ${idx + 1}. SKIP – ${event.name} (${event.matchKind}) because ${reason}`);
+            }
+        });
+    } else {
+        lines.push('  (none)');
+    }
+
+    if (report.profileSnapshot) {
+        const summaryKeys = ['globalCooldownMs', 'perTriggerCooldownMs', 'repeatSuppressMs', 'tokenProcessThreshold'];
+        lines.push('');
+        lines.push('Key Settings:');
+        summaryKeys.forEach(key => {
+            if (Object.prototype.hasOwnProperty.call(report.profileSnapshot, key)) {
+                lines.push(`  ${key}: ${report.profileSnapshot[key]}`);
+            }
+        });
+        lines.push(`  enableSceneRoster: ${report.profileSnapshot.enableSceneRoster ? 'true' : 'false'}`);
+        lines.push(`  detectionBias: ${report.profileSnapshot.detectionBias}`);
+    }
+
+    return lines.join('\n');
+}
+
+function copyTesterReport() {
+    if (!state.lastTesterReport) {
+        showStatus('Run the live tester to generate a report first.', 'error');
+        return;
+    }
+
+    const text = formatTesterReport(state.lastTesterReport);
+    copyTextToClipboard(text)
+        .then(() => showStatus('Live tester report copied to clipboard.', 'success'))
+        .catch((err) => {
+            console.error(`${logPrefix} Failed to copy tester report`, err);
+            showStatus('Unable to copy report. Check console for details.', 'error');
+        });
+}
+
 function createTesterMessageState(profile) {
     return {
         lastAcceptedName: null,
@@ -726,6 +837,8 @@ function renderTesterStream(eventList, events) {
 
 function testRegexPattern() {
     clearTesterTimers();
+    state.lastTesterReport = null;
+    updateTesterCopyButton();
     $("#cs-test-veto-result").text('N/A').css('color', 'var(--text-color-soft)');
     const text = $("#cs-regex-test-input").val();
     if (!text) {
@@ -758,11 +871,22 @@ function testRegexPattern() {
     const allDetectionsList = $("#cs-test-all-detections");
     const streamList = $("#cs-test-winner-list");
 
+    const reportBase = {
+        profileName: originalProfileName,
+        profileSnapshot: structuredClone(tempProfile),
+        input: text,
+        normalizedInput: combined,
+        generatedAt: Date.now(),
+    };
+
     if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(combined)) {
         const vetoMatch = combined.match(state.compiledRegexes.vetoRegex)?.[0] || 'unknown veto phrase';
         $("#cs-test-veto-result").html(`Vetoed by: <b style="color: var(--red);">${vetoMatch}</b>`);
         allDetectionsList.html('<li class="cs-tester-list-placeholder">Message vetoed.</li>');
-        renderTesterStream(streamList, [{ type: 'veto', match: vetoMatch, charIndex: combined.length - 1 }]);
+        const vetoEvents = [{ type: 'veto', match: vetoMatch, charIndex: combined.length - 1 }];
+        renderTesterStream(streamList, vetoEvents);
+        state.lastTesterReport = { ...reportBase, vetoed: true, vetoMatch, events: vetoEvents, matches: [] };
+        updateTesterCopyButton();
     } else {
         $("#cs-test-veto-result").text('No veto phrases matched.').css('color', 'var(--green)');
 
@@ -777,6 +901,14 @@ function testRegexPattern() {
         resetTesterMessageState();
         const events = simulateTesterStream(combined, tempProfile, bufKey);
         renderTesterStream(streamList, events);
+        state.lastTesterReport = {
+            ...reportBase,
+            vetoed: false,
+            vetoMatch: null,
+            matches: allMatches.map(m => ({ ...m })),
+            events: events.map(e => ({ ...e })),
+        };
+        updateTesterCopyButton();
     }
 
     state.perMessageStates = originalPerMessageStates;
@@ -899,7 +1031,10 @@ function wireUI() {
         }
     });
     $(document).on('click', '#cs-regex-test-button', testRegexPattern);
+    $(document).on('click', '#cs-regex-test-copy', copyTesterReport);
     $(document).on('click', '#cs-stats-log', logLastMessageStats);
+
+    updateTesterCopyButton();
 
 }
 
@@ -1114,6 +1249,8 @@ const resetGlobalState = () => {
         state.testerTimers.forEach(clearTimeout);
         state.testerTimers.length = 0;
     }
+    state.lastTesterReport = null;
+    updateTesterCopyButton();
     Object.assign(state, {
         lastIssuedCostume: null,
         lastSwitchTimestamp: 0,
