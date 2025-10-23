@@ -242,28 +242,41 @@ function findBestMatch(combined) {
     const allMatches = findAllMatches(combined);
     if (allMatches.length === 0) return null;
 
+    let rosterSet = null;
     if (profile.enableSceneRoster) {
         const msgState = Array.from(state.perMessageStates.values()).pop();
         if (msgState && msgState.sceneRoster.size > 0) {
-            const rosterMatches = allMatches.filter(m => msgState.sceneRoster.has(m.name.toLowerCase()));
-            if (rosterMatches.length > 0) {
-                // Roster is active, only consider matches from the roster
-                return getWinner(rosterMatches, profile.detectionBias, combined.length);
-            }
+            rosterSet = msgState.sceneRoster;
         }
     }
 
-    return getWinner(allMatches, profile.detectionBias, combined.length);
+    return getWinner(allMatches, profile.detectionBias, combined.length, { rosterSet });
 }
 
-function getWinner(matches, bias = 0, textLength = 0) {
+function getWinner(matches, bias = 0, textLength = 0, options = {}) {
+    const rosterSet = options?.rosterSet instanceof Set ? options.rosterSet : null;
+    const rosterBonus = Number.isFinite(options?.rosterBonus) ? options.rosterBonus : 150;
+    const rosterPriorityDropoff = Number.isFinite(options?.rosterPriorityDropoff)
+        ? options.rosterPriorityDropoff
+        : 0.5;
     const scoredMatches = matches.map(match => {
         const isActive = match.priority >= 3; // speaker, attribution, action
         const distanceFromEnd = Number.isFinite(textLength)
             ? Math.max(0, textLength - match.matchIndex)
             : 0;
         const baseScore = match.priority * 100 - distanceFromEnd;
-        const score = baseScore + (isActive ? bias : 0);
+        let score = baseScore + (isActive ? bias : 0);
+        if (rosterSet) {
+            const normalized = String(match.name || '').toLowerCase();
+            if (normalized && rosterSet.has(normalized)) {
+                let bonus = rosterBonus;
+                if (match.priority >= 3 && rosterPriorityDropoff > 0) {
+                    const dropoffMultiplier = 1 - rosterPriorityDropoff * (match.priority - 2);
+                    bonus *= Math.max(0, dropoffMultiplier);
+                }
+                score += bonus;
+            }
+        }
         return { ...match, score };
     });
     scoredMatches.sort((a, b) => b.score - a.score);
@@ -447,6 +460,9 @@ const uiMapping = {
     debug: { selector: '#cs-debug', type: 'checkbox' },
     globalCooldownMs: { selector: '#cs-global-cooldown', type: 'number' },
     repeatSuppressMs: { selector: '#cs-repeat-suppress', type: 'number' },
+    perTriggerCooldownMs: { selector: '#cs-per-trigger-cooldown', type: 'number' },
+    failedTriggerCooldownMs: { selector: '#cs-failed-trigger-cooldown', type: 'number' },
+    maxBufferChars: { selector: '#cs-max-buffer-chars', type: 'number' },
     tokenProcessThreshold: { selector: '#cs-token-process-threshold', type: 'number' },
     detectionBias: { selector: '#cs-detection-bias', type: 'range' },
     detectAttribution: { selector: '#cs-detect-attribution', type: 'checkbox' },
@@ -460,6 +476,31 @@ const uiMapping = {
     enableSceneRoster: { selector: '#cs-scene-roster-enable', type: 'checkbox' },
     sceneRosterTTL: { selector: '#cs-scene-roster-ttl', type: 'number' },
 };
+
+function normalizeProfileNameInput(name) {
+    return String(name ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function getUniqueProfileName(baseName = 'Profile') {
+    const settings = getSettings();
+    let attempt = normalizeProfileNameInput(baseName);
+    if (!attempt) attempt = 'Profile';
+    if (!settings?.profiles?.[attempt]) return attempt;
+
+    let counter = 2;
+    while (settings.profiles[`${attempt} (${counter})`]) {
+        counter += 1;
+    }
+    return `${attempt} (${counter})`;
+}
+
+function resolveMaxBufferChars(profile) {
+    const raw = Number(profile?.maxBufferChars);
+    if (Number.isFinite(raw) && raw > 0) {
+        return raw;
+    }
+    return PROFILE_DEFAULTS.maxBufferChars;
+}
 
 function populateProfileDropdown() {
     const select = $("#cs-profile-select");
@@ -508,7 +549,7 @@ function loadProfile(profileName) {
     }
     settings.activeProfile = profileName;
     const profile = getActiveProfile();
-    $("#cs-profile-name").val(profileName);
+    $("#cs-profile-name").val('').attr('placeholder', `Enter a name... (current: ${profileName})`);
     $("#cs-enable").prop('checked', !!settings.enabled);
     for (const key in uiMapping) {
         const { selector, type } = uiMapping[key];
@@ -640,6 +681,93 @@ function copyTextToClipboard(text) {
     }
 }
 
+function summarizeDetectionsForReport(matches = []) {
+    const summaries = new Map();
+    matches.forEach(match => {
+        const key = String(match.name || '').toLowerCase();
+        if (!key) return;
+        if (!summaries.has(key)) {
+            summaries.set(key, {
+                name: match.name || key,
+                total: 0,
+                highestPriority: -Infinity,
+                earliest: Infinity,
+                latest: -Infinity,
+                kinds: {},
+            });
+        }
+        const summary = summaries.get(key);
+        summary.total += 1;
+        const kind = match.matchKind || 'unknown';
+        summary.kinds[kind] = (summary.kinds[kind] || 0) + 1;
+        if (Number.isFinite(match.priority)) {
+            summary.highestPriority = Math.max(summary.highestPriority, match.priority);
+        }
+        if (Number.isFinite(match.matchIndex)) {
+            summary.earliest = Math.min(summary.earliest, match.matchIndex);
+            summary.latest = Math.max(summary.latest, match.matchIndex);
+        }
+    });
+
+    return Array.from(summaries.values()).map(summary => ({
+        ...summary,
+        highestPriority: summary.highestPriority === -Infinity ? null : summary.highestPriority,
+        earliest: summary.earliest === Infinity ? null : summary.earliest + 1,
+        latest: summary.latest === -Infinity ? null : summary.latest + 1,
+    })).sort((a, b) => {
+        if (b.total !== a.total) return b.total - a.total;
+        const bPriority = b.highestPriority ?? -Infinity;
+        const aPriority = a.highestPriority ?? -Infinity;
+        if (bPriority !== aPriority) return bPriority - aPriority;
+        const aEarliest = a.earliest ?? Infinity;
+        const bEarliest = b.earliest ?? Infinity;
+        if (aEarliest !== bEarliest) return aEarliest - bEarliest;
+        return a.name.localeCompare(b.name);
+    });
+}
+
+function summarizeSkipReasonsForReport(events = []) {
+    const counts = new Map();
+    events.forEach(event => {
+        if (event?.type === 'skipped') {
+            const key = event.reason || 'unknown';
+            counts.set(key, (counts.get(key) || 0) + 1);
+        }
+    });
+    return Array.from(counts.entries()).map(([code, count]) => ({ code, count })).sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.code.localeCompare(b.code);
+    });
+}
+
+function summarizeSwitchesForReport(events = []) {
+    const switches = events.filter(event => event?.type === 'switch');
+    const uniqueFolders = [];
+    const seen = new Set();
+    switches.forEach(sw => {
+        const raw = sw.folder || sw.name || '';
+        const key = raw.toLowerCase();
+        if (!seen.has(key)) {
+            seen.add(key);
+            uniqueFolders.push(raw || '(unknown)');
+        }
+    });
+
+    const scored = switches.filter(sw => Number.isFinite(sw.score));
+    const topScores = scored
+        .slice()
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+
+    return {
+        total: switches.length,
+        uniqueCount: uniqueFolders.length,
+        uniqueFolders,
+        lastSwitch: switches.length ? switches[switches.length - 1] : null,
+        topScores,
+    };
+}
+
 function formatTesterReport(report) {
     const lines = [];
     const created = new Date(report.generatedAt || Date.now());
@@ -686,6 +814,88 @@ function formatTesterReport(report) {
         });
     } else {
         lines.push('  (none)');
+    }
+
+    const detectionSummary = summarizeDetectionsForReport(report.matches);
+    lines.push('');
+    lines.push('Detection Summary:');
+    if (detectionSummary.length) {
+        detectionSummary.forEach(item => {
+            const kindBreakdown = Object.entries(item.kinds)
+                .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+                .map(([kind, count]) => `${kind}:${count}`)
+                .join(', ');
+            const priorityInfo = item.highestPriority != null ? `, highest priority ${item.highestPriority}` : '';
+            const rangeInfo = item.earliest != null
+                ? item.latest != null && item.latest !== item.earliest
+                    ? `, chars ${item.earliest}-${item.latest}`
+                    : `, char ${item.earliest}`
+                : '';
+            const breakdownText = kindBreakdown || 'none';
+            lines.push(`  - ${item.name}: ${item.total} detections (${breakdownText}${priorityInfo}${rangeInfo})`);
+        });
+    } else {
+        lines.push('  (none)');
+    }
+
+    const switchSummary = summarizeSwitchesForReport(report.events || []);
+    lines.push('');
+    lines.push('Switch Summary:');
+    lines.push(`  Total switches: ${switchSummary.total}`);
+    if (switchSummary.uniqueCount > 0) {
+        lines.push(`  Unique costumes: ${switchSummary.uniqueCount} (${switchSummary.uniqueFolders.join(', ')})`);
+    } else {
+        lines.push('  Unique costumes: 0');
+    }
+    if (switchSummary.lastSwitch) {
+        const last = switchSummary.lastSwitch;
+        const charPos = Number.isFinite(last.charIndex) ? last.charIndex + 1 : '?';
+        const detail = last.matchKind ? ` via ${last.matchKind}` : '';
+        const score = Number.isFinite(last.score) ? `, score ${last.score}` : '';
+        const folderName = last.folder || last.name || '(unknown)';
+        lines.push(`  Last switch: ${folderName} (trigger: ${last.name}${detail}, char ${charPos}${score})`);
+    } else {
+        lines.push('  Last switch: (none)');
+    }
+    if (switchSummary.topScores.length) {
+        lines.push('  Top switch scores:');
+        switchSummary.topScores.forEach((event, idx) => {
+            const charPos = Number.isFinite(event.charIndex) ? event.charIndex + 1 : '?';
+            const detail = event.matchKind ? ` via ${event.matchKind}` : '';
+            const folderName = event.folder || event.name || '(unknown)';
+            lines.push(`    ${idx + 1}. ${folderName} – ${event.score} (trigger: ${event.name}${detail}, char ${charPos})`);
+        });
+    }
+
+    const skipSummary = summarizeSkipReasonsForReport(report.events || []);
+    lines.push('');
+    lines.push('Skip Reasons:');
+    if (skipSummary.length) {
+        skipSummary.forEach(item => {
+            lines.push(`  - ${describeSkipReason(item.code)} (${item.code}): ${item.count}`);
+        });
+    } else {
+        lines.push('  (none)');
+    }
+
+    if (report.finalState) {
+        const rosterNames = Array.isArray(report.finalState.sceneRoster)
+            ? report.finalState.sceneRoster.map(name => {
+                const original = report.matches?.find(m => m.name?.toLowerCase() === name)?.name;
+                return original || name;
+            })
+            : [];
+        lines.push('');
+        lines.push('Final Stream State:');
+        lines.push(`  Scene roster (${rosterNames.length}): ${rosterNames.length ? rosterNames.join(', ') : '(empty)'}`);
+        lines.push(`  Last accepted name: ${report.finalState.lastAcceptedName || '(none)'}`);
+        lines.push(`  Last subject: ${report.finalState.lastSubject || '(none)'}`);
+        if (Number.isFinite(report.finalState.processedLength)) {
+            lines.push(`  Processed characters: ${report.finalState.processedLength}`);
+        }
+        if (Number.isFinite(report.finalState.virtualDurationMs)) {
+            lines.push(`  Simulated duration: ${report.finalState.virtualDurationMs} ms`);
+        }
     }
 
     if (report.profileSnapshot) {
@@ -738,7 +948,9 @@ function createTesterMessageState(profile) {
 function simulateTesterStream(combined, profile, bufKey) {
     const events = [];
     const msgState = state.perMessageStates.get(bufKey);
-    if (!msgState) return events;
+    if (!msgState) {
+        return { events, finalState: null };
+    }
 
     const simulationState = {
         lastIssuedCostume: null,
@@ -748,7 +960,7 @@ function simulateTesterStream(combined, profile, bufKey) {
     };
 
     const threshold = Math.max(0, Number(profile.tokenProcessThreshold) || 0);
-    const maxBuffer = Number(profile.maxBufferChars) > 0 ? profile.maxBufferChars : PROFILE_DEFAULTS.maxBufferChars;
+    const maxBuffer = resolveMaxBufferChars(profile);
     const rosterTTL = profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL;
     const repeatSuppress = Number(profile.repeatSuppressMs) || 0;
     let buffer = '';
@@ -816,7 +1028,18 @@ function simulateTesterStream(combined, profile, bufKey) {
         }
     }
 
-    return events;
+    const finalState = {
+        lastAcceptedName: msgState.lastAcceptedName,
+        lastAcceptedTimestamp: msgState.lastAcceptedTs,
+        lastSubject: msgState.lastSubject,
+        processedLength: msgState.processedLength,
+        sceneRoster: Array.from(msgState.sceneRoster || []),
+        rosterTTL: msgState.rosterTTL,
+        vetoed: Boolean(msgState.vetoed),
+        virtualDurationMs: combined.length > 0 ? Math.max(0, (combined.length - 1) * 50) : 0,
+    };
+
+    return { events, finalState };
 }
 
 function renderTesterStream(eventList, events) {
@@ -918,7 +1141,8 @@ function testRegexPattern() {
         }
 
         resetTesterMessageState();
-        const events = simulateTesterStream(combined, tempProfile, bufKey);
+        const simulationResult = simulateTesterStream(combined, tempProfile, bufKey);
+        const events = Array.isArray(simulationResult?.events) ? simulationResult.events : [];
         renderTesterStream(streamList, events);
         state.lastTesterReport = {
             ...reportBase,
@@ -926,6 +1150,14 @@ function testRegexPattern() {
             vetoMatch: null,
             matches: allMatches.map(m => ({ ...m })),
             events: events.map(e => ({ ...e })),
+            finalState: simulationResult?.finalState
+                ? {
+                    ...simulationResult.finalState,
+                    sceneRoster: Array.isArray(simulationResult.finalState.sceneRoster)
+                        ? [...simulationResult.finalState.sceneRoster]
+                        : [],
+                }
+                : null,
         };
         updateTesterCopyButton();
     }
@@ -951,20 +1183,59 @@ function wireUI() {
     });
     $(document).on('change', '#cs-profile-select', function() { loadProfile($(this).val()); });
     $(document).on('click', '#cs-profile-save', () => {
-        const newName = $("#cs-profile-name").val().trim(); if (!newName) return;
-        const oldName = settings.activeProfile;
-        if (newName !== oldName && settings.profiles[newName]) { showStatus("A profile with that name already exists.", 'error'); return; }
-        const profileData = saveCurrentProfileData();
-        if (newName !== oldName) {
-             settings.profiles[newName] = profileData;
-             settings.activeProfile = newName;
-             delete settings.profiles[oldName];
-        } else {
-            Object.assign(getActiveProfile(), profileData);
-        }
-        populateProfileDropdown();
+        const profile = getActiveProfile();
+        if (!profile) return;
+        Object.assign(profile, saveCurrentProfileData());
+        persistSettings('Profile saved.');
         loadProfile(settings.activeProfile);
-        persistSettings(`Profile saved as "${newName}"`);
+    });
+    $(document).on('click', '#cs-profile-saveas', () => {
+        const desiredName = normalizeProfileNameInput($("#cs-profile-name").val());
+        if (!desiredName) { showStatus('Enter a name to save a new profile.', 'error'); return; }
+        if (settings.profiles[desiredName]) { showStatus('A profile with that name already exists.', 'error'); return; }
+        const profileData = Object.assign({}, structuredClone(PROFILE_DEFAULTS), saveCurrentProfileData());
+        settings.profiles[desiredName] = profileData;
+        settings.activeProfile = desiredName;
+        populateProfileDropdown();
+        loadProfile(desiredName);
+        $("#cs-profile-name").val('');
+        persistSettings(`Saved a new profile as "${desiredName}".`);
+    });
+    $(document).on('click', '#cs-profile-rename', () => {
+        const newName = normalizeProfileNameInput($("#cs-profile-name").val());
+        const oldName = settings.activeProfile;
+        if (!newName) { showStatus('Enter a new name to rename this profile.', 'error'); return; }
+        if (newName === oldName) { showStatus('The profile already uses that name.', 'info'); return; }
+        if (settings.profiles[newName]) { showStatus('A profile with that name already exists.', 'error'); return; }
+        settings.profiles[newName] = settings.profiles[oldName];
+        delete settings.profiles[oldName];
+        settings.activeProfile = newName;
+        populateProfileDropdown();
+        loadProfile(newName);
+        $("#cs-profile-name").val('');
+        persistSettings(`Renamed profile to "${newName}".`, 'info');
+    });
+    $(document).on('click', '#cs-profile-new', () => {
+        const baseName = normalizeProfileNameInput($("#cs-profile-name").val()) || 'New Profile';
+        const uniqueName = getUniqueProfileName(baseName);
+        settings.profiles[uniqueName] = structuredClone(PROFILE_DEFAULTS);
+        settings.activeProfile = uniqueName;
+        populateProfileDropdown();
+        loadProfile(uniqueName);
+        $("#cs-profile-name").val('');
+        persistSettings(`Created profile "${uniqueName}" from defaults.`, 'info');
+    });
+    $(document).on('click', '#cs-profile-duplicate', () => {
+        const activeProfile = getActiveProfile();
+        if (!activeProfile) return;
+        const baseName = normalizeProfileNameInput($("#cs-profile-name").val()) || `${settings.activeProfile} Copy`;
+        const uniqueName = getUniqueProfileName(baseName);
+        settings.profiles[uniqueName] = Object.assign({}, structuredClone(PROFILE_DEFAULTS), structuredClone(activeProfile));
+        settings.activeProfile = uniqueName;
+        populateProfileDropdown();
+        loadProfile(uniqueName);
+        $("#cs-profile-name").val('');
+        persistSettings(`Duplicated profile as "${uniqueName}".`, 'info');
     });
     $(document).on('click', '#cs-profile-delete', () => {
         if (Object.keys(settings.profiles).length <= 1) { showStatus("Cannot delete the last profile.", 'error'); return; }
@@ -973,6 +1244,7 @@ function wireUI() {
             delete settings.profiles[profileNameToDelete];
             settings.activeProfile = Object.keys(settings.profiles)[0];
             populateProfileDropdown(); loadProfile(settings.activeProfile);
+            $("#cs-profile-name").val('');
             persistSettings(`Deleted profile "${profileNameToDelete}".`);
         }
     });
@@ -1211,7 +1483,8 @@ const handleStream = (...args) => {
         if (msgState.vetoed) return;
 
         const prev = state.perMessageBuffers.get(bufKey) || "";
-        const combined = (prev + normalizeStreamText(tokenText)).slice(-profile.maxBufferChars);
+        const maxBuffer = resolveMaxBufferChars(profile);
+        const combined = (prev + normalizeStreamText(tokenText)).slice(-maxBuffer);
         state.perMessageBuffers.set(bufKey, combined);
         
         if (combined.length < msgState.processedLength + profile.tokenProcessThreshold) {
