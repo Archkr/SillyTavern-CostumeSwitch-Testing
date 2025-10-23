@@ -107,6 +107,7 @@ const state = {
     eventHandlers: {},
     compiledRegexes: {},
     statusTimer: null,
+    testerTimers: [],
 };
 
 // ======================================================================
@@ -347,52 +348,86 @@ function recompileRegexes() {
     }
 }
 
-async function issueCostumeForName(name, opts = {}) {
+function ensureMap(value) {
+    if (value instanceof Map) return value;
+    if (!value) return new Map();
+    try { return new Map(value instanceof Array ? value : Object.entries(value)); }
+    catch { return new Map(); }
+}
+
+function evaluateSwitchDecision(rawName, opts = {}, contextState = null, nowOverride = null) {
     const profile = getActiveProfile();
-    const settings = getSettings();
-    if (!name || !profile) return;
-    const now = Date.now();
-    name = normalizeCostumeName(name);
-
-    const currentName = normalizeCostumeName(state.lastIssuedCostume || "");
-    if (!opts.isLock && currentName.toLowerCase() === name.toLowerCase()) {
-        debugLog("Already using costume for", name, "- skipping.");
-        return;
+    if (!profile) {
+        return { shouldSwitch: false, reason: 'no-profile' };
+    }
+    if (!rawName) {
+        return { shouldSwitch: false, reason: 'no-name' };
     }
 
-    if (!opts.isLock && (now - state.lastSwitchTimestamp < profile.globalCooldownMs)) {
-        debugLog("Global cooldown active, skipping switch to", name);
-        return;
-    }
-    
-    let argFolder = profile.mappings.find(m => m.name.toLowerCase() === name.toLowerCase())?.folder;
-    argFolder = argFolder ? argFolder.trim() : name;
+    const runtimeState = contextState || state;
+    const now = Number.isFinite(nowOverride) ? nowOverride : Date.now();
+    const decision = { now };
 
-    if (!opts.isLock) {
-        const lastSuccess = state.lastTriggerTimes.get(argFolder) || 0;
+    decision.name = normalizeCostumeName(rawName);
+    const currentName = normalizeCostumeName(runtimeState.lastIssuedCostume || "");
+
+    if (!opts.isLock && currentName && currentName.toLowerCase() === decision.name.toLowerCase()) {
+        return { shouldSwitch: false, reason: 'already-active', name: decision.name, now };
+    }
+
+    if (!opts.isLock && profile.globalCooldownMs > 0 && (now - (runtimeState.lastSwitchTimestamp || 0) < profile.globalCooldownMs)) {
+        return { shouldSwitch: false, reason: 'global-cooldown', name: decision.name, now };
+    }
+
+    let mappedFolder = profile.mappings.find(m => m.name.toLowerCase() === decision.name.toLowerCase())?.folder;
+    mappedFolder = mappedFolder ? mappedFolder.trim() : decision.name;
+
+    const lastTriggerTimes = ensureMap(runtimeState.lastTriggerTimes);
+    const failedTriggerTimes = ensureMap(runtimeState.failedTriggerTimes);
+    if (contextState) {
+        runtimeState.lastTriggerTimes = lastTriggerTimes;
+        runtimeState.failedTriggerTimes = failedTriggerTimes;
+    } else {
+        state.lastTriggerTimes = lastTriggerTimes;
+        state.failedTriggerTimes = failedTriggerTimes;
+    }
+
+    if (!opts.isLock && profile.perTriggerCooldownMs > 0) {
+        const lastSuccess = lastTriggerTimes.get(mappedFolder) || 0;
         if (now - lastSuccess < profile.perTriggerCooldownMs) {
-            debugLog("Per-trigger cooldown active for", argFolder);
-            return;
-        }
-        const lastFailed = state.failedTriggerTimes.get(argFolder) || 0;
-        if (now - lastFailed < profile.failedTriggerCooldownMs) {
-            debugLog("Failed-trigger cooldown active for", argFolder);
-            return;
+            return { shouldSwitch: false, reason: 'per-trigger-cooldown', name: decision.name, folder: mappedFolder, now };
         }
     }
 
-    const command = `/costume \\${argFolder}`;
+    if (!opts.isLock && profile.failedTriggerCooldownMs > 0) {
+        const lastFailed = failedTriggerTimes.get(mappedFolder) || 0;
+        if (now - lastFailed < profile.failedTriggerCooldownMs) {
+            return { shouldSwitch: false, reason: 'failed-trigger-cooldown', name: decision.name, folder: mappedFolder, now };
+        }
+    }
+
+    return { shouldSwitch: true, name: decision.name, folder: mappedFolder, now };
+}
+
+async function issueCostumeForName(name, opts = {}) {
+    const decision = evaluateSwitchDecision(name, opts);
+    if (!decision.shouldSwitch) {
+        debugLog("Switch skipped for", name, "reason:", decision.reason || 'n/a');
+        return;
+    }
+
+    const command = `/costume \\${decision.folder}`;
     debugLog("Executing command:", command, "kind:", opts.matchKind || 'N/A');
     try {
         await executeSlashCommandsOnChatInput(command);
-        state.lastTriggerTimes.set(argFolder, now);
-        state.lastIssuedCostume = name;
-        state.lastSwitchTimestamp = now;
-        showStatus(`Switched -> <b>${argFolder}</b>`, 'success');
+        state.lastTriggerTimes.set(decision.folder, decision.now);
+        state.lastIssuedCostume = decision.name;
+        state.lastSwitchTimestamp = decision.now;
+        showStatus(`Switched -> <b>${decision.folder}</b>`, 'success');
     } catch (err) {
-        state.failedTriggerTimes.set(argFolder, now);
-        showStatus(`Failed to switch to costume "<b>${argFolder}</b>". Check console (F12).`, 'error');
-        console.error(`${logPrefix} Failed to execute /costume command for "${argFolder}".`, err);
+        state.failedTriggerTimes.set(decision.folder, decision.now);
+        showStatus(`Failed to switch to costume "<b>${decision.folder}</b>". Check console (F12).`, 'error');
+        console.error(`${logPrefix} Failed to execute /costume command for "${decision.folder}".`, err);
     }
 }
 
@@ -540,7 +575,157 @@ function persistSettings(message, type = 'success') {
     if (message) showStatus(message, type);
 }
 
+function clearTesterTimers() {
+    if (!Array.isArray(state.testerTimers)) {
+        state.testerTimers = [];
+    }
+    state.testerTimers.forEach(clearTimeout);
+    state.testerTimers.length = 0;
+}
+
+function describeSkipReason(code) {
+    const messages = {
+        'already-active': 'already the active costume',
+        'global-cooldown': 'blocked by global cooldown',
+        'per-trigger-cooldown': 'blocked by per-trigger cooldown',
+        'failed-trigger-cooldown': 'waiting after a failed switch',
+        'repeat-suppression': 'suppressed as a rapid repeat',
+        'no-profile': 'profile unavailable',
+        'no-name': 'no name detected',
+    };
+    return messages[code] || 'not eligible to switch yet';
+}
+
+function createTesterMessageState(profile) {
+    return {
+        lastAcceptedName: null,
+        lastAcceptedTs: 0,
+        vetoed: false,
+        lastSubject: null,
+        sceneRoster: new Set(),
+        rosterTTL: profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL,
+        processedLength: 0,
+    };
+}
+
+function simulateTesterStream(combined, profile, bufKey) {
+    const events = [];
+    const msgState = state.perMessageStates.get(bufKey);
+    if (!msgState) return events;
+
+    const simulationState = {
+        lastIssuedCostume: null,
+        lastSwitchTimestamp: 0,
+        lastTriggerTimes: new Map(),
+        failedTriggerTimes: new Map(),
+    };
+
+    const threshold = Math.max(0, Number(profile.tokenProcessThreshold) || 0);
+    const maxBuffer = Number(profile.maxBufferChars) > 0 ? profile.maxBufferChars : PROFILE_DEFAULTS.maxBufferChars;
+    const rosterTTL = profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL;
+    const repeatSuppress = Number(profile.repeatSuppressMs) || 0;
+    let buffer = '';
+    for (let i = 0; i < combined.length; i++) {
+        buffer = (buffer + combined[i]).slice(-maxBuffer);
+        state.perMessageBuffers.set(bufKey, buffer);
+
+        if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(buffer)) {
+            const vetoMatch = buffer.match(state.compiledRegexes.vetoRegex)?.[0];
+            if (vetoMatch) {
+                events.push({ type: 'veto', match: vetoMatch, charIndex: i });
+            }
+            msgState.vetoed = true;
+            break;
+        }
+
+        if (buffer.length < msgState.processedLength + threshold) {
+            continue;
+        }
+
+        msgState.processedLength = buffer.length;
+        const bestMatch = findBestMatch(buffer);
+        if (!bestMatch) continue;
+
+        if (profile.enableSceneRoster) {
+            msgState.sceneRoster.add(bestMatch.name.toLowerCase());
+            msgState.rosterTTL = rosterTTL;
+        }
+
+        if (bestMatch.matchKind !== 'pronoun') {
+            msgState.lastSubject = bestMatch.name;
+        }
+
+        const virtualNow = i * 50;
+        if (msgState.lastAcceptedName?.toLowerCase() === bestMatch.name.toLowerCase() &&
+            (virtualNow - msgState.lastAcceptedTs < repeatSuppress)) {
+            events.push({ type: 'skipped', name: bestMatch.name, matchKind: bestMatch.matchKind, reason: 'repeat-suppression', charIndex: i });
+            continue;
+        }
+
+        msgState.lastAcceptedName = bestMatch.name;
+        msgState.lastAcceptedTs = virtualNow;
+
+        const decision = evaluateSwitchDecision(bestMatch.name, { matchKind: bestMatch.matchKind }, simulationState, virtualNow);
+        if (decision.shouldSwitch) {
+            events.push({
+                type: 'switch',
+                name: bestMatch.name,
+                folder: decision.folder,
+                matchKind: bestMatch.matchKind,
+                score: Math.round(bestMatch.score ?? 0),
+                charIndex: i,
+            });
+            simulationState.lastIssuedCostume = decision.name;
+            simulationState.lastSwitchTimestamp = decision.now;
+            simulationState.lastTriggerTimes.set(decision.folder, decision.now);
+        } else {
+            events.push({
+                type: 'skipped',
+                name: bestMatch.name,
+                matchKind: bestMatch.matchKind,
+                reason: decision.reason || 'unknown',
+                charIndex: i,
+            });
+        }
+    }
+
+    return events;
+}
+
+function renderTesterStream(eventList, events) {
+    eventList.empty();
+    if (!events.length) {
+        eventList.html('<li class="cs-tester-list-placeholder">No stream activity.</li>');
+        return;
+    }
+
+    let delay = 0;
+    events.forEach(event => {
+        const item = $('<li>');
+        if (event.type === 'switch') {
+            item.addClass('cs-tester-log-switch').html(`<b>Switch → ${event.folder}</b><small> (${event.name}${event.matchKind ? ' via ' + event.matchKind : ''}, char #${event.charIndex + 1}${Number.isFinite(event.score) ? ', score ' + event.score : ''})</small>`);
+        } else if (event.type === 'veto') {
+            item.addClass('cs-tester-log-veto').html(`<b>Veto Triggered</b><small> (${event.match})</small>`);
+        } else {
+            item.addClass('cs-tester-log-skip').html(`<span>${event.name}</span><small> (${event.matchKind}, ${describeSkipReason(event.reason)})</small>`);
+        }
+
+        const timer = setTimeout(() => {
+            eventList.append(item);
+            const listEl = eventList.get(0);
+            if (listEl) {
+                listEl.scrollTop = listEl.scrollHeight;
+            }
+        }, delay);
+        state.testerTimers.push(timer);
+        delay += event.type === 'switch' ? 260 : 160;
+    });
+}
+
+
+
 function testRegexPattern() {
+    clearTesterTimers();
     $("#cs-test-veto-result").text('N/A').css('color', 'var(--text-color-soft)');
     const text = $("#cs-regex-test-input").val();
     if (!text) {
@@ -548,63 +733,57 @@ function testRegexPattern() {
         return;
     }
 
-    const tempState = { perMessageStates: new Map([[ 'test', { lastSubject: null, sceneRoster: new Set() } ]]) };
-    const originalState = { ...state };
-    Object.assign(state, tempState);
-    
+    const settings = getSettings();
+    const originalProfileName = settings.activeProfile;
     const tempProfile = saveCurrentProfileData();
-    const originalProfile = getActiveProfile();
-    getSettings().profiles["__temp_test"] = tempProfile;
-    getSettings().activeProfile = "__temp_test";
-    
+    const tempProfileName = '__temp_test';
+    settings.profiles[tempProfileName] = tempProfile;
+    settings.activeProfile = tempProfileName;
+
+    const originalPerMessageStates = state.perMessageStates;
+    const originalPerMessageBuffers = state.perMessageBuffers;
+    const bufKey = tempProfileName;
+
+    const resetTesterMessageState = () => {
+        const testerState = createTesterMessageState(tempProfile);
+        state.perMessageStates = new Map([[bufKey, testerState]]);
+        state.perMessageBuffers = new Map([[bufKey, '']]);
+        return testerState;
+    };
+
+    resetTesterMessageState();
     recompileRegexes();
 
     const combined = normalizeStreamText(text);
+    const allDetectionsList = $("#cs-test-all-detections");
+    const streamList = $("#cs-test-winner-list");
+
     if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(combined)) {
-        const vetoMatch = combined.match(state.compiledRegexes.vetoRegex)[0];
+        const vetoMatch = combined.match(state.compiledRegexes.vetoRegex)?.[0] || 'unknown veto phrase';
         $("#cs-test-veto-result").html(`Vetoed by: <b style="color: var(--red);">${vetoMatch}</b>`);
-        $("#cs-test-all-detections, #cs-test-winner-list").html('<li class="cs-tester-list-placeholder">Message vetoed.</li>');
+        allDetectionsList.html('<li class="cs-tester-list-placeholder">Message vetoed.</li>');
+        renderTesterStream(streamList, [{ type: 'veto', match: vetoMatch, charIndex: combined.length - 1 }]);
     } else {
         $("#cs-test-veto-result").text('No veto phrases matched.').css('color', 'var(--green)');
+
         const allMatches = findAllMatches(combined).sort((a, b) => a.matchIndex - b.matchIndex);
-        
-        const allDetectionsList = $("#cs-test-all-detections").empty();
+        allDetectionsList.empty();
         if (allMatches.length > 0) {
-            allMatches.forEach(m => allDetectionsList.append(`<li><b>${m.name}</b> <small>(${m.matchKind} @ ${m.matchIndex}, p: ${m.priority})</small></li>`));
+            allMatches.forEach(m => allDetectionsList.append(`<li><b>${m.name}</b> <small>(${m.matchKind} @ ${m.matchIndex}, p:${m.priority})</small></li>`));
         } else {
             allDetectionsList.html('<li class="cs-tester-list-placeholder">No detections found.</li>');
         }
 
-        const winnerList = $("#cs-test-winner-list").empty();
-        const winners = [];
-        let lastWinnerName = null;
-        for (let i = 1; i <= combined.length; i++) {
-            const buffer = combined.substring(0, i);
-            const bestMatch = findBestMatch(buffer);
-            if (bestMatch && bestMatch.name !== lastWinnerName) {
-                const existingWinner = winners.find(w => w.name === bestMatch.name);
-                if (existingWinner) {
-                    existingWinner.count = (existingWinner.count || 1) + 1;
-                    existingWinner.score = Math.round(bestMatch.score);
-                } else {
-                    winners.push({ ...bestMatch, score: Math.round(bestMatch.score), count: 1 });
-                }
-                lastWinnerName = bestMatch.name;
-            }
-        }
-
-        if (winners.length > 0) {
-            winners.forEach(m => winnerList.append(`<li><b>${m.name}</b> <small>(${m.count > 1 ? m.count + 'x, ' : ''}last as ${m.matchKind} @ ${m.matchIndex}, s: ${m.score})</small></li>`));
-        } else {
-            winnerList.html('<li class="cs-tester-list-placeholder">No winning match.</li>');
-        }
+        resetTesterMessageState();
+        const events = simulateTesterStream(combined, tempProfile, bufKey);
+        renderTesterStream(streamList, events);
     }
-    
-    Object.assign(state, originalState);
-    delete getSettings().profiles["__temp_test"];
-    getSettings().activeProfile = Object.keys(getSettings().profiles).find(p => p !== '__temp_test');
-    loadProfile(getSettings().activeProfile);
-    recompileRegexes();
+
+    state.perMessageStates = originalPerMessageStates;
+    state.perMessageBuffers = originalPerMessageBuffers;
+    delete settings.profiles[tempProfileName];
+    settings.activeProfile = originalProfileName;
+    loadProfile(originalProfileName);
 }
 
 function wireUI() {
@@ -930,6 +1109,10 @@ const resetGlobalState = () => {
     if (state.statusTimer) {
         clearTimeout(state.statusTimer);
         state.statusTimer = null;
+    }
+    if (Array.isArray(state.testerTimers)) {
+        state.testerTimers.forEach(clearTimeout);
+        state.testerTimers.length = 0;
     }
     Object.assign(state, {
         lastIssuedCostume: null,
