@@ -202,31 +202,6 @@
   font-weight: 700;
 }
 
-#costume-switcher-settings.cs-theme .cs-subtitle {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.5;
-  color: var(--header-text-subtle);
-}
-
-#costume-switcher-settings.cs-theme .cs-pill-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-#costume-switcher-settings.cs-theme .cs-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.25);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.65);
-}
-
 #costume-switcher-settings.cs-theme .cs-header-meta {
   display: flex;
   flex-direction: column;
