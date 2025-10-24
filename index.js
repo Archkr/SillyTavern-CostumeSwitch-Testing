@@ -333,9 +333,9 @@ function findAllMatches(combined) {
     return allMatches;
 }
 
-function findBestMatch(combined) {
+function findBestMatch(combined, precomputedMatches = null) {
     const profile = getActiveProfile();
-    const allMatches = findAllMatches(combined);
+    const allMatches = Array.isArray(precomputedMatches) ? precomputedMatches : findAllMatches(combined);
     if (allMatches.length === 0) return null;
 
     let rosterSet = null;
@@ -1896,6 +1896,45 @@ function findExistingMessageKey(preferredKey, messageId) {
     return candidates[0] || null;
 }
 
+function summarizeMatches(matches) {
+    const stats = new Map();
+    matches.forEach((match) => {
+        const normalizedName = normalizeCostumeName(match.name);
+        if (!normalizedName) return;
+        stats.set(normalizedName, (stats.get(normalizedName) || 0) + 1);
+    });
+    return stats;
+}
+
+function updateMessageAnalytics(bufKey, text, { rosterSet, updateSession = true, assumeNormalized = false } = {}) {
+    if (!bufKey) {
+        return { stats: new Map(), ranking: [] };
+    }
+
+    if (!(state.messageStats instanceof Map)) {
+        state.messageStats = new Map();
+    }
+
+    if (!(state.topSceneRanking instanceof Map)) {
+        state.topSceneRanking = new Map();
+    }
+
+    const normalizedText = typeof text === 'string' ? (assumeNormalized ? text : normalizeStreamText(text)) : '';
+    const matches = normalizedText ? findAllMatches(normalizedText) : [];
+    const stats = summarizeMatches(matches);
+
+    state.messageStats.set(bufKey, stats);
+
+    const ranking = rankSceneCharacters(matches, { rosterSet });
+    state.topSceneRanking.set(bufKey, ranking);
+
+    if (updateSession !== false) {
+        updateSessionTopCharacters(bufKey, ranking);
+    }
+
+    return { stats, ranking, matches };
+}
+
 function calculateFinalMessageStats(reference) {
     const { key: requestedKey, messageId } = parseMessageReference(reference);
     const bufKey = findExistingMessageKey(requestedKey, messageId);
@@ -1925,25 +1964,11 @@ function calculateFinalMessageStats(reference) {
         fullText = normalizeStreamText(message.mes);
     }
 
-    const allMatches = findAllMatches(fullText);
-    const stats = new Map();
-    allMatches.forEach(m => {
-        const name = normalizeCostumeName(m.name);
-        stats.set(name, (stats.get(name) || 0) + 1);
-    });
-
-    state.messageStats.set(bufKey, stats);
-    if (!(state.topSceneRanking instanceof Map)) {
-        state.topSceneRanking = new Map();
-    }
-
     const msgState = state.perMessageStates.get(bufKey);
     const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : null;
-    const ranking = rankSceneCharacters(allMatches, { rosterSet });
-    state.topSceneRanking.set(bufKey, ranking);
-    updateSessionTopCharacters(bufKey, ranking);
+    updateMessageAnalytics(bufKey, fullText, { rosterSet, assumeNormalized: true });
 
-    debugLog("Final stats calculated for", bufKey, stats);
+    debugLog("Final stats calculated for", bufKey, state.messageStats.get(bufKey));
 }
 
 
@@ -2172,13 +2197,16 @@ const handleStream = (...args) => {
         const maxBuffer = resolveMaxBufferChars(profile);
         const combined = (prev + normalizeStreamText(tokenText)).slice(-maxBuffer);
         state.perMessageBuffers.set(bufKey, combined);
-        
+
+        const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : null;
+        const analytics = updateMessageAnalytics(bufKey, combined, { rosterSet, assumeNormalized: true });
+
         if (combined.length < msgState.processedLength + profile.tokenProcessThreshold) {
             return;
         }
-        
+
         msgState.processedLength = combined.length;
-        const bestMatch = findBestMatch(combined);
+        const bestMatch = findBestMatch(combined, analytics?.matches);
         debugLog(`[STREAM] Buffer len: ${combined.length}. Match:`, bestMatch ? `${bestMatch.name} (${bestMatch.matchKind})` : 'None');
 
         if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(combined)) {
@@ -2278,20 +2306,39 @@ const resetGlobalState = () => {
 };
 
 function load() {
-    state.eventHandlers = {
-        [event_types.STREAM_TOKEN_RECEIVED]: handleStream,
-        [event_types.GENERATION_STARTED]: handleGenerationStart,
-        [event_types.CHARACTER_MESSAGE_RENDERED]: handleMessageRendered,
-        [event_types.CHAT_CHANGED]: resetGlobalState,
+    state.eventHandlers = {};
+    const registered = new Set();
+    const registerHandler = (eventType, handler) => {
+        if (typeof eventType !== 'string' || typeof handler !== 'function' || registered.has(eventType)) {
+            return;
+        }
+        registered.add(eventType);
+        state.eventHandlers[eventType] = handler;
+        eventSource.on(eventType, handler);
     };
-    for (const [event, handler] of Object.entries(state.eventHandlers)) {
-        eventSource.on(event, handler);
-    }
+
+    registerHandler(event_types?.STREAM_TOKEN_RECEIVED, handleStream);
+    registerHandler(event_types?.GENERATION_STARTED, handleGenerationStart);
+
+    const renderEvents = [
+        event_types?.CHARACTER_MESSAGE_RENDERED,
+        event_types?.MESSAGE_RENDERED,
+        event_types?.GENERATION_ENDED,
+        event_types?.STREAM_ENDED,
+        event_types?.STREAM_FINISHED,
+        event_types?.STREAM_COMPLETE,
+    ].filter((evt) => typeof evt === 'string');
+
+    renderEvents.forEach((evt) => registerHandler(evt, handleMessageRendered));
+
+    registerHandler(event_types?.CHAT_CHANGED, resetGlobalState);
 }
 
 function unload() {
-    for (const [event, handler] of Object.entries(state.eventHandlers)) {
-        eventSource.off(event, handler);
+    if (state.eventHandlers && typeof state.eventHandlers === 'object') {
+        for (const [event, handler] of Object.entries(state.eventHandlers)) {
+            eventSource.off(event, handler);
+        }
     }
     resetGlobalState();
 }
