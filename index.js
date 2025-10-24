@@ -559,8 +559,9 @@ function normalizeCostumeName(n) {
     if (s.startsWith("/") || s.startsWith("\\")) {
         s = s.slice(1).trim();
     }
-    const first = s.split(/[\/\s]+/).filter(Boolean)[0] || s;
-    return String(first).replace(/[-_](?:sama|san)$/i, "").trim();
+    const segments = s.split(/[\\/]+/).filter(Boolean);
+    const base = segments.length ? segments[segments.length - 1] : s;
+    return String(base).replace(/[-_](?:sama|san)$/i, "").trim();
 }
 function getSettings() { return extension_settings[extensionName]; }
 function getActiveProfile() { const settings = getSettings(); return settings?.profiles?.[settings.activeProfile]; }
@@ -1737,17 +1738,29 @@ async function manualReset() {
 }
 
 function logLastMessageStats() {
-    const lastMessageId = Array.from(state.messageStats.keys()).pop();
-    if (!lastMessageId || !state.messageStats.has(lastMessageId)) {
-        showStatus("No stats recorded for the last message.", "info");
-        console.log(`${logPrefix} No stats recorded for the last message.`);
-        return;
+    let lastMessageKey = normalizeMessageKey(Array.from(state.messageStats.keys()).pop());
+
+    if (!lastMessageKey) {
+        const sessionKey = ensureSessionData()?.lastMessageKey;
+        const normalizedSessionKey = normalizeMessageKey(sessionKey);
+        if (normalizedSessionKey && state.messageStats.has(normalizedSessionKey)) {
+            lastMessageKey = normalizedSessionKey;
+        }
     }
-    const stats = state.messageStats.get(lastMessageId);
+
+    if (!lastMessageKey || !state.messageStats.has(lastMessageKey)) {
+        const message = "No stats recorded for the last message.";
+        showStatus(message, "info");
+        console.log(`${logPrefix} ${message}`);
+        return message;
+    }
+
+    const stats = state.messageStats.get(lastMessageKey);
     if (stats.size === 0) {
-        showStatus("No character mentions were detected in the last message.", "info");
-        console.log(`${logPrefix} No character mentions were detected in the last message.`);
-        return;
+        const message = "No character mentions were detected in the last message.";
+        showStatus(message, "info");
+        console.log(`${logPrefix} ${message}`);
+        return message;
     }
 
     let logOutput = "Character Mention Stats for Last Message:\n";
@@ -1759,7 +1772,7 @@ function logLastMessageStats() {
     logOutput += "========================================";
 
     const ranking = state.topSceneRanking instanceof Map
-        ? state.topSceneRanking.get(lastMessageId)
+        ? state.topSceneRanking.get(lastMessageKey)
         : null;
     logOutput += "\n\nTop Ranked Characters:\n";
     if (Array.isArray(ranking) && ranking.length) {
@@ -1774,23 +1787,140 @@ function logLastMessageStats() {
 
     console.log(logOutput);
     showStatus("Last message stats logged to browser console (F12).", "success");
+    return logOutput;
 }
 
-function calculateFinalMessageStats(bufKey) {
+function normalizeMessageKey(value) {
+    if (value == null) return null;
+    const str = typeof value === 'string' ? value : String(value);
+    const trimmed = str.trim();
+    if (!trimmed) return null;
+    const match = trimmed.match(/^m?(\d+)$/i);
+    if (match) return `m${match[1]}`;
+    return trimmed;
+}
+
+function extractMessageIdFromKey(key) {
+    const normalized = normalizeMessageKey(key);
+    if (!normalized) return null;
+    const match = normalized.match(/^m(\d+)$/);
+    return match ? Number(match[1]) : null;
+}
+
+function parseMessageReference(input) {
+    let key = null;
+    let messageId = null;
+
+    const commitKey = (candidate) => {
+        const normalized = normalizeMessageKey(candidate);
+        if (!normalized) return;
+        if (!key) key = normalized;
+        if (messageId == null) {
+            const parsed = extractMessageIdFromKey(normalized);
+            if (parsed != null) {
+                messageId = parsed;
+            }
+        }
+    };
+
+    const commitId = (candidate) => {
+        const num = Number(candidate);
+        if (!Number.isFinite(num)) return;
+        if (messageId == null) messageId = num;
+        if (!key) key = `m${num}`;
+    };
+
+    if (input == null) {
+        return { key: null, messageId: null };
+    }
+
+    if (typeof input === 'number') {
+        commitId(input);
+    } else if (typeof input === 'string') {
+        commitKey(input);
+    } else if (typeof input === 'object') {
+        if (Number.isFinite(input.messageId)) commitId(input.messageId);
+        if (Number.isFinite(input.mesId)) commitId(input.mesId);
+        if (Number.isFinite(input.id)) commitId(input.id);
+        if (typeof input.messageId === 'string') commitKey(input.messageId);
+        if (typeof input.mesId === 'string') commitKey(input.mesId);
+        if (typeof input.id === 'string') commitKey(input.id);
+        if (typeof input.key === 'string') commitKey(input.key);
+        if (typeof input.bufKey === 'string') commitKey(input.bufKey);
+        if (typeof input.messageKey === 'string') commitKey(input.messageKey);
+        if (typeof input.generationType === 'string') commitKey(input.generationType);
+        if (typeof input.message === 'object' && input.message !== null) {
+            const nested = parseMessageReference(input.message);
+            if (!key && nested.key) key = nested.key;
+            if (messageId == null && nested.messageId != null) messageId = nested.messageId;
+        }
+    }
+
+    if (!key && messageId != null) {
+        key = `m${messageId}`;
+    } else if (key && messageId == null) {
+        const parsed = extractMessageIdFromKey(key);
+        if (parsed != null) messageId = parsed;
+    }
+
+    return { key, messageId };
+}
+
+function findExistingMessageKey(preferredKey, messageId) {
+    const seen = new Set();
+    const candidates = [];
+    const addCandidate = (value) => {
+        const normalized = normalizeMessageKey(value);
+        if (!normalized || seen.has(normalized)) return;
+        seen.add(normalized);
+        candidates.push(normalized);
+    };
+
+    addCandidate(preferredKey);
+    if (Number.isFinite(messageId)) {
+        addCandidate(`m${messageId}`);
+    }
+    addCandidate(state.currentGenerationKey);
+
+    for (const candidate of candidates) {
+        if (state.perMessageBuffers.has(candidate)) {
+            return candidate;
+        }
+    }
+    for (const candidate of candidates) {
+        if (state.perMessageStates.has(candidate)) {
+            return candidate;
+        }
+    }
+
+    return candidates[0] || null;
+}
+
+function calculateFinalMessageStats(reference) {
+    const { key: requestedKey, messageId } = parseMessageReference(reference);
+    const bufKey = findExistingMessageKey(requestedKey, messageId);
+
+    if (!bufKey) {
+        debugLog("Could not resolve message key to calculate stats for:", reference);
+        return;
+    }
+
+    const resolvedMessageId = Number.isFinite(messageId) ? messageId : extractMessageIdFromKey(bufKey);
+
     let fullText = state.perMessageBuffers.get(bufKey);
+    if (!fullText && requestedKey && requestedKey !== bufKey && state.perMessageBuffers.has(requestedKey)) {
+        fullText = state.perMessageBuffers.get(requestedKey);
+    }
 
     if (!fullText) {
         debugLog("Could not find message buffer to calculate stats for:", bufKey);
-        // As a fallback, try to get it from the chat context, but this is less reliable.
         const { chat } = getContext();
-        const messageId = Number(String(bufKey || '').replace(/^m/, ''));
-
-        if (!bufKey || !Number.isFinite(messageId)) {
-            debugLog("Could not find message in chat context for bufKey:", bufKey);
+        if (!Number.isFinite(resolvedMessageId)) {
+            debugLog("No valid message id available to fall back to chat context for key:", bufKey);
             return;
         }
 
-        const message = chat.find(m => m.mesId === messageId);
+        const message = chat.find(m => m.mesId === resolvedMessageId);
         if (!message || !message.mes) return;
         fullText = normalizeStreamText(message.mes);
     }
@@ -1821,33 +1951,54 @@ function calculateFinalMessageStats(bufKey) {
 // SLASH COMMANDS
 // ======================================================================
 function registerCommands() {
+    const formatTopCharacterList = (ranking) => {
+        return ranking.map((entry, idx) => {
+            const mentionLabel = entry.count === 1 ? 'mention' : 'mentions';
+            const countInfo = Number.isFinite(entry.count) && entry.count > 0
+                ? ` — ${entry.count} ${mentionLabel}`
+                : '';
+            return `${idx + 1}. ${entry.name}${countInfo}`;
+        }).join('\n');
+    };
+
     const emitTopCharacters = (count, { silent } = {}) => {
         const ranking = getLastTopCharacters(count);
         if (!ranking.length) {
+            const emptyMessage = 'No character detections available for the last message.';
             if (!silent) {
-                showStatus('No character detections available for the last message.', 'info');
+                showStatus(emptyMessage, 'info');
             }
-            return '';
+            return emptyMessage;
         }
 
-        return ranking.map(entry => entry.name).join(', ');
+        const formatted = formatTopCharacterList(ranking);
+        if (!silent) {
+            showStatus(`Top detections:<br>${escapeHtml(formatted).replace(/\n/g, '<br>')}`, 'success', 5000);
+        }
+        return formatted;
     };
 
     registerSlashCommand("cs-addchar", (args) => {
         const profile = getActiveProfile();
-        if (profile) {
-            profile.patterns.push(args[0]);
+        const name = String(args?.join(' ') ?? '').trim();
+        if (profile && name) {
+            profile.patterns.push(name);
             recompileRegexes();
-            showStatus(`Added "<b>${escapeHtml(args[0])}</b>" to patterns for this session.`, 'success');
+            showStatus(`Added "<b>${escapeHtml(name)}</b>" to patterns for this session.`, 'success');
+        } else if (profile) {
+            showStatus('Please provide a character name to add.', 'error');
         }
     }, ["char"], "Adds a character to the current profile's pattern list for this session.", true);
 
     registerSlashCommand("cs-ignore", (args) => {
         const profile = getActiveProfile();
-        if (profile) {
-            profile.ignorePatterns.push(args[0]);
+        const name = String(args?.join(' ') ?? '').trim();
+        if (profile && name) {
+            profile.ignorePatterns.push(name);
             recompileRegexes();
-            showStatus(`Ignoring "<b>${escapeHtml(args[0])}</b>" for this session.`, 'success');
+            showStatus(`Ignoring "<b>${escapeHtml(name)}</b>" for this session.`, 'success');
+        } else if (profile) {
+            showStatus('Please provide a character name to ignore.', 'error');
         }
     }, ["char"], "Adds a character to the current profile's ignore list for this session.", true);
 
@@ -1871,7 +2022,7 @@ function registerCommands() {
     }, ["alias", "to", "folder"], "Maps a character alias to a costume folder for this session. Use 'to' to separate.", true);
     
     registerSlashCommand("cs-stats", () => {
-        logLastMessageStats();
+        return logLastMessageStats();
     }, [], "Logs mention statistics for the last generated message to the console.", true);
 
     registerSlashCommand("cs-top", (args) => {
@@ -2059,20 +2210,45 @@ const handleStream = (...args) => {
     } catch (err) { console.error(`${logPrefix} stream handler error:`, err); }
 };
 
-const handleMessageRendered = (messageId) => {
-    if (messageId == null) return;
-
-    const finalKey = `m${messageId}`;
+const handleMessageRendered = (...args) => {
     const tempKey = state.currentGenerationKey;
+    let resolvedKey = null;
+    let resolvedId = null;
 
-    if (tempKey && tempKey !== finalKey) {
-        remapMessageKey(tempKey, finalKey);
+    const mergeReference = (value) => {
+        const parsed = parseMessageReference(value);
+        if (!resolvedKey && parsed.key) {
+            resolvedKey = parsed.key;
+        }
+        if (resolvedId == null && Number.isFinite(parsed.messageId)) {
+            resolvedId = parsed.messageId;
+        }
+    };
+
+    args.forEach(arg => mergeReference(arg));
+
+    if (!resolvedKey && tempKey) {
+        mergeReference(tempKey);
     }
 
-    state.currentGenerationKey = null;
+    if (!resolvedKey && Number.isFinite(resolvedId)) {
+        resolvedKey = `m${resolvedId}`;
+    }
 
-    debugLog(`Message ${messageId} rendered, calculating final stats from buffer.`);
-    calculateFinalMessageStats(messageId);
+    if (tempKey && resolvedKey && tempKey !== resolvedKey) {
+        remapMessageKey(tempKey, resolvedKey);
+    }
+
+    const finalKey = resolvedKey || tempKey;
+    if (!finalKey) {
+        debugLog('Message rendered without a resolvable key.', args);
+        state.currentGenerationKey = null;
+        return;
+    }
+
+    debugLog(`Message ${finalKey} rendered, calculating final stats from buffer.`);
+    calculateFinalMessageStats({ key: finalKey, messageId: resolvedId });
+    state.currentGenerationKey = null;
 };
 
 const resetGlobalState = () => {
