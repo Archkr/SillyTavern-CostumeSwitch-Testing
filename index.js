@@ -5,7 +5,6 @@ import { executeSlashCommandsOnChatInput, registerSlashCommand } from "../../../
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const logPrefix = "[CostumeSwitch]";
-const FINAL_BUFFER_KEY_PATTERN = /^m\d+$/;
 
 // ======================================================================
 // PRESET PROFILES
@@ -548,6 +547,11 @@ function getLastTopCharacters(count = 4) {
 // ======================================================================
 // UTILITY & HELPER FUNCTIONS
 // ======================================================================
+function escapeHtml(str) {
+    const p = document.createElement("p");
+    p.textContent = str;
+    return p.innerHTML;
+}
 function normalizeStreamText(s) { return s ? String(s).replace(/[\uFEFF\u200B\u200C\u200D]/g, "").replace(/[\u2018\u2019\u201A\u201B]/g, "'").replace(/[\u201C\u201D\u201E\u201F]/g, '"').replace(/(\*\*|__|~~|`{1,3})/g, "").replace(/\u00A0/g, " ") : ""; }
 function normalizeCostumeName(n) {
     if (!n) return "";
@@ -702,10 +706,10 @@ async function issueCostumeForName(name, opts = {}) {
         state.lastTriggerTimes.set(decision.folder, decision.now);
         state.lastIssuedCostume = decision.name;
         state.lastSwitchTimestamp = decision.now;
-        showStatus(`Switched -> <b>${decision.folder}</b>`, 'success');
+        showStatus(`Switched -> <b>${escapeHtml(decision.folder)}</b>`, 'success');
     } catch (err) {
         state.failedTriggerTimes.set(decision.folder, decision.now);
-        showStatus(`Failed to switch to costume "<b>${decision.folder}</b>". Check console (F12).`, 'error');
+        showStatus(`Failed to switch to costume "<b>${escapeHtml(decision.folder)}</b>". Check console (F12).`, 'error');
         console.error(`${logPrefix} Failed to execute /costume command for "${decision.folder}".`, err);
     }
 }
@@ -1587,7 +1591,7 @@ function wireUI() {
         populateProfileDropdown();
         loadProfile(desiredName);
         $("#cs-profile-name").val('');
-        persistSettings(`Saved a new profile as "${desiredName}".`);
+        persistSettings(`Saved a new profile as "${escapeHtml(desiredName)}".`);
     });
     $(document).on('click', '#cs-profile-rename', () => {
         const newName = normalizeProfileNameInput($("#cs-profile-name").val());
@@ -1601,7 +1605,7 @@ function wireUI() {
         populateProfileDropdown();
         loadProfile(newName);
         $("#cs-profile-name").val('');
-        persistSettings(`Renamed profile to "${newName}".`, 'info');
+        persistSettings(`Renamed profile to "${escapeHtml(newName)}".`, 'info');
     });
     $(document).on('click', '#cs-profile-new', () => {
         const baseName = normalizeProfileNameInput($("#cs-profile-name").val()) || 'New Profile';
@@ -1611,7 +1615,7 @@ function wireUI() {
         populateProfileDropdown();
         loadProfile(uniqueName);
         $("#cs-profile-name").val('');
-        persistSettings(`Created profile "${uniqueName}" from defaults.`, 'info');
+        persistSettings(`Created profile "${escapeHtml(uniqueName)}" from defaults.`, 'info');
     });
     $(document).on('click', '#cs-profile-duplicate', () => {
         const activeProfile = getActiveProfile();
@@ -1623,7 +1627,7 @@ function wireUI() {
         populateProfileDropdown();
         loadProfile(uniqueName);
         $("#cs-profile-name").val('');
-        persistSettings(`Duplicated profile as "${uniqueName}".`, 'info');
+        persistSettings(`Duplicated profile as "${escapeHtml(uniqueName)}".`, 'info');
     });
     $(document).on('click', '#cs-profile-delete', () => {
         if (Object.keys(settings.profiles).length <= 1) { showStatus("Cannot delete the last profile.", 'error'); return; }
@@ -1633,7 +1637,7 @@ function wireUI() {
             settings.activeProfile = Object.keys(settings.profiles)[0];
             populateProfileDropdown(); loadProfile(settings.activeProfile);
             $("#cs-profile-name").val('');
-            persistSettings(`Deleted profile "${profileNameToDelete}".`);
+            persistSettings(`Deleted profile "${escapeHtml(profileNameToDelete)}".`);
         }
     });
     $(document).on('click', '#cs-profile-export', () => {
@@ -1659,8 +1663,8 @@ function wireUI() {
                 settings.profiles[profileName] = Object.assign({}, structuredClone(PROFILE_DEFAULTS), content.data);
                 settings.activeProfile = profileName;
                 populateProfileDropdown(); loadProfile(profileName);
-                persistSettings(`Imported profile as "${profileName}".`);
-            } catch (err) { showStatus(`Import failed: ${err.message}`, 'error'); }
+                persistSettings(`Imported profile as "${escapeHtml(profileName)}".`);
+            } catch (err) { showStatus(`Import failed: ${escapeHtml(err.message)}`, 'error'); }
         };
         reader.readAsText(file);
         $(this).val('');
@@ -1725,7 +1729,7 @@ async function manualReset() {
     try {
         await executeSlashCommandsOnChatInput(command);
         state.lastIssuedCostume = profile?.defaultCostume?.trim() || '';
-        showStatus(`Reset to <b>${costumeArg}</b>`, 'success');
+        showStatus(`Reset to <b>${escapeHtml(costumeArg)}</b>`, 'success');
     } catch (err) {
         showStatus(`Manual reset failed.`, 'error');
         console.error(`${logPrefix} Manual reset failed.`, err);
@@ -1772,14 +1776,20 @@ function logLastMessageStats() {
     showStatus("Last message stats logged to browser console (F12).", "success");
 }
 
-function calculateFinalMessageStats(messageId) {
-    const bufKey = `m${messageId}`;
+function calculateFinalMessageStats(bufKey) {
     let fullText = state.perMessageBuffers.get(bufKey);
 
     if (!fullText) {
         debugLog("Could not find message buffer to calculate stats for:", bufKey);
         // As a fallback, try to get it from the chat context, but this is less reliable.
         const { chat } = getContext();
+        const messageId = Number(String(bufKey || '').replace(/^m/, ''));
+
+        if (!bufKey || !Number.isFinite(messageId)) {
+            debugLog("Could not find message in chat context for bufKey:", bufKey);
+            return;
+        }
+
         const message = chat.find(m => m.mesId === messageId);
         if (!message || !message.mes) return;
         fullText = normalizeStreamText(message.mes);
@@ -1828,7 +1838,7 @@ function registerCommands() {
         if (profile) {
             profile.patterns.push(args[0]);
             recompileRegexes();
-            showStatus(`Added "<b>${args[0]}</b>" to patterns for this session.`, 'success');
+            showStatus(`Added "<b>${escapeHtml(args[0])}</b>" to patterns for this session.`, 'success');
         }
     }, ["char"], "Adds a character to the current profile's pattern list for this session.", true);
 
@@ -1837,16 +1847,26 @@ function registerCommands() {
         if (profile) {
             profile.ignorePatterns.push(args[0]);
             recompileRegexes();
-            showStatus(`Ignoring "<b>${args[0]}</b>" for this session.`, 'success');
+            showStatus(`Ignoring "<b>${escapeHtml(args[0])}</b>" for this session.`, 'success');
         }
     }, ["char"], "Adds a character to the current profile's ignore list for this session.", true);
 
     registerSlashCommand("cs-map", (args) => {
         const profile = getActiveProfile();
-        const [alias, , folder] = args;
-        if (profile && alias && folder) {
-            profile.mappings.push({ name: alias, folder: folder });
-            showStatus(`Mapped "<b>${alias}</b>" to "<b>${folder}</b>" for this session.`, 'success');
+        const toIndex = args.map(arg => arg.toLowerCase()).indexOf('to');
+
+        if (profile && toIndex > 0 && toIndex < args.length - 1) {
+            const alias = args.slice(0, toIndex).join(' ').trim();
+            const folder = args.slice(toIndex + 1).join(' ').trim();
+            
+            if (alias && folder) {
+                profile.mappings.push({ name: alias, folder: folder });
+                showStatus(`Mapped "<b>${escapeHtml(alias)}</b>" to "<b>${escapeHtml(folder)}</b>" for this session.`, 'success');
+            } else {
+                showStatus('Invalid format. Use /cs-map (alias) to (folder).', 'error');
+            }
+        } else {
+            showStatus('Invalid format. Use /cs-map (alias) to (folder).', 'error');
         }
     }, ["alias", "to", "folder"], "Maps a character alias to a costume folder for this session. Use 'to' to separate.", true);
     
@@ -1930,70 +1950,31 @@ function remapMessageKey(oldKey, newKey) {
     debugLog(`Remapped message data from ${oldKey} to ${newKey}.`);
 }
 
-function isFinalBufferKey(key) {
-    return typeof key === 'string' && FINAL_BUFFER_KEY_PATTERN.test(key);
-}
-
-function parseMessageArgs(args) {
-    let messageId = null;
-    let bufferKey = null;
-
-    for (const arg of args) {
-        if (typeof arg === 'number' && Number.isFinite(arg)) {
-            if (messageId == null) {
-                messageId = arg;
-            }
-            continue;
-        }
-
-        if (typeof arg === 'string') {
-            const trimmed = arg.trim();
-            if (!trimmed.length) continue;
-
-            if (messageId == null) {
-                const idMatch = trimmed.match(FINAL_BUFFER_KEY_PATTERN);
-                if (idMatch) {
-                    messageId = Number(trimmed.slice(1));
-                    continue;
-                }
-                if (/^\d+$/.test(trimmed)) {
-                    messageId = Number(trimmed);
-                    continue;
-                }
-            }
-
-            if (!bufferKey) {
-                bufferKey = trimmed;
-            }
-            continue;
-        }
-
-        if (!arg || typeof arg !== 'object') {
-            continue;
-        }
-
-        const potentialId = [arg.messageId, arg.mesId, arg.id, arg.idx]
-            .find(num => typeof num === 'number' && Number.isFinite(num));
-        if (potentialId != null && messageId == null) {
-            messageId = potentialId;
-        }
-
-        const potentialKey = [arg.generationType, arg.key, arg.bufferKey, arg.tempKey]
-            .find(val => typeof val === 'string' && val.trim().length);
-        if (potentialKey && !bufferKey) {
-            bufferKey = potentialKey.trim();
-        }
-    }
-
-    return { messageId, bufferKey };
-}
-
 const handleGenerationStart = (...args) => {
-    const { messageId, bufferKey } = parseMessageArgs(args);
-    let bufKey = bufferKey;
-
-    if (!bufKey && messageId != null) {
-        bufKey = `m${messageId}`;
+    let bufKey = null;
+    for (const arg of args) {
+        if (typeof arg === 'string' && arg.trim().length) {
+            bufKey = arg.trim();
+            break;
+        }
+        if (typeof arg === 'number' && Number.isFinite(arg)) {
+            bufKey = `m${arg}`;
+            break;
+        }
+        if (arg && typeof arg === 'object') {
+            if (typeof arg.generationType === 'string' && arg.generationType.trim().length) {
+                bufKey = arg.generationType.trim();
+                break;
+            }
+            if (typeof arg.messageId === 'number' && Number.isFinite(arg.messageId)) {
+                bufKey = `m${arg.messageId}`;
+                break;
+            }
+            if (typeof arg.key === 'string' && arg.key.trim().length) {
+                bufKey = arg.key.trim();
+                break;
+            }
+        }
     }
 
     if (!bufKey) {
@@ -2025,29 +2006,14 @@ const handleStream = (...args) => {
         else { tokenText = String(args.join(' ') || ""); }
         if (!tokenText) return;
 
-        const { messageId } = parseMessageArgs(args);
-        let bufKey = state.currentGenerationKey;
-
-        if (messageId != null) {
-            const finalKey = `m${messageId}`;
-            if (bufKey && bufKey !== finalKey && state.perMessageBuffers.has(bufKey)) {
-                remapMessageKey(bufKey, finalKey);
-                bufKey = finalKey;
-            } else if (!bufKey) {
-                bufKey = finalKey;
-            }
-        }
-
+        const bufKey = state.currentGenerationKey;
         if (!bufKey) return;
 
         let msgState = state.perMessageStates.get(bufKey);
         if (!msgState) {
             msgState = createMessageState(profile, bufKey);
         }
-
         if (!msgState) return;
-
-        state.currentGenerationKey = bufKey;
 
         if (msgState.vetoed) return;
 
@@ -2093,49 +2059,17 @@ const handleStream = (...args) => {
     } catch (err) { console.error(`${logPrefix} stream handler error:`, err); }
 };
 
-const handleMessageRendered = (...args) => {
-    const { messageId, bufferKey } = parseMessageArgs(args);
-    if (messageId == null) {
-        debugLog('Message rendered event received without a resolvable id.', args);
-        return;
-    }
+const handleMessageRendered = (messageId) => {
+    if (messageId == null) return;
 
     const finalKey = `m${messageId}`;
-    let tempKey = null;
-
-    const bufferKeys = Array.from(state.perMessageBuffers.keys());
-    const nonFinalKeys = bufferKeys.filter(key => !isFinalBufferKey(key));
-
-    if (state.perMessageBuffers.has(finalKey)) {
-        tempKey = finalKey;
-    }
-
-    if (!tempKey && bufferKey && state.perMessageBuffers.has(bufferKey)) {
-        tempKey = bufferKey;
-    }
-
-    if (!tempKey && state.currentGenerationKey && state.perMessageBuffers.has(state.currentGenerationKey)) {
-        if (isFinalBufferKey(state.currentGenerationKey) || nonFinalKeys.length <= 1) {
-            tempKey = state.currentGenerationKey;
-        }
-    }
-
-    if (!tempKey && nonFinalKeys.length) {
-        const fallbackKey = nonFinalKeys.find(key => key !== state.currentGenerationKey) || nonFinalKeys[0];
-        tempKey = fallbackKey;
-    }
-
-    if (!tempKey && bufferKeys.length === 1) {
-        tempKey = bufferKeys[0];
-    }
+    const tempKey = state.currentGenerationKey;
 
     if (tempKey && tempKey !== finalKey) {
         remapMessageKey(tempKey, finalKey);
     }
 
-    if (state.currentGenerationKey === tempKey || state.currentGenerationKey === finalKey) {
-        state.currentGenerationKey = null;
-    }
+    state.currentGenerationKey = null;
 
     debugLog(`Message ${messageId} rendered, calculating final stats from buffer.`);
     calculateFinalMessageStats(messageId);
