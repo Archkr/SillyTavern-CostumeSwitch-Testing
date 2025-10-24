@@ -5,6 +5,7 @@ import { executeSlashCommandsOnChatInput, registerSlashCommand } from "../../../
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const logPrefix = "[CostumeSwitch]";
+const FINAL_BUFFER_KEY_PATTERN = /^m\d+$/;
 
 // ======================================================================
 // PRESET PROFILES
@@ -1842,20 +1843,10 @@ function registerCommands() {
 
     registerSlashCommand("cs-map", (args) => {
         const profile = getActiveProfile();
-        const toIndex = args.map(arg => arg.toLowerCase()).indexOf('to');
-
-        if (profile && toIndex > 0 && toIndex < args.length - 1) {
-            const alias = args.slice(0, toIndex).join(' ').trim();
-            const folder = args.slice(toIndex + 1).join(' ').trim();
-            
-            if (alias && folder) {
-                profile.mappings.push({ name: alias, folder: folder });
-                showStatus(`Mapped "<b>${alias}</b>" to "<b>${folder}</b>" for this session.`, 'success');
-            } else {
-                showStatus('Invalid format. Use /cs-map (alias) to (folder).', 'error');
-            }
-        } else {
-            showStatus('Invalid format. Use /cs-map (alias) to (folder).', 'error');
+        const [alias, , folder] = args;
+        if (profile && alias && folder) {
+            profile.mappings.push({ name: alias, folder: folder });
+            showStatus(`Mapped "<b>${alias}</b>" to "<b>${folder}</b>" for this session.`, 'success');
         }
     }, ["alias", "to", "folder"], "Maps a character alias to a costume folder for this session. Use 'to' to separate.", true);
     
@@ -1939,31 +1930,70 @@ function remapMessageKey(oldKey, newKey) {
     debugLog(`Remapped message data from ${oldKey} to ${newKey}.`);
 }
 
-const handleGenerationStart = (...args) => {
-    let bufKey = null;
+function isFinalBufferKey(key) {
+    return typeof key === 'string' && FINAL_BUFFER_KEY_PATTERN.test(key);
+}
+
+function parseMessageArgs(args) {
+    let messageId = null;
+    let bufferKey = null;
+
     for (const arg of args) {
-        if (typeof arg === 'string' && arg.trim().length) {
-            bufKey = arg.trim();
-            break;
-        }
         if (typeof arg === 'number' && Number.isFinite(arg)) {
-            bufKey = `m${arg}`;
-            break;
+            if (messageId == null) {
+                messageId = arg;
+            }
+            continue;
         }
-        if (arg && typeof arg === 'object') {
-            if (typeof arg.generationType === 'string' && arg.generationType.trim().length) {
-                bufKey = arg.generationType.trim();
-                break;
+
+        if (typeof arg === 'string') {
+            const trimmed = arg.trim();
+            if (!trimmed.length) continue;
+
+            if (messageId == null) {
+                const idMatch = trimmed.match(FINAL_BUFFER_KEY_PATTERN);
+                if (idMatch) {
+                    messageId = Number(trimmed.slice(1));
+                    continue;
+                }
+                if (/^\d+$/.test(trimmed)) {
+                    messageId = Number(trimmed);
+                    continue;
+                }
             }
-            if (typeof arg.messageId === 'number' && Number.isFinite(arg.messageId)) {
-                bufKey = `m${arg.messageId}`;
-                break;
+
+            if (!bufferKey) {
+                bufferKey = trimmed;
             }
-            if (typeof arg.key === 'string' && arg.key.trim().length) {
-                bufKey = arg.key.trim();
-                break;
-            }
+            continue;
         }
+
+        if (!arg || typeof arg !== 'object') {
+            continue;
+        }
+
+        const potentialId = [arg.messageId, arg.mesId, arg.id, arg.idx]
+            .find(num => typeof num === 'number' && Number.isFinite(num));
+        if (potentialId != null && messageId == null) {
+            messageId = potentialId;
+        }
+
+        const potentialKey = [arg.generationType, arg.key, arg.bufferKey, arg.tempKey]
+            .find(val => typeof val === 'string' && val.trim().length);
+        if (potentialKey && !bufferKey) {
+            bufferKey = potentialKey.trim();
+        }
+    }
+
+    return { messageId, bufferKey };
+}
+
+const handleGenerationStart = (...args) => {
+    const { messageId, bufferKey } = parseMessageArgs(args);
+    let bufKey = bufferKey;
+
+    if (!bufKey && messageId != null) {
+        bufKey = `m${messageId}`;
     }
 
     if (!bufKey) {
@@ -1995,14 +2025,29 @@ const handleStream = (...args) => {
         else { tokenText = String(args.join(' ') || ""); }
         if (!tokenText) return;
 
-        const bufKey = state.currentGenerationKey;
+        const { messageId } = parseMessageArgs(args);
+        let bufKey = state.currentGenerationKey;
+
+        if (messageId != null) {
+            const finalKey = `m${messageId}`;
+            if (bufKey && bufKey !== finalKey && state.perMessageBuffers.has(bufKey)) {
+                remapMessageKey(bufKey, finalKey);
+                bufKey = finalKey;
+            } else if (!bufKey) {
+                bufKey = finalKey;
+            }
+        }
+
         if (!bufKey) return;
 
         let msgState = state.perMessageStates.get(bufKey);
         if (!msgState) {
             msgState = createMessageState(profile, bufKey);
         }
+
         if (!msgState) return;
+
+        state.currentGenerationKey = bufKey;
 
         if (msgState.vetoed) return;
 
@@ -2048,17 +2093,49 @@ const handleStream = (...args) => {
     } catch (err) { console.error(`${logPrefix} stream handler error:`, err); }
 };
 
-const handleMessageRendered = (messageId) => {
-    if (messageId == null) return;
+const handleMessageRendered = (...args) => {
+    const { messageId, bufferKey } = parseMessageArgs(args);
+    if (messageId == null) {
+        debugLog('Message rendered event received without a resolvable id.', args);
+        return;
+    }
 
     const finalKey = `m${messageId}`;
-    const tempKey = state.currentGenerationKey;
+    let tempKey = null;
+
+    const bufferKeys = Array.from(state.perMessageBuffers.keys());
+    const nonFinalKeys = bufferKeys.filter(key => !isFinalBufferKey(key));
+
+    if (state.perMessageBuffers.has(finalKey)) {
+        tempKey = finalKey;
+    }
+
+    if (!tempKey && bufferKey && state.perMessageBuffers.has(bufferKey)) {
+        tempKey = bufferKey;
+    }
+
+    if (!tempKey && state.currentGenerationKey && state.perMessageBuffers.has(state.currentGenerationKey)) {
+        if (isFinalBufferKey(state.currentGenerationKey) || nonFinalKeys.length <= 1) {
+            tempKey = state.currentGenerationKey;
+        }
+    }
+
+    if (!tempKey && nonFinalKeys.length) {
+        const fallbackKey = nonFinalKeys.find(key => key !== state.currentGenerationKey) || nonFinalKeys[0];
+        tempKey = fallbackKey;
+    }
+
+    if (!tempKey && bufferKeys.length === 1) {
+        tempKey = bufferKeys[0];
+    }
 
     if (tempKey && tempKey !== finalKey) {
         remapMessageKey(tempKey, finalKey);
     }
 
-    state.currentGenerationKey = null;
+    if (state.currentGenerationKey === tempKey || state.currentGenerationKey === finalKey) {
+        state.currentGenerationKey = null;
+    }
 
     debugLog(`Message ${messageId} rendered, calculating final stats from buffer.`);
     calculateFinalMessageStats(messageId);
