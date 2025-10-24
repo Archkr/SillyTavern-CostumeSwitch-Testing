@@ -302,6 +302,16 @@
   gap: 22px;
 }
 
+#costume-switcher-settings.cs-theme .cs-column {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+#costume-switcher-settings.cs-theme .cs-column--wide {
+  grid-column: 1 / -1;
+}
+
 #costume-switcher-settings.cs-theme .cs-toolbar {
   display: flex;
   gap: 12px;

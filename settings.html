@@ -27,28 +27,32 @@
     </section>
 
     <div class="cs-tabs" role="tablist">
-      <button class="cs-tab-button is-active" id="cs-tab-overview" type="button" role="tab" aria-selected="true" aria-controls="cs-panel-overview" data-tab="overview">
-        <i class="fa-solid fa-layer-group"></i>
-        <span>Profiles & Patterns</span>
+      <button class="cs-tab-button is-active" id="cs-tab-profiles" type="button" role="tab" aria-selected="true" aria-controls="cs-panel-profiles" data-tab="profiles">
+        <i class="fa-solid fa-id-badge"></i>
+        <span>Profiles</span>
+      </button>
+      <button class="cs-tab-button" id="cs-tab-characters" type="button" role="tab" aria-selected="false" aria-controls="cs-panel-characters" data-tab="characters">
+        <i class="fa-solid fa-users"></i>
+        <span>Characters</span>
       </button>
       <button class="cs-tab-button" id="cs-tab-detection" type="button" role="tab" aria-selected="false" aria-controls="cs-panel-detection" data-tab="detection">
         <i class="fa-solid fa-sliders"></i>
-        <span>Detection & Timing</span>
+        <span>Detection &amp; Timing</span>
       </button>
-      <button class="cs-tab-button" id="cs-tab-mapping" type="button" role="tab" aria-selected="false" aria-controls="cs-panel-mapping" data-tab="mapping">
-        <i class="fa-solid fa-route"></i>
-        <span>Mappings & Tester</span>
+      <button class="cs-tab-button" id="cs-tab-tester" type="button" role="tab" aria-selected="false" aria-controls="cs-panel-tester" data-tab="tester">
+        <i class="fa-solid fa-flask"></i>
+        <span>Tester &amp; Logs</span>
       </button>
     </div>
 
     <div class="cs-tab-panels">
-      <section class="cs-tab-panel is-active" id="cs-panel-overview" role="tabpanel" aria-labelledby="cs-tab-overview" data-tab="overview">
+      <section class="cs-tab-panel is-active" id="cs-panel-profiles" role="tabpanel" aria-labelledby="cs-tab-profiles" data-tab="profiles">
         <div class="cs-layout">
           <div class="cs-column">
             <section class="cs-card">
               <header class="cs-card-header">
                 <div class="cs-card-title">
-                  <i class="fa-solid fa-users"></i>
+                  <i class="fa-solid fa-address-card"></i>
                   <div>
                     <h3>Profiles</h3>
                     <p>Organize different configurations for varied chats or characters.</p>
@@ -78,6 +82,8 @@
                 </div>
               </div>
             </section>
+          </div>
+          <div class="cs-column">
             <section class="cs-card">
               <header class="cs-card-header">
                 <div class="cs-card-title">
@@ -96,6 +102,13 @@
                 <p id="cs-preset-description" class="cs-helper-text">Load a recommended configuration into the current profile.</p>
               </div>
             </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="cs-tab-panel" id="cs-panel-characters" role="tabpanel" aria-labelledby="cs-tab-characters" data-tab="characters" hidden>
+        <div class="cs-layout">
+          <div class="cs-column">
             <section class="cs-card">
               <header class="cs-card-header">
                 <div class="cs-card-title">
@@ -148,6 +161,28 @@
                   <label for="cs-veto-patterns">Veto Phrases</label>
                   <textarea id="cs-veto-patterns" class="text_pole" rows="2" placeholder="OOC:&#10;(OOC)" title="If any of these phrases or /regex/ are found, the entire message will be ignored."></textarea>
                 </div>
+              </div>
+            </section>
+          </div>
+          <div class="cs-column cs-column--wide">
+            <section class="cs-card">
+              <header class="cs-card-header">
+                <div class="cs-card-title">
+                  <i class="fa-solid fa-layer-group"></i>
+                  <div>
+                    <h3>Costume Mappings</h3>
+                    <p>Map detected names to specific costume folders.</p>
+                  </div>
+                </div>
+              </header>
+              <div class="cs-card-body">
+                <table id="cs-mappings" class="text_pole">
+                  <thead>
+                    <tr><th>Character Name</th><th>Costume Folder</th><th>Action</th></tr>
+                  </thead>
+                  <tbody id="cs-mappings-tbody"></tbody>
+                </table>
+                <button id="cs-mapping-add" class="menu_button interactable" style="margin-top: 12px;">Add Mapping</button>
               </div>
             </section>
           </div>
@@ -231,7 +266,7 @@
                 <div class="cs-card-title">
                   <i class="fa-solid fa-gauge-high"></i>
                   <div>
-                    <h3>Performance & Bias</h3>
+                    <h3>Performance &amp; Bias</h3>
                     <p>Control responsiveness and tie-breaking behaviour.</p>
                   </div>
                 </div>
@@ -261,31 +296,9 @@
         </div>
       </section>
 
-      <section class="cs-tab-panel" id="cs-panel-mapping" role="tabpanel" aria-labelledby="cs-tab-mapping" data-tab="mapping" hidden>
+      <section class="cs-tab-panel" id="cs-panel-tester" role="tabpanel" aria-labelledby="cs-tab-tester" data-tab="tester" hidden>
         <div class="cs-layout">
-          <div class="cs-column">
-            <section class="cs-card">
-              <header class="cs-card-header">
-                <div class="cs-card-title">
-                  <i class="fa-solid fa-layer-group"></i>
-                  <div>
-                    <h3>Costume Mappings</h3>
-                    <p>Map detected names to specific costume folders.</p>
-                  </div>
-                </div>
-              </header>
-              <div class="cs-card-body">
-                <table id="cs-mappings" class="text_pole">
-                  <thead>
-                    <tr><th>Character Name</th><th>Costume Folder</th><th>Action</th></tr>
-                  </thead>
-                  <tbody id="cs-mappings-tbody"></tbody>
-                </table>
-                <button id="cs-mapping-add" class="menu_button interactable" style="margin-top: 12px;">Add Mapping</button>
-              </div>
-            </section>
-          </div>
-          <div class="cs-column">
+          <div class="cs-column cs-column--wide">
             <section class="cs-card">
               <header class="cs-card-header">
                 <div class="cs-card-title">
@@ -326,6 +339,8 @@
                 </div>
               </div>
             </section>
+          </div>
+          <div class="cs-column">
             <section class="cs-card cs-card--compact">
               <label class="cs-toggle cs-toggle--inline" title="Logs detailed decision-making to the browser console (F12) for troubleshooting.">
                 <input id="cs-debug" type="checkbox" />
