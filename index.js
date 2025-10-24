@@ -1815,11 +1815,10 @@ function registerCommands() {
             if (!silent) {
                 showStatus('No character detections available for the last message.', 'info');
             }
-            return { text: '', hasData: false };
+            return '';
         }
 
-        const list = ranking.map(entry => entry.name).join(', ');
-        return { text: list, hasData: true };
+        return ranking.map(entry => entry.name).join(', ');
     };
 
     registerSlashCommand("cs-addchar", (args) => {
@@ -1856,24 +1855,12 @@ function registerCommands() {
     registerSlashCommand("cs-top", (args) => {
         const desired = Number(args?.[0]);
         const count = Number.isFinite(desired) ? desired : 4;
-        const result = emitTopCharacters(count);
-
-        if (!result.hasData) {
-            return '';
-        }
-
-        return { text: result.text };
+        return emitTopCharacters(count);
     }, ["count?"], "Returns a comma-separated list of the top detected characters from the last message (1-4).", true);
 
     [1, 2, 3, 4].forEach((num) => {
         registerSlashCommand(`cs-top${num}`, () => {
-            const result = emitTopCharacters(num, { silent: true });
-
-            if (!result.hasData) {
-                return '';
-            }
-
-            return { text: result.text };
+            return emitTopCharacters(num, { silent: true });
         }, [], `Shortcut for the top ${num} detected character${num > 1 ? 's' : ''} from the last message.`, true);
     });
 }
