@@ -112,6 +112,7 @@ const state = {
     buildMeta: null,
     topSceneRanking: new Map(),
     latestTopRanking: { bufKey: null, ranking: [], fullRanking: [], updatedAt: 0 },
+    pendingRenderKeys: [],
 };
 
 const TAB_STORAGE_KEY = `${extensionName}-active-tab`;
@@ -1868,13 +1869,73 @@ function registerCommands() {
 // ======================================================================
 // EVENT HANDLERS
 // ======================================================================
+
+function isTemporaryBufferKey(bufKey) {
+    if (typeof bufKey !== 'string' || !bufKey.length) return false;
+    if (bufKey === 'live') return true;
+    if (!bufKey.startsWith('m')) return true;
+    return !/^m\d+$/.test(bufKey);
+}
+
+function remapMessageKey(oldKey, newKey) {
+    if (!oldKey || !newKey || oldKey === newKey) return;
+
+    const moveEntry = (map) => {
+        if (!(map instanceof Map) || !map.has(oldKey)) return;
+        const value = map.get(oldKey);
+        map.delete(oldKey);
+        map.set(newKey, value);
+    };
+
+    moveEntry(state.perMessageBuffers);
+    moveEntry(state.perMessageStates);
+    moveEntry(state.messageStats);
+
+    if (state.topSceneRanking instanceof Map) {
+        moveEntry(state.topSceneRanking);
+    }
+
+    if (state.latestTopRanking?.bufKey === oldKey) {
+        state.latestTopRanking.bufKey = newKey;
+    }
+
+    const settings = getSettings?.();
+    if (settings?.session && settings.session.lastMessageKey === oldKey) {
+        settings.session.lastMessageKey = newKey;
+    }
+
+    debugLog(`Remapped message data from ${oldKey} to ${newKey}.`);
+}
+
+function findFallbackBufferKey(finalKey) {
+    const bufferKeys = Array.from(state.perMessageBuffers.keys());
+    for (let i = bufferKeys.length - 1; i >= 0; i--) {
+        const candidate = bufferKeys[i];
+        if (!candidate || candidate === finalKey) continue;
+        if (isTemporaryBufferKey(candidate)) {
+            return candidate;
+        }
+    }
+    const stateKeys = Array.from(state.perMessageStates.keys());
+    for (let i = stateKeys.length - 1; i >= 0; i--) {
+        const candidate = stateKeys[i];
+        if (!candidate || candidate === finalKey) continue;
+        if (isTemporaryBufferKey(candidate)) {
+            return candidate;
+        }
+    }
+    return null;
+}
+
 const handleGenerationStart = (messageId) => {
-    const bufKey = messageId != null ? `m${messageId}` : 'live';
+    const idPart = messageId != null ? String(messageId) : null;
+    const bufKey = idPart != null ? `m${idPart}` : 'live';
+    const isTempKey = idPart === null || !/^\d+$/.test(idPart);
     debugLog(`Generation started for ${bufKey}, resetting state.`);
-    
+
     const profile = getActiveProfile();
     const oldState = state.perMessageStates.size > 0 ? Array.from(state.perMessageStates.values()).pop() : null;
-    
+
     const newState = { 
         lastAcceptedName: null, 
         lastAcceptedTs: 0, 
@@ -1892,9 +1953,12 @@ const handleGenerationStart = (messageId) => {
             newState.sceneRoster.clear();
         }
     }
-    
+
     state.perMessageStates.set(bufKey, newState);
     state.perMessageBuffers.set(bufKey, ''); // Explicitly clear/set buffer
+    if (Array.isArray(state.pendingRenderKeys)) {
+        state.pendingRenderKeys.push({ key: bufKey, isTemporary: isTempKey });
+    }
 };
 
 const handleStream = (...args) => {
@@ -1961,6 +2025,25 @@ const handleStream = (...args) => {
 const handleMessageRendered = (messageId) => {
     if (messageId != null) {
         const bufKey = `m${messageId}`;
+        let pendingEntry = null;
+        if (Array.isArray(state.pendingRenderKeys) && state.pendingRenderKeys.length > 0) {
+            pendingEntry = state.pendingRenderKeys.shift();
+        }
+
+        const pendingKey = pendingEntry?.key;
+        if (pendingKey && pendingKey !== bufKey &&
+            (pendingEntry?.isTemporary || isTemporaryBufferKey(pendingKey)) &&
+            (state.perMessageBuffers.has(pendingKey) || state.perMessageStates.has(pendingKey) || state.messageStats.has(pendingKey))) {
+            remapMessageKey(pendingKey, bufKey);
+        }
+
+        if (!state.perMessageBuffers.has(bufKey)) {
+            const fallbackKey = findFallbackBufferKey(bufKey);
+            if (fallbackKey) {
+                remapMessageKey(fallbackKey, bufKey);
+            }
+        }
+
         debugLog(`Message ${messageId} rendered, calculating final stats from buffer.`);
         calculateFinalMessageStats(messageId);
     }
@@ -1987,6 +2070,7 @@ const resetGlobalState = () => {
         messageStats: new Map(),
         topSceneRanking: new Map(),
         latestTopRanking: { bufKey: null, ranking: [], fullRanking: [], updatedAt: Date.now() },
+        pendingRenderKeys: [],
     });
     clearSessionTopCharacters();
 };
