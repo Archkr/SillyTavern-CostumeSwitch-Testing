@@ -1857,13 +1857,23 @@ function registerCommands() {
         const desired = Number(args?.[0]);
         const count = Number.isFinite(desired) ? desired : 4;
         const result = emitTopCharacters(count);
-        return result.text;
+
+        if (!result.hasData) {
+            return '';
+        }
+
+        return { text: result.text };
     }, ["count?"], "Returns a comma-separated list of the top detected characters from the last message (1-4).", true);
 
     [1, 2, 3, 4].forEach((num) => {
         registerSlashCommand(`cs-top${num}`, () => {
             const result = emitTopCharacters(num, { silent: true });
-            return result.text;
+
+            if (!result.hasData) {
+                return '';
+            }
+
+            return { text: result.text };
         }, [], `Shortcut for the top ${num} detected character${num > 1 ? 's' : ''} from the last message.`, true);
     });
 }
