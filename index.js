@@ -559,8 +559,9 @@ function normalizeCostumeName(n) {
     if (s.startsWith("/") || s.startsWith("\\")) {
         s = s.slice(1).trim();
     }
-    const first = s.split(/[\/\s]+/).filter(Boolean)[0] || s;
-    return String(first).replace(/[-_](?:sama|san)$/i, "").trim();
+    const segments = s.split(/[\\/]+/).filter(Boolean);
+    const base = segments.length ? segments[segments.length - 1] : s;
+    return String(base).replace(/[-_](?:sama|san)$/i, "").trim();
 }
 function getSettings() { return extension_settings[extensionName]; }
 function getActiveProfile() { const settings = getSettings(); return settings?.profiles?.[settings.activeProfile]; }
@@ -1739,15 +1740,17 @@ async function manualReset() {
 function logLastMessageStats() {
     const lastMessageId = Array.from(state.messageStats.keys()).pop();
     if (!lastMessageId || !state.messageStats.has(lastMessageId)) {
-        showStatus("No stats recorded for the last message.", "info");
-        console.log(`${logPrefix} No stats recorded for the last message.`);
-        return;
+        const message = "No stats recorded for the last message.";
+        showStatus(message, "info");
+        console.log(`${logPrefix} ${message}`);
+        return message;
     }
     const stats = state.messageStats.get(lastMessageId);
     if (stats.size === 0) {
-        showStatus("No character mentions were detected in the last message.", "info");
-        console.log(`${logPrefix} No character mentions were detected in the last message.`);
-        return;
+        const message = "No character mentions were detected in the last message.";
+        showStatus(message, "info");
+        console.log(`${logPrefix} ${message}`);
+        return message;
     }
 
     let logOutput = "Character Mention Stats for Last Message:\n";
@@ -1774,6 +1777,7 @@ function logLastMessageStats() {
 
     console.log(logOutput);
     showStatus("Last message stats logged to browser console (F12).", "success");
+    return logOutput;
 }
 
 function calculateFinalMessageStats(bufKey) {
@@ -1821,33 +1825,54 @@ function calculateFinalMessageStats(bufKey) {
 // SLASH COMMANDS
 // ======================================================================
 function registerCommands() {
+    const formatTopCharacterList = (ranking) => {
+        return ranking.map((entry, idx) => {
+            const mentionLabel = entry.count === 1 ? 'mention' : 'mentions';
+            const countInfo = Number.isFinite(entry.count) && entry.count > 0
+                ? ` — ${entry.count} ${mentionLabel}`
+                : '';
+            return `${idx + 1}. ${entry.name}${countInfo}`;
+        }).join('\n');
+    };
+
     const emitTopCharacters = (count, { silent } = {}) => {
         const ranking = getLastTopCharacters(count);
         if (!ranking.length) {
+            const emptyMessage = 'No character detections available for the last message.';
             if (!silent) {
-                showStatus('No character detections available for the last message.', 'info');
+                showStatus(emptyMessage, 'info');
             }
-            return '';
+            return emptyMessage;
         }
 
-        return ranking.map(entry => entry.name).join(', ');
+        const formatted = formatTopCharacterList(ranking);
+        if (!silent) {
+            showStatus(`Top detections:<br>${escapeHtml(formatted).replace(/\n/g, '<br>')}`, 'success', 5000);
+        }
+        return formatted;
     };
 
     registerSlashCommand("cs-addchar", (args) => {
         const profile = getActiveProfile();
-        if (profile) {
-            profile.patterns.push(args[0]);
+        const name = String(args?.join(' ') ?? '').trim();
+        if (profile && name) {
+            profile.patterns.push(name);
             recompileRegexes();
-            showStatus(`Added "<b>${escapeHtml(args[0])}</b>" to patterns for this session.`, 'success');
+            showStatus(`Added "<b>${escapeHtml(name)}</b>" to patterns for this session.`, 'success');
+        } else if (profile) {
+            showStatus('Please provide a character name to add.', 'error');
         }
     }, ["char"], "Adds a character to the current profile's pattern list for this session.", true);
 
     registerSlashCommand("cs-ignore", (args) => {
         const profile = getActiveProfile();
-        if (profile) {
-            profile.ignorePatterns.push(args[0]);
+        const name = String(args?.join(' ') ?? '').trim();
+        if (profile && name) {
+            profile.ignorePatterns.push(name);
             recompileRegexes();
-            showStatus(`Ignoring "<b>${escapeHtml(args[0])}</b>" for this session.`, 'success');
+            showStatus(`Ignoring "<b>${escapeHtml(name)}</b>" for this session.`, 'success');
+        } else if (profile) {
+            showStatus('Please provide a character name to ignore.', 'error');
         }
     }, ["char"], "Adds a character to the current profile's ignore list for this session.", true);
 
@@ -1871,7 +1896,7 @@ function registerCommands() {
     }, ["alias", "to", "folder"], "Maps a character alias to a costume folder for this session. Use 'to' to separate.", true);
     
     registerSlashCommand("cs-stats", () => {
-        logLastMessageStats();
+        return logLastMessageStats();
     }, [], "Logs mention statistics for the last generated message to the console.", true);
 
     registerSlashCommand("cs-top", (args) => {
