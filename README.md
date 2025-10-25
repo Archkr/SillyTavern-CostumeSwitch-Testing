@@ -133,7 +133,7 @@ All commands are session-scoped—they modify the active profile until you reloa
 | `/cs-ignore <name>` | Adds a character or regex to the ignore list for the current session. |
 | `/cs-map <alias> to <folder>` | Creates a temporary mapping from `alias` to the specified costume folder. |
 | `/cs-stats` | Logs a breakdown of detected character mentions for the most recent AI message to the browser console. |
-| `/cs-top [count]` | Logs the same mention statistics as `/cs-stats`, then returns a comma-separated list of the top detected characters from the last AI message. Accepts `1`–`4`; defaults to four names. |
+| `/cs-top [count]` | Returns a comma-separated list of the top detected characters from the last AI message and logs the result to the browser console. Accepts `1`–`4`; defaults to four names. |
 | `/cs-top1` – `/cs-top4` | Shortcuts for pulling exactly the top 1–4 characters without specifying an argument. |
 
 ---
