@@ -455,16 +455,10 @@
 
 #costume-switcher-settings.cs-theme .cs-tester-panels {
   display: grid;
-  grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-}
-
-#costume-switcher-settings.cs-theme .cs-tester-primary,
-#costume-switcher-settings.cs-theme .cs-tester-sidebar {
-  display: flex;
-  flex-direction: column;
   gap: 16px;
+  align-items: stretch;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-auto-flow: dense;
 }
 
 #costume-switcher-settings.cs-theme .cs-tester-panel {
@@ -478,12 +472,69 @@
   min-height: 0;
 }
 
+#costume-switcher-settings.cs-theme .cs-tester-panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-panel-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-panel-header p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-panel--flow,
+#costume-switcher-settings.cs-theme .cs-tester-panel--coverage {
+  gap: 16px;
+}
+
 #costume-switcher-settings.cs-theme .cs-tester-panel--score {
+  gap: 12px;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 14px;
 }
 
+#costume-switcher-settings.cs-theme .cs-tester-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#costume-switcher-settings.cs-theme .cs-roster-health {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-title--sub {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 #costume-switcher-settings.cs-theme .cs-score-scroll {
-  max-height: 260px;
+  max-height: 220px;
   overflow: auto;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.04);
@@ -495,21 +546,24 @@
   margin: 0;
 }
 
-#costume-switcher-settings.cs-theme .cs-tester-title--sub {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+#costume-switcher-settings.cs-theme .cs-tester-panel--logs {
+  align-self: stretch;
 }
 
-#costume-switcher-settings.cs-theme .cs-tester-sidebar .cs-helper-text {
-  margin: 0;
+#costume-switcher-settings.cs-theme .cs-tester-panel--logs .cs-toggle {
+  margin-top: 4px;
 }
 
-@media (max-width: 1080px) {
-  #costume-switcher-settings.cs-theme .cs-tester-panels {
-    grid-template-columns: 1fr;
+@media (min-width: 1180px) {
+  #costume-switcher-settings.cs-theme .cs-tester-panel--flow,
+  #costume-switcher-settings.cs-theme .cs-tester-panel--coverage {
+    grid-column: span 2;
+  }
+
+  #costume-switcher-settings.cs-theme .cs-tester-panel--score,
+  #costume-switcher-settings.cs-theme .cs-tester-panel--roster,
+  #costume-switcher-settings.cs-theme .cs-tester-panel--logs {
+    grid-column: span 1;
   }
 }
 
@@ -525,7 +579,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 220px;
+  max-height: 180px;
   overflow-y: auto;
 }
 
@@ -560,7 +614,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 110px;
+  min-height: 96px;
 }
 
 #costume-switcher-settings.cs-theme .cs-summary-label {
@@ -780,7 +834,7 @@
 #costume-switcher-settings.cs-theme .cs-coverage-panel {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 #costume-switcher-settings.cs-theme .cs-coverage-panel h5 {

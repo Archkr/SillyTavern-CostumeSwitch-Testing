@@ -433,79 +433,95 @@
                       <p>Explains whether a cooldown or lock blocked the switch.</p>
                     </div>
                     <div class="cs-summary-card">
-                      <span class="cs-summary-label">Need a Hint?</span>
-                      <p class="cs-summary-help">Use the coverage suggestions to pad your verb lists or pronouns if detections feel thin.</p>
+                      <span class="cs-summary-label">Quick Tip</span>
+                      <p class="cs-summary-help">Use the score, roster, and coverage panes below to focus your next tweaks.</p>
                     </div>
                   </div>
                   <div class="cs-tester-panels">
-                    <div class="cs-tester-primary">
-                      <section class="cs-tester-panel">
-                        <div class="cs-tester-title">All Detections (in order)</div>
-                        <p class="cs-helper-text">Timeline of every match we spotted.</p>
-                        <ul id="cs-test-all-detections" class="cs-tester-list">
-                          <li class="cs-tester-list-placeholder">Results will appear here.</li>
-                        </ul>
-                      </section>
-                      <section class="cs-tester-panel">
-                        <div class="cs-tester-title">Live Switch Decisions</div>
-                        <p class="cs-helper-text">Shows who would have received the costume change.</p>
-                        <ul id="cs-test-winner-list" class="cs-tester-list">
-                          <li class="cs-tester-list-placeholder">Stream results will appear here.</li>
-                        </ul>
-                      </section>
-                      <section class="cs-tester-panel">
-                        <div class="cs-tester-title">Scene Roster Timeline</div>
-                        <p class="cs-helper-text">Track roster joins, refreshes, and drops.</p>
+                    <section class="cs-tester-panel cs-tester-panel--flow">
+                      <header class="cs-tester-panel-header">
+                        <h4>Match Flow</h4>
+                        <p>Follow detections through to the costume decision.</p>
+                      </header>
+                      <div class="cs-tester-split">
+                        <div class="cs-tester-pane">
+                          <div class="cs-tester-title">All Detections</div>
+                          <p class="cs-helper-text">Every detection we spotted, in order.</p>
+                          <ul id="cs-test-all-detections" class="cs-tester-list">
+                            <li class="cs-tester-list-placeholder">Results will appear here.</li>
+                          </ul>
+                        </div>
+                        <div class="cs-tester-pane">
+                          <div class="cs-tester-title">Live Switch Decisions</div>
+                          <p class="cs-helper-text">Who would have received the costume change.</p>
+                          <ul id="cs-test-winner-list" class="cs-tester-list">
+                            <li class="cs-tester-list-placeholder">Stream results will appear here.</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </section>
+                    <section class="cs-tester-panel cs-tester-panel--roster">
+                      <header class="cs-tester-panel-header">
+                        <h4>Scene Roster</h4>
+                        <p>Check for churn or TTL gaps that could impact switching.</p>
+                      </header>
+                      <div class="cs-tester-stack">
                         <ul id="cs-test-roster-timeline" class="cs-tester-list">
                           <li class="cs-tester-list-placeholder">Run the tester to see roster events.</li>
                         </ul>
-                        <div class="cs-tester-title cs-tester-title--sub">Roster Health</div>
-                        <div id="cs-test-roster-warning" class="cs-roster-warning">No TTL warnings triggered.</div>
-                      </section>
-                    </div>
-                    <aside class="cs-tester-sidebar">
-                      <section class="cs-tester-panel cs-tester-panel--score">
-                        <div class="cs-tester-title">Score Breakdown</div>
-                        <p class="cs-helper-text">Scroll to compare how each detection contributed.</p>
-                        <div class="cs-score-scroll">
-                          <table id="cs-test-score-breakdown" class="cs-score-table">
-                            <tbody>
-                              <tr><td colspan="3" class="cs-tester-list-placeholder">Run the tester to see weighted scores.</td></tr>
-                            </tbody>
-                          </table>
+                        <div class="cs-roster-health">
+                          <div class="cs-tester-title cs-tester-title--sub">Roster Health</div>
+                          <div id="cs-test-roster-warning" class="cs-roster-warning">No TTL warnings triggered.</div>
                         </div>
-                      </section>
-                      <section class="cs-tester-panel">
-                        <div class="cs-tester-title">Coverage Suggestions</div>
-                        <p class="cs-helper-text">Click a suggestion to add it to your vocabulary.</p>
-                        <div class="cs-coverage-panel">
-                          <div>
-                            <h5>Pronouns</h5>
-                            <div id="cs-coverage-pronouns" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
-                          </div>
-                          <div>
-                            <h5>Attribution Verbs</h5>
-                            <div id="cs-coverage-attribution" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
-                          </div>
-                          <div>
-                            <h5>Action Verbs</h5>
-                            <div id="cs-coverage-action" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
-                          </div>
+                      </div>
+                    </section>
+                    <section class="cs-tester-panel cs-tester-panel--score">
+                      <header class="cs-tester-panel-header">
+                        <h4>Score Breakdown</h4>
+                        <p>Scroll to compare how each detection contributed.</p>
+                      </header>
+                      <div class="cs-score-scroll">
+                        <table id="cs-test-score-breakdown" class="cs-score-table">
+                          <tbody>
+                            <tr><td colspan="3" class="cs-tester-list-placeholder">Run the tester to see weighted scores.</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                    <section class="cs-tester-panel cs-tester-panel--coverage">
+                      <header class="cs-tester-panel-header">
+                        <h4>Coverage Suggestions</h4>
+                        <p>Click to add helpful pronouns or verbs to your lists.</p>
+                      </header>
+                      <div class="cs-coverage-panel">
+                        <div>
+                          <h5>Pronouns</h5>
+                          <div id="cs-coverage-pronouns" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
                         </div>
-                      </section>
-                    </aside>
+                        <div>
+                          <h5>Attribution Verbs</h5>
+                          <div id="cs-coverage-attribution" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
+                        </div>
+                        <div>
+                          <h5>Action Verbs</h5>
+                          <div id="cs-coverage-action" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
+                        </div>
+                      </div>
+                    </section>
+                    <section class="cs-tester-panel cs-tester-panel--logs">
+                      <header class="cs-tester-panel-header">
+                        <h4>Debug Tools</h4>
+                        <p>Mirror the tester output to the browser console.</p>
+                      </header>
+                      <label class="cs-toggle cs-toggle--inline" title="Logs detailed decision-making to the browser console (F12) for troubleshooting.">
+                        <input id="cs-debug" type="checkbox" />
+                        <span class="cs-toggle-indicator"></span>
+                        <span><strong>Enable Debug Logging</strong></span>
+                      </label>
+                    </section>
                   </div>
                 </div>
               </div>
-            </section>
-          </div>
-          <div class="cs-column">
-            <section class="cs-card cs-card--compact">
-              <label class="cs-toggle cs-toggle--inline" title="Logs detailed decision-making to the browser console (F12) for troubleshooting.">
-                <input id="cs-debug" type="checkbox" />
-                <span class="cs-toggle-indicator"></span>
-                <span><strong>Enable Debug Logging</strong></span>
-              </label>
             </section>
           </div>
         </div>
