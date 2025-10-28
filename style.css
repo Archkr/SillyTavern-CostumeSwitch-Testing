@@ -442,27 +442,21 @@
   padding-top: 4px;
 }
 
-#costume-switcher-settings.cs-theme .cs-tester-meta {
-  display: flex;
-  gap: 8px;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  align-items: center;
-}
-
-#costume-switcher-settings.cs-theme .cs-meta-label {
-  font-weight: 600;
-  color: var(--text-color);
-}
-
 #costume-switcher-settings.cs-theme .cs-tester-output-container {
   margin-top: 6px;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-columns {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  overflow: hidden;
+  gap: 16px;
 }
 
 #costume-switcher-settings.cs-theme .cs-tester-col {
@@ -470,10 +464,10 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-#costume-switcher-settings.cs-theme .cs-tester-col--divider {
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  min-height: 0;
 }
 
 #costume-switcher-settings.cs-theme .cs-tester-col--insights {
@@ -514,6 +508,69 @@
   max-height: 140px;
 }
 
+#costume-switcher-settings.cs-theme .cs-tester-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+#costume-switcher-settings.cs-theme .cs-summary-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 110px;
+}
+
+#costume-switcher-settings.cs-theme .cs-summary-label {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+#costume-switcher-settings.cs-theme .cs-summary-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+#costume-switcher-settings.cs-theme .cs-summary-help {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-guide {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-guide h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-guide ol {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-guide strong {
+  color: var(--text-color);
+}
+
 #costume-switcher-settings.cs-theme .cs-roster-warning {
   padding: 10px 12px;
   border-radius: 10px;
@@ -533,6 +590,27 @@
   gap: 12px;
 }
 
+#costume-switcher-settings.cs-theme .cs-score-presets-guide {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  border-left: 3px solid var(--accent);
+  padding: 10px 14px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-presets-guide ol {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-presets-guide strong {
+  color: var(--text-color);
+}
+
 #costume-switcher-settings.cs-theme .cs-score-presets-header h4 {
   margin: 0;
   font-size: 1rem;
@@ -542,6 +620,17 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.88rem;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-preview-table thead {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+#costume-switcher-settings.cs-theme .cs-score-preview-table thead th {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
 }
 
 #costume-switcher-settings.cs-theme .cs-score-preview-table th,
@@ -842,6 +931,10 @@
 
   #costume-switcher-settings.cs-theme .cs-master-toggle input {
     justify-self: flex-start;
+  }
+
+  #costume-switcher-settings.cs-theme .cs-tester-output-container {
+    padding: 14px;
   }
 }
 

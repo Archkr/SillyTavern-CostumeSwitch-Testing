@@ -171,6 +171,34 @@ const LEXICON_PACKS = {
         attributionVerbs: ["muttered", "rasped", "drawled", "grumbled"],
         actionVerbs: ["lurched", "leaned", "nursed", "shadowed", "tailed", "poured"],
     },
+    romance: {
+        name: "Romance Studio",
+        description: "Highlights soft pronouns and affectionate beats for relationship-driven scenes.",
+        pronouns: ["she", "her", "he", "him", "they", "them", "zie", "zir"],
+        attributionVerbs: ["whispered", "murmured", "breathed", "confessed", "promised", "sighed"],
+        actionVerbs: ["caressed", "embraced", "kissed", "lingered", "blushed", "cradled"],
+    },
+    horror: {
+        name: "Midnight Horror",
+        description: "Adds unsettling verbs and ominous pronouns for creeping dread.",
+        pronouns: ["it", "its", "they", "them", "someone", "something"],
+        attributionVerbs: ["hissed", "croaked", "whimpered", "rasped", "moaned"],
+        actionVerbs: ["slithered", "crept", "lurched", "stalked", "screeched", "shuddered"],
+    },
+    western: {
+        name: "Frontier Drawl",
+        description: "Adds twangy vernacular and trail verbs for western adventures.",
+        pronouns: ["ya", "y'all", "yer", "yourselves"],
+        attributionVerbs: ["spat", "drawled", "barked", "hollered", "whooped"],
+        actionVerbs: ["lassoed", "saddled", "spurred", "tilted", "spat", "squared"],
+    },
+    anime: {
+        name: "Anime Drama",
+        description: "Injects energetic verbs and honorific-friendly pronouns for high-energy scenes.",
+        pronouns: ["watashi", "boku", "ore", "anata", "kanojo", "kare"],
+        attributionVerbs: ["shouted", "declared", "pleaded", "exclaimed", "yelled"],
+        actionVerbs: ["transformed", "charged", "sparked", "posed", "teleported", "radiated"],
+    },
 };
 
 const DEFAULT_PRONOUNS = ['he', 'she', 'they'];
@@ -1424,9 +1452,9 @@ function renderScorePresetPreview(presetName) {
     const currentWeights = collectScoreWeights();
 
     if (!preset) {
-        previewContainer.html('<p class="cs-helper-text">Pick a preset to compare scoring weights.</p>');
+        previewContainer.html('<p class="cs-helper-text">Pick a preset to compare how it leans against your current weights.</p>');
         if (messageEl.length) {
-            messageEl.text('Select a preset to preview its scoring emphasis against the active profile.');
+            messageEl.text('Select a preset to preview its scoring emphasis against what you have configured right now.');
         }
         return;
     }
@@ -1439,6 +1467,13 @@ function renderScorePresetPreview(presetName) {
     }, 1);
 
     const table = $('<table>').addClass('cs-score-preview-table');
+    const head = $('<thead>');
+    head.append($('<tr>')
+        .append($('<th>').text('Signal'))
+        .append($('<th>').text('Preset Focus'))
+        .append($('<th>').text('Your Profile'))
+        .append($('<th>').text('Change')));
+    table.append(head);
     const tbody = $('<tbody>');
     SCORE_WEIGHT_KEYS.forEach((key) => {
         const label = SCORE_WEIGHT_LABELS[key] || key;
@@ -1467,6 +1502,7 @@ function renderScorePresetPreview(presetName) {
         const parts = [];
         if (preset.description) parts.push(preset.description);
         parts.push(preset.builtIn ? 'Built-in preset' : 'Custom preset');
+        parts.push('Bars show preset weight; numbers show your current setup.');
         messageEl.text(parts.join(' • '));
     }
 }
