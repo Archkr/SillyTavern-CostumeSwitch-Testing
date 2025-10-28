@@ -175,21 +175,6 @@ const LEXICON_PACKS = {
 
 const DEFAULT_PRONOUNS = ['he', 'she', 'they'];
 
-const KNOWN_PRONOUNS = new Set([
-    ...DEFAULT_PRONOUNS,
-    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.pronouns || []),
-].map(value => String(value).toLowerCase()));
-
-const KNOWN_ATTRIBUTION_VERBS = new Set([
-    ...PROFILE_DEFAULTS.attributionVerbs,
-    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.attributionVerbs || []),
-].map(value => String(value).toLowerCase()));
-
-const KNOWN_ACTION_VERBS = new Set([
-    ...PROFILE_DEFAULTS.actionVerbs,
-    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.actionVerbs || []),
-].map(value => String(value).toLowerCase()));
-
 const COVERAGE_TOKEN_REGEX = /[\p{L}\p{M}']+/gu;
 
 const UNICODE_WORD_PATTERN = '[\\p{L}\\p{M}\\p{N}_]';
@@ -276,6 +261,22 @@ const PROFILE_DEFAULTS = {
     rosterPriorityDropoff: 0.5,
     distancePenaltyWeight: 1,
 };
+
+const KNOWN_PRONOUNS = new Set([
+    ...DEFAULT_PRONOUNS,
+    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.pronouns || []),
+    ...PROFILE_DEFAULTS.pronounVocabulary,
+].map(value => String(value).toLowerCase()));
+
+const KNOWN_ATTRIBUTION_VERBS = new Set([
+    ...PROFILE_DEFAULTS.attributionVerbs,
+    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.attributionVerbs || []),
+].map(value => String(value).toLowerCase()));
+
+const KNOWN_ACTION_VERBS = new Set([
+    ...PROFILE_DEFAULTS.actionVerbs,
+    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.actionVerbs || []),
+].map(value => String(value).toLowerCase()));
 
 const DEFAULTS = {
     enabled: true,
