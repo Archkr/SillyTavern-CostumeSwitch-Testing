@@ -149,59 +149,35 @@ const DEFAULT_SCORE_PRESETS = {
 
 const BUILTIN_SCORE_PRESET_KEYS = new Set(Object.keys(DEFAULT_SCORE_PRESETS));
 
-const LEXICON_PACKS = {
-    fantasy: {
-        name: "Fantasy Field Notes",
-        description: "Adds archaic pronouns and common bard/warrior verbs.",
-        pronouns: ["thee", "thou", "thy", "thine", "yon", "ye"],
-        attributionVerbs: ["intoned", "proclaimed", "recited", "declared", "pronounced"],
-        actionVerbs: ["brandished", "summoned", "conjured", "smote", "unsheathed", "teleported"],
-    },
-    scifi: {
-        name: "Sci-Fi Ops",
-        description: "Bolsters technobabble verbs and synthetic pronouns.",
-        pronouns: ["xe", "xem", "xyr", "ze", "zir", "theyre"],
-        attributionVerbs: ["transmitted", "pinged", "reported", "uploaded"],
-        actionVerbs: ["calibrated", "recalibrated", "synced", "overclocked", "hacked", "booted"],
-    },
-    noir: {
-        name: "Noir Desk",
-        description: "Adds smoky narration staples for detective stories.",
-        pronouns: ["ya", "ya'll"],
-        attributionVerbs: ["muttered", "rasped", "drawled", "grumbled"],
-        actionVerbs: ["lurched", "leaned", "nursed", "shadowed", "tailed", "poured"],
-    },
-    romance: {
-        name: "Romance Studio",
-        description: "Highlights soft pronouns and affectionate beats for relationship-driven scenes.",
-        pronouns: ["she", "her", "he", "him", "they", "them", "zie", "zir"],
-        attributionVerbs: ["whispered", "murmured", "breathed", "confessed", "promised", "sighed"],
-        actionVerbs: ["caressed", "embraced", "kissed", "lingered", "blushed", "cradled"],
-    },
-    horror: {
-        name: "Midnight Horror",
-        description: "Adds unsettling verbs and ominous pronouns for creeping dread.",
-        pronouns: ["it", "its", "they", "them", "someone", "something"],
-        attributionVerbs: ["hissed", "croaked", "whimpered", "rasped", "moaned"],
-        actionVerbs: ["slithered", "crept", "lurched", "stalked", "screeched", "shuddered"],
-    },
-    western: {
-        name: "Frontier Drawl",
-        description: "Adds twangy vernacular and trail verbs for western adventures.",
-        pronouns: ["ya", "y'all", "yer", "yourselves"],
-        attributionVerbs: ["spat", "drawled", "barked", "hollered", "whooped"],
-        actionVerbs: ["lassoed", "saddled", "spurred", "tilted", "spat", "squared"],
-    },
-    anime: {
-        name: "Anime Drama",
-        description: "Injects energetic verbs and honorific-friendly pronouns for high-energy scenes.",
-        pronouns: ["watashi", "boku", "ore", "anata", "kanojo", "kare"],
-        attributionVerbs: ["shouted", "declared", "pleaded", "exclaimed", "yelled"],
-        actionVerbs: ["transformed", "charged", "sparked", "posed", "teleported", "radiated"],
-    },
-};
-
 const DEFAULT_PRONOUNS = ['he', 'she', 'they'];
+
+const EXTENDED_PRONOUNS = [
+    'thee', 'thou', 'thy', 'thine', 'yon', 'ye',
+    'xe', 'xem', 'xyr', 'ze', 'zir', 'theyre',
+    'ya', "ya'll", 'y\'all', 'yer', 'yourselves',
+    'watashi', 'boku', 'ore', 'anata', 'kanojo', 'kare',
+    'zie', 'zir', 'it', 'its', 'someone', 'something',
+];
+
+const EXTENDED_ATTRIBUTION_VERBS = [
+    'intoned', 'proclaimed', 'recited', 'declared', 'pronounced',
+    'transmitted', 'pinged', 'reported', 'uploaded',
+    'muttered', 'rasped', 'drawled', 'grumbled',
+    'whispered', 'murmured', 'breathed', 'confessed', 'promised', 'sighed',
+    'hissed', 'croaked', 'whimpered', 'moaned',
+    'spat', 'barked', 'hollered', 'whooped',
+    'shouted', 'pleaded', 'exclaimed', 'yelled',
+];
+
+const EXTENDED_ACTION_VERBS = [
+    'brandished', 'summoned', 'conjured', 'smote', 'unsheathed', 'teleported',
+    'calibrated', 'recalibrated', 'synced', 'overclocked', 'hacked', 'booted',
+    'lurched', 'leaned', 'nursed', 'shadowed', 'tailed', 'poured',
+    'caressed', 'embraced', 'kissed', 'lingered', 'blushed', 'cradled',
+    'slithered', 'crept', 'stalked', 'screeched', 'shuddered',
+    'lassoed', 'saddled', 'spurred', 'tilted', 'spat', 'squared',
+    'transformed', 'charged', 'sparked', 'posed', 'radiated',
+];
 
 const COVERAGE_TOKEN_REGEX = /[\p{L}\p{M}']+/gu;
 
@@ -292,18 +268,18 @@ const PROFILE_DEFAULTS = {
 
 const KNOWN_PRONOUNS = new Set([
     ...DEFAULT_PRONOUNS,
-    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.pronouns || []),
+    ...EXTENDED_PRONOUNS,
     ...PROFILE_DEFAULTS.pronounVocabulary,
 ].map(value => String(value).toLowerCase()));
 
 const KNOWN_ATTRIBUTION_VERBS = new Set([
     ...PROFILE_DEFAULTS.attributionVerbs,
-    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.attributionVerbs || []),
+    ...EXTENDED_ATTRIBUTION_VERBS,
 ].map(value => String(value).toLowerCase()));
 
 const KNOWN_ACTION_VERBS = new Set([
     ...PROFILE_DEFAULTS.actionVerbs,
-    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.actionVerbs || []),
+    ...EXTENDED_ACTION_VERBS,
 ].map(value => String(value).toLowerCase()));
 
 const DEFAULTS = {
@@ -2055,7 +2031,7 @@ function refreshCoverageFromLastReport() {
     }
 }
 
-function mergeLexiconList(target = [], additions = []) {
+function mergeUniqueList(target = [], additions = []) {
     const list = Array.isArray(target) ? [...target] : [];
     const seen = new Set(list.map(item => String(item).toLowerCase()));
     (additions || []).forEach((item) => {
@@ -2068,37 +2044,6 @@ function mergeLexiconList(target = [], additions = []) {
         }
     });
     return list;
-}
-
-function applyLexiconPack(packKey) {
-    const pack = LEXICON_PACKS?.[packKey];
-    const profile = getActiveProfile();
-    if (!pack || !profile) {
-        return false;
-    }
-
-    profile.pronounVocabulary = mergeLexiconList(profile.pronounVocabulary, pack.pronouns);
-    profile.attributionVerbs = mergeLexiconList(profile.attributionVerbs, pack.attributionVerbs);
-    profile.actionVerbs = mergeLexiconList(profile.actionVerbs, pack.actionVerbs);
-    syncProfileFieldsToUI(profile, ['pronounVocabulary', 'attributionVerbs', 'actionVerbs']);
-    recompileRegexes();
-    refreshCoverageFromLastReport();
-    return true;
-}
-
-function populateLexiconPackButtons() {
-    const container = $('#cs-lexicon-pack-buttons');
-    if (!container.length) return;
-    container.empty();
-    Object.entries(LEXICON_PACKS).forEach(([key, pack]) => {
-        const button = $('<button>')
-            .addClass('menu_button interactable cs-lexicon-pack')
-            .attr('type', 'button')
-            .attr('data-pack', key)
-            .attr('title', pack.description || '')
-            .text(pack.name);
-        container.append(button);
-    });
 }
 
 function copyTextToClipboard(text) {
@@ -3064,13 +3009,13 @@ function wireUI() {
         if (!value) return;
         let field = null;
         if (type === 'pronoun') {
-            profile.pronounVocabulary = mergeLexiconList(profile.pronounVocabulary, [value]);
+            profile.pronounVocabulary = mergeUniqueList(profile.pronounVocabulary, [value]);
             field = 'pronounVocabulary';
         } else if (type === 'attribution') {
-            profile.attributionVerbs = mergeLexiconList(profile.attributionVerbs, [value]);
+            profile.attributionVerbs = mergeUniqueList(profile.attributionVerbs, [value]);
             field = 'attributionVerbs';
         } else if (type === 'action') {
-            profile.actionVerbs = mergeLexiconList(profile.actionVerbs, [value]);
+            profile.actionVerbs = mergeUniqueList(profile.actionVerbs, [value]);
             field = 'actionVerbs';
         }
         if (field) {
@@ -3078,15 +3023,6 @@ function wireUI() {
             recompileRegexes();
             refreshCoverageFromLastReport();
             showStatus(`Added "${escapeHtml(value)}" to ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}.`, 'success');
-        }
-    });
-    $(document).on('click', '.cs-lexicon-pack', function() {
-        const key = $(this).data('pack');
-        if (applyLexiconPack(key)) {
-            const packName = LEXICON_PACKS?.[key]?.name || 'Lexicon pack';
-            showStatus(`Imported ${escapeHtml(packName)}.`, 'success');
-        } else {
-            showStatus('Unable to apply lexicon pack.', 'error');
         }
     });
     $(document).on('click', '#cs-focus-lock-toggle', async () => {
@@ -3824,7 +3760,6 @@ jQuery(async () => {
         populateProfileDropdown();
         populatePresetDropdown();
         populateScorePresetDropdown();
-        populateLexiconPackButtons();
         loadProfile(getSettings().activeProfile);
         wireUI();
         registerCommands();
