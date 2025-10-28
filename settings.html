@@ -262,13 +262,6 @@
                   <small>Comma-separated list of pronouns the pronoun detector should recognize. Supports custom neopronouns.</small>
                   <textarea id="cs-pronoun-vocabulary" class="text_pole" rows="2"></textarea>
                 </div>
-                <div class="cs-lexicon-tools">
-                  <h4>Lexicon Packs</h4>
-                  <p class="cs-helper-text">Import curated verb and pronoun lists to jump-start new genres.</p>
-                  <div id="cs-lexicon-pack-buttons" class="cs-pack-buttons">
-                    <span class="cs-tester-list-placeholder">Loading packs…</span>
-                  </div>
-                </div>
               </div>
             </section>
           </div>
@@ -444,48 +437,63 @@
                       <p class="cs-summary-help">Use the coverage suggestions to pad your verb lists or pronouns if detections feel thin.</p>
                     </div>
                   </div>
-                  <div class="cs-tester-columns">
-                    <div class="cs-tester-col">
-                      <div class="cs-tester-title">All Detections (in order)</div>
-                      <ul id="cs-test-all-detections" class="cs-tester-list">
-                        <li class="cs-tester-list-placeholder">Results will appear here.</li>
-                      </ul>
+                  <div class="cs-tester-panels">
+                    <div class="cs-tester-primary">
+                      <section class="cs-tester-panel">
+                        <div class="cs-tester-title">All Detections (in order)</div>
+                        <p class="cs-helper-text">Timeline of every match we spotted.</p>
+                        <ul id="cs-test-all-detections" class="cs-tester-list">
+                          <li class="cs-tester-list-placeholder">Results will appear here.</li>
+                        </ul>
+                      </section>
+                      <section class="cs-tester-panel">
+                        <div class="cs-tester-title">Live Switch Decisions</div>
+                        <p class="cs-helper-text">Shows who would have received the costume change.</p>
+                        <ul id="cs-test-winner-list" class="cs-tester-list">
+                          <li class="cs-tester-list-placeholder">Stream results will appear here.</li>
+                        </ul>
+                      </section>
+                      <section class="cs-tester-panel">
+                        <div class="cs-tester-title">Scene Roster Timeline</div>
+                        <p class="cs-helper-text">Track roster joins, refreshes, and drops.</p>
+                        <ul id="cs-test-roster-timeline" class="cs-tester-list">
+                          <li class="cs-tester-list-placeholder">Run the tester to see roster events.</li>
+                        </ul>
+                        <div class="cs-tester-title cs-tester-title--sub">Roster Health</div>
+                        <div id="cs-test-roster-warning" class="cs-roster-warning">No TTL warnings triggered.</div>
+                      </section>
                     </div>
-                    <div class="cs-tester-col">
-                      <div class="cs-tester-title">Live Switch Decisions</div>
-                      <ul id="cs-test-winner-list" class="cs-tester-list">
-                        <li class="cs-tester-list-placeholder">Stream results will appear here.</li>
-                      </ul>
-                    </div>
-                    <div class="cs-tester-col cs-tester-col--insights">
-                      <div class="cs-tester-title">Scene Roster Timeline</div>
-                      <ul id="cs-test-roster-timeline" class="cs-tester-list">
-                        <li class="cs-tester-list-placeholder">Run the tester to see roster events.</li>
-                      </ul>
-                      <div class="cs-tester-title">Roster Health</div>
-                      <div id="cs-test-roster-warning" class="cs-roster-warning">No TTL warnings triggered.</div>
-                      <div class="cs-tester-title">Score Breakdown</div>
-                      <table id="cs-test-score-breakdown" class="cs-score-table">
-                        <tbody>
-                          <tr><td colspan="3" class="cs-tester-list-placeholder">Run the tester to see weighted scores.</td></tr>
-                        </tbody>
-                      </table>
-                      <div class="cs-tester-title">Coverage Suggestions</div>
-                      <div class="cs-coverage-panel">
-                        <div>
-                          <h5>Pronouns</h5>
-                          <div id="cs-coverage-pronouns" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
+                    <aside class="cs-tester-sidebar">
+                      <section class="cs-tester-panel cs-tester-panel--score">
+                        <div class="cs-tester-title">Score Breakdown</div>
+                        <p class="cs-helper-text">Scroll to compare how each detection contributed.</p>
+                        <div class="cs-score-scroll">
+                          <table id="cs-test-score-breakdown" class="cs-score-table">
+                            <tbody>
+                              <tr><td colspan="3" class="cs-tester-list-placeholder">Run the tester to see weighted scores.</td></tr>
+                            </tbody>
+                          </table>
                         </div>
-                        <div>
-                          <h5>Attribution Verbs</h5>
-                          <div id="cs-coverage-attribution" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
+                      </section>
+                      <section class="cs-tester-panel">
+                        <div class="cs-tester-title">Coverage Suggestions</div>
+                        <p class="cs-helper-text">Click a suggestion to add it to your vocabulary.</p>
+                        <div class="cs-coverage-panel">
+                          <div>
+                            <h5>Pronouns</h5>
+                            <div id="cs-coverage-pronouns" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
+                          </div>
+                          <div>
+                            <h5>Attribution Verbs</h5>
+                            <div id="cs-coverage-attribution" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
+                          </div>
+                          <div>
+                            <h5>Action Verbs</h5>
+                            <div id="cs-coverage-action" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
+                          </div>
                         </div>
-                        <div>
-                          <h5>Action Verbs</h5>
-                          <div id="cs-coverage-action" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
-                        </div>
-                      </div>
-                    </div>
+                      </section>
+                    </aside>
                   </div>
                 </div>
               </div>
