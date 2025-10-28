@@ -476,6 +476,11 @@
   border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+#costume-switcher-settings.cs-theme .cs-tester-col--insights {
+  gap: 16px;
+  min-width: 260px;
+}
+
 #costume-switcher-settings.cs-theme .cs-tester-title {
   font-weight: 600;
   font-size: 0.95rem;
@@ -503,6 +508,195 @@
 #costume-switcher-settings.cs-theme .cs-tester-list-placeholder {
   color: var(--text-muted);
   font-style: italic;
+}
+
+#costume-switcher-settings.cs-theme #cs-test-roster-timeline {
+  max-height: 140px;
+}
+
+#costume-switcher-settings.cs-theme .cs-roster-warning {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(231, 76, 60, 0.08);
+  color: var(--text-color);
+  font-size: 0.85rem;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-presets {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-presets-header h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-preview-table th,
+#costume-switcher-settings.cs-theme .cs-score-preview-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: left;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-preview-table tr:last-child td {
+  border-bottom: none;
+}
+
+#costume-switcher-settings.cs-theme .cs-weight-bar {
+  position: relative;
+  height: 26px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+#costume-switcher-settings.cs-theme .cs-weight-bar-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  opacity: 0.45;
+}
+
+#costume-switcher-settings.cs-theme .cs-weight-bar-fill.is-negative {
+  background: var(--danger);
+}
+
+#costume-switcher-settings.cs-theme .cs-weight-bar-value {
+  position: relative;
+  padding: 0 10px;
+  font-weight: 600;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: top;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-table tr:last-child td {
+  border-bottom: none;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-trigger strong {
+  display: block;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-trigger small {
+  display: block;
+  color: var(--text-muted);
+}
+
+#costume-switcher-settings.cs-theme .cs-score-bar {
+  position: relative;
+  height: 26px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-bar-positive {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--accent);
+  opacity: 0.45;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-bar-penalty {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background: var(--danger);
+  opacity: 0.35;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-bar-total {
+  position: relative;
+  margin-left: auto;
+  padding: 0 10px;
+  font-weight: 600;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-row-negative td {
+  background: rgba(231, 76, 60, 0.08);
+}
+
+#costume-switcher-settings.cs-theme .cs-score-row-roster td {
+  box-shadow: inset 0 0 0 1px rgba(46, 213, 115, 0.25);
+}
+
+#costume-switcher-settings.cs-theme .cs-coverage-panel {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+#costume-switcher-settings.cs-theme .cs-coverage-panel h5 {
+  margin: 0 0 4px;
+  font-size: 0.88rem;
+}
+
+#costume-switcher-settings.cs-theme .cs-coverage-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#costume-switcher-settings.cs-theme .cs-coverage-pill {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-color);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+#costume-switcher-settings.cs-theme .cs-coverage-pill:hover {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+#costume-switcher-settings.cs-theme .cs-lexicon-tools {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#costume-switcher-settings.cs-theme .cs-pack-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 #costume-switcher-settings.cs-theme #cs-mappings {

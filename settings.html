@@ -262,6 +262,13 @@
                   <small>Comma-separated list of pronouns the pronoun detector should recognize. Supports custom neopronouns.</small>
                   <textarea id="cs-pronoun-vocabulary" class="text_pole" rows="2"></textarea>
                 </div>
+                <div class="cs-lexicon-tools">
+                  <h4>Lexicon Packs</h4>
+                  <p class="cs-helper-text">Import curated verb and pronoun lists to jump-start new genres.</p>
+                  <div id="cs-lexicon-pack-buttons" class="cs-pack-buttons">
+                    <span class="cs-tester-list-placeholder">Loading packs…</span>
+                  </div>
+                </div>
               </div>
             </section>
           </div>
@@ -353,6 +360,33 @@
                     <input id="cs-distance-penalty" class="text_pole" type="number" step="0.1" min="0" title="Penalty per character of distance from the end of the message." />
                   </div>
                 </div>
+                <div class="cs-score-presets">
+                  <div class="cs-score-presets-header">
+                    <h4>Scoring Presets</h4>
+                    <p class="cs-helper-text">Save and compare weight profiles for different scenes.</p>
+                  </div>
+                  <div class="cs-toolbar">
+                    <select id="cs-score-preset-select" class="text_pole" style="flex: 1 1 auto;" title="Select a saved scoring preset to preview its weights.">
+                      <option value="">Select a scoring preset…</option>
+                    </select>
+                    <button id="cs-score-preset-apply" class="menu_button interactable cs-button-primary" title="Apply the selected scoring preset to this profile.">Apply</button>
+                  </div>
+                  <div class="cs-toolbar cs-toolbar--wrap">
+                    <input id="cs-score-preset-name" class="text_pole" type="text" placeholder="Enter a name…" title="Enter a name to save or rename a scoring preset." />
+                    <button id="cs-score-preset-save" class="menu_button interactable" title="Overwrite the selected preset with the current weights.">Save</button>
+                    <button id="cs-score-preset-saveas" class="menu_button interactable" title="Save the current weights as a new preset.">Save As</button>
+                    <button id="cs-score-preset-rename" class="menu_button interactable" title="Rename the selected custom preset.">Rename</button>
+                    <button id="cs-score-preset-delete" class="menu_button interactable cs-button-danger" title="Delete the selected custom preset.">Delete</button>
+                  </div>
+                  <p id="cs-score-preset-message" class="cs-helper-text">Select a preset to preview its weights against the active profile.</p>
+                  <div id="cs-score-preset-preview" class="cs-score-preview">
+                    <table class="cs-score-preview-table">
+                      <tbody>
+                        <tr><td colspan="3" class="cs-tester-list-placeholder">Select a preset to see weight comparisons.</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             </section>
           </div>
@@ -393,11 +427,40 @@
                       <li class="cs-tester-list-placeholder">Results will appear here.</li>
                     </ul>
                   </div>
-                  <div class="cs-tester-col">
+                  <div class="cs-tester-col cs-tester-col--divider">
                     <div class="cs-tester-title">Live Switch Decisions</div>
                     <ul id="cs-test-winner-list" class="cs-tester-list">
                       <li class="cs-tester-list-placeholder">Stream results will appear here.</li>
                     </ul>
+                  </div>
+                  <div class="cs-tester-col cs-tester-col--insights">
+                    <div class="cs-tester-title">Scene Roster Timeline</div>
+                    <ul id="cs-test-roster-timeline" class="cs-tester-list">
+                      <li class="cs-tester-list-placeholder">Run the tester to see roster events.</li>
+                    </ul>
+                    <div class="cs-tester-title">Roster Health</div>
+                    <div id="cs-test-roster-warning" class="cs-roster-warning">No TTL warnings triggered.</div>
+                    <div class="cs-tester-title">Score Breakdown</div>
+                    <table id="cs-test-score-breakdown" class="cs-score-table">
+                      <tbody>
+                        <tr><td colspan="3" class="cs-tester-list-placeholder">Run the tester to see weighted scores.</td></tr>
+                      </tbody>
+                    </table>
+                    <div class="cs-tester-title">Coverage Suggestions</div>
+                    <div class="cs-coverage-panel">
+                      <div>
+                        <h5>Pronouns</h5>
+                        <div id="cs-coverage-pronouns" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
+                      </div>
+                      <div>
+                        <h5>Attribution Verbs</h5>
+                        <div id="cs-coverage-attribution" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
+                      </div>
+                      <div>
+                        <h5>Action Verbs</h5>
+                        <div id="cs-coverage-action" class="cs-coverage-list"><span class="cs-tester-list-placeholder">Run the tester to see suggestions.</span></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

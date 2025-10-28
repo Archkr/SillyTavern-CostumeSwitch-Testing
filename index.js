@@ -54,7 +54,129 @@ const PRESETS = {
     },
 };
 
+const SCORE_WEIGHT_KEYS = [
+    'prioritySpeakerWeight',
+    'priorityAttributionWeight',
+    'priorityActionWeight',
+    'priorityPronounWeight',
+    'priorityVocativeWeight',
+    'priorityPossessiveWeight',
+    'priorityNameWeight',
+    'rosterBonus',
+    'rosterPriorityDropoff',
+    'distancePenaltyWeight',
+];
+
+const SCORE_WEIGHT_LABELS = {
+    prioritySpeakerWeight: 'Speaker',
+    priorityAttributionWeight: 'Attribution',
+    priorityActionWeight: 'Action',
+    priorityPronounWeight: 'Pronoun',
+    priorityVocativeWeight: 'Vocative',
+    priorityPossessiveWeight: 'Possessive',
+    priorityNameWeight: 'General Name',
+    rosterBonus: 'Roster Bonus',
+    rosterPriorityDropoff: 'Roster Drop-off',
+    distancePenaltyWeight: 'Distance Penalty',
+};
+
+const DEFAULT_SCORE_PRESETS = {
+    'Balanced Baseline': {
+        description: 'Matches the default scoring behaviour with a steady roster bonus.',
+        builtIn: true,
+        weights: {
+            prioritySpeakerWeight: 5,
+            priorityAttributionWeight: 4,
+            priorityActionWeight: 3,
+            priorityPronounWeight: 2,
+            priorityVocativeWeight: 2,
+            priorityPossessiveWeight: 1,
+            priorityNameWeight: 0,
+            rosterBonus: 150,
+            rosterPriorityDropoff: 0.5,
+            distancePenaltyWeight: 1,
+        },
+    },
+    'Dialogue Spotlight': {
+        description: 'Favors explicit dialogue cues and attribution-heavy scenes.',
+        builtIn: true,
+        weights: {
+            prioritySpeakerWeight: 6,
+            priorityAttributionWeight: 5,
+            priorityActionWeight: 2.5,
+            priorityPronounWeight: 1.5,
+            priorityVocativeWeight: 2.5,
+            priorityPossessiveWeight: 1,
+            priorityNameWeight: 0,
+            rosterBonus: 140,
+            rosterPriorityDropoff: 0.35,
+            distancePenaltyWeight: 1.1,
+        },
+    },
+    'Action Tracker': {
+        description: 'Boosts action verbs and keeps recent actors in the roster for fast scenes.',
+        builtIn: true,
+        weights: {
+            prioritySpeakerWeight: 4.5,
+            priorityAttributionWeight: 3.5,
+            priorityActionWeight: 4,
+            priorityPronounWeight: 2.5,
+            priorityVocativeWeight: 2,
+            priorityPossessiveWeight: 1.5,
+            priorityNameWeight: 0.5,
+            rosterBonus: 170,
+            rosterPriorityDropoff: 0.25,
+            distancePenaltyWeight: 0.8,
+        },
+    },
+    'Pronoun Guardian': {
+        description: 'Keeps pronoun hand-offs sticky and penalizes distant matches more heavily.',
+        builtIn: true,
+        weights: {
+            prioritySpeakerWeight: 4.5,
+            priorityAttributionWeight: 3.5,
+            priorityActionWeight: 3,
+            priorityPronounWeight: 3.5,
+            priorityVocativeWeight: 2,
+            priorityPossessiveWeight: 1.2,
+            priorityNameWeight: 0,
+            rosterBonus: 160,
+            rosterPriorityDropoff: 0.4,
+            distancePenaltyWeight: 1.4,
+        },
+    },
+};
+
+const BUILTIN_SCORE_PRESET_KEYS = new Set(Object.keys(DEFAULT_SCORE_PRESETS));
+
+const LEXICON_PACKS = {
+    fantasy: {
+        name: "Fantasy Field Notes",
+        description: "Adds archaic pronouns and common bard/warrior verbs.",
+        pronouns: ["thee", "thou", "thy", "thine", "yon", "ye"],
+        attributionVerbs: ["intoned", "proclaimed", "recited", "declared", "pronounced"],
+        actionVerbs: ["brandished", "summoned", "conjured", "smote", "unsheathed", "teleported"],
+    },
+    scifi: {
+        name: "Sci-Fi Ops",
+        description: "Bolsters technobabble verbs and synthetic pronouns.",
+        pronouns: ["xe", "xem", "xyr", "ze", "zir", "theyre"],
+        attributionVerbs: ["transmitted", "pinged", "reported", "uploaded"],
+        actionVerbs: ["calibrated", "recalibrated", "synced", "overclocked", "hacked", "booted"],
+    },
+    noir: {
+        name: "Noir Desk",
+        description: "Adds smoky narration staples for detective stories.",
+        pronouns: ["ya", "ya'll"],
+        attributionVerbs: ["muttered", "rasped", "drawled", "grumbled"],
+        actionVerbs: ["lurched", "leaned", "nursed", "shadowed", "tailed", "poured"],
+    },
+};
+
 const DEFAULT_PRONOUNS = ['he', 'she', 'they'];
+
+const COVERAGE_TOKEN_REGEX = /[\p{L}\p{M}']+/gu;
+
 const UNICODE_WORD_PATTERN = '[\\p{L}\\p{M}\\p{N}_]';
 const WORD_CHAR_REGEX = /[\\p{L}\\p{M}\\p{N}]/u;
 
@@ -140,12 +262,30 @@ const PROFILE_DEFAULTS = {
     distancePenaltyWeight: 1,
 };
 
+const KNOWN_PRONOUNS = new Set([
+    ...DEFAULT_PRONOUNS,
+    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.pronouns || []),
+    ...PROFILE_DEFAULTS.pronounVocabulary,
+].map(value => String(value).toLowerCase()));
+
+const KNOWN_ATTRIBUTION_VERBS = new Set([
+    ...PROFILE_DEFAULTS.attributionVerbs,
+    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.attributionVerbs || []),
+].map(value => String(value).toLowerCase()));
+
+const KNOWN_ACTION_VERBS = new Set([
+    ...PROFILE_DEFAULTS.actionVerbs,
+    ...Object.values(LEXICON_PACKS).flatMap(pack => pack.actionVerbs || []),
+].map(value => String(value).toLowerCase()));
+
 const DEFAULTS = {
     enabled: true,
     profiles: {
         'Default': structuredClone(PROFILE_DEFAULTS),
     },
     activeProfile: 'Default',
+    scorePresets: structuredClone(DEFAULT_SCORE_PRESETS),
+    activeScorePreset: 'Balanced Baseline',
     focusLock: { character: null },
 };
 
@@ -173,6 +313,8 @@ const state = {
     currentGenerationKey: null,
     mappingLookup: new Map(),
     messageKeyQueue: [],
+    activeScorePresetKey: null,
+    coverageDiagnostics: null,
 };
 
 const TAB_STORAGE_KEY = `${extensionName}-active-tab`;
@@ -675,6 +817,65 @@ function rankSceneCharacters(matches, options = {}) {
     return ranked;
 }
 
+function scoreMatchesDetailed(matches, textLength, options = {}) {
+    if (!Array.isArray(matches) || matches.length === 0) {
+        return [];
+    }
+
+    const profile = options.profile || getActiveProfile();
+    const detectionBias = Number(profile?.detectionBias) || 0;
+    const priorityMultiplier = Number.isFinite(options?.priorityMultiplier) ? options.priorityMultiplier : 100;
+    const rosterBonus = resolveNumericSetting(options?.rosterBonus, PROFILE_DEFAULTS.rosterBonus);
+    const rosterPriorityDropoff = resolveNumericSetting(options?.rosterPriorityDropoff, PROFILE_DEFAULTS.rosterPriorityDropoff);
+    const distancePenaltyWeight = resolveNumericSetting(options?.distancePenaltyWeight, PROFILE_DEFAULTS.distancePenaltyWeight);
+    const rosterSet = buildLowercaseSet(options?.rosterSet);
+
+    const scored = matches.map((match, idx) => {
+        const priority = Number(match?.priority) || 0;
+        const matchIndex = Number.isFinite(match?.matchIndex) ? match.matchIndex : idx;
+        const distanceFromEnd = Number.isFinite(textLength) ? Math.max(0, textLength - matchIndex) : 0;
+        const priorityScore = priority * priorityMultiplier;
+        const biasBonus = priority >= 3 ? detectionBias : 0;
+        let rosterBonusApplied = 0;
+        let inRoster = false;
+        if (rosterSet) {
+            const normalized = String(match?.name || '').toLowerCase();
+            if (normalized && rosterSet.has(normalized)) {
+                inRoster = true;
+                let bonus = rosterBonus;
+                if (priority >= 3 && rosterPriorityDropoff > 0) {
+                    const dropoffMultiplier = 1 - rosterPriorityDropoff * (priority - 2);
+                    bonus *= Math.max(0, dropoffMultiplier);
+                }
+                rosterBonusApplied = bonus;
+            }
+        }
+        const distancePenalty = distancePenaltyWeight * distanceFromEnd;
+        const totalScore = priorityScore + biasBonus + rosterBonusApplied - distancePenalty;
+        return {
+            name: match?.name || '(unknown)',
+            matchKind: match?.matchKind || 'unknown',
+            priority,
+            priorityScore,
+            biasBonus,
+            rosterBonus: rosterBonusApplied,
+            distancePenalty,
+            totalScore,
+            matchIndex,
+            charIndex: matchIndex,
+            inRoster,
+        };
+    });
+
+    scored.sort((a, b) => {
+        const scoreDiff = b.totalScore - a.totalScore;
+        if (scoreDiff !== 0) return scoreDiff;
+        return a.matchIndex - b.matchIndex;
+    });
+
+    return scored;
+}
+
 function ensureSessionData() {
     const settings = getSettings();
     if (!settings) return null;
@@ -1018,6 +1219,10 @@ function normalizeProfileNameInput(name) {
     return String(name ?? '').replace(/\s+/g, ' ').trim();
 }
 
+function normalizeScorePresetName(name) {
+    return String(name ?? '').replace(/\s+/g, ' ').trim();
+}
+
 function getUniqueProfileName(baseName = 'Profile') {
     const settings = getSettings();
     let attempt = normalizeProfileNameInput(baseName);
@@ -1062,6 +1267,270 @@ function populatePresetDropdown() {
         select.append($('<option>', { value: key, text: PRESETS[key].name }));
     }
     $("#cs-preset-description").text("Load a recommended configuration into the current profile.");
+}
+
+function normalizeScorePresetWeights(weights = {}) {
+    const normalized = {};
+    SCORE_WEIGHT_KEYS.forEach((key) => {
+        const fallback = PROFILE_DEFAULTS[key] ?? 0;
+        normalized[key] = resolveNumericSetting(weights?.[key], fallback);
+    });
+    return normalized;
+}
+
+function normalizeScorePresetEntry(name, preset) {
+    if (!name) return null;
+    const entry = typeof preset === 'object' && preset !== null ? preset : {};
+    const weights = normalizeScorePresetWeights(entry.weights || entry);
+    const createdAt = Number.isFinite(entry.createdAt) ? entry.createdAt : Date.now();
+    const normalized = {
+        name,
+        description: typeof entry.description === 'string' ? entry.description : '',
+        weights,
+        builtIn: Boolean(entry.builtIn) || BUILTIN_SCORE_PRESET_KEYS.has(name),
+        createdAt,
+        updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : createdAt,
+    };
+    return normalized;
+}
+
+function ensureScorePresetStructure(settings = getSettings()) {
+    if (!settings) return {};
+    let presets = settings.scorePresets;
+    if (!presets || typeof presets !== 'object') {
+        presets = structuredClone(DEFAULT_SCORE_PRESETS);
+    }
+
+    const merged = {};
+    const baseEntries = Object.entries(DEFAULT_SCORE_PRESETS);
+    baseEntries.forEach(([name, preset]) => {
+        const normalized = normalizeScorePresetEntry(name, preset);
+        if (normalized) {
+            merged[name] = normalized;
+        }
+    });
+
+    Object.entries(presets).forEach(([name, preset]) => {
+        const normalized = normalizeScorePresetEntry(name, preset);
+        if (normalized) {
+            merged[name] = normalized;
+        }
+    });
+
+    settings.scorePresets = merged;
+    if (!settings.activeScorePreset || !settings.scorePresets[settings.activeScorePreset]) {
+        settings.activeScorePreset = 'Balanced Baseline';
+    }
+    return settings.scorePresets;
+}
+
+function getScorePresetStore() {
+    const settings = getSettings();
+    return ensureScorePresetStructure(settings);
+}
+
+function formatScoreNumber(value, { showSign = false } = {}) {
+    if (!Number.isFinite(value)) return '—';
+    const isInt = Math.abs(value % 1) < 0.001;
+    let rounded = isInt ? Math.round(value) : Number(value.toFixed(2));
+    if (Object.is(rounded, -0)) {
+        rounded = 0;
+    }
+    let text = isInt ? String(rounded) : rounded.toString();
+    if (showSign) {
+        if (rounded > 0) return `+${text}`;
+        if (rounded < 0) return text;
+        return '0';
+    }
+    return text;
+}
+
+function collectScoreWeights(profile = getActiveProfile()) {
+    const weights = {};
+    SCORE_WEIGHT_KEYS.forEach((key) => {
+        const fallback = PROFILE_DEFAULTS[key] ?? 0;
+        weights[key] = resolveNumericSetting(profile?.[key], fallback);
+    });
+    return weights;
+}
+
+function applyScoreWeightsToProfile(profile, weights) {
+    if (!profile || !weights) return;
+    SCORE_WEIGHT_KEYS.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(weights, key)) {
+            const fallback = PROFILE_DEFAULTS[key] ?? 0;
+            profile[key] = resolveNumericSetting(weights[key], fallback);
+        }
+    });
+}
+
+function getScorePresetList() {
+    const store = getScorePresetStore();
+    const presets = Object.values(store || {});
+    return presets.sort((a, b) => {
+        if (a.builtIn !== b.builtIn) return a.builtIn ? -1 : 1;
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+}
+
+function updateScorePresetNameInputPlaceholder() {
+    const input = $("#cs-score-preset-name");
+    if (!input.length) return;
+    if (state.activeScorePresetKey) {
+        input.attr('placeholder', `Name… (selected: ${state.activeScorePresetKey})`);
+    } else {
+        input.attr('placeholder', 'Enter a name…');
+    }
+}
+
+function populateScorePresetDropdown(selectedName = null) {
+    const select = $("#cs-score-preset-select");
+    if (!select.length) return;
+    const presets = getScorePresetList();
+    select.empty().append($('<option>', { value: '', text: 'Select a scoring preset…' }));
+    presets.forEach((preset) => {
+        const option = $('<option>', {
+            value: preset.name,
+            text: preset.builtIn ? `${preset.name} (built-in)` : preset.name,
+        });
+        if (preset.builtIn) {
+            option.attr('data-built-in', 'true');
+        }
+        select.append(option);
+    });
+
+    let target = selectedName;
+    if (!target || !select.find(`option[value="${target.replace(/"/g, '\"')}"]`).length) {
+        target = getSettings()?.activeScorePreset || '';
+    }
+    if (target && select.find(`option[value="${target.replace(/"/g, '\"')}"]`).length) {
+        select.val(target);
+        state.activeScorePresetKey = target;
+    } else {
+        select.val('');
+        state.activeScorePresetKey = null;
+    }
+    updateScorePresetNameInputPlaceholder();
+    renderScorePresetPreview(state.activeScorePresetKey);
+}
+
+function renderScorePresetPreview(presetName) {
+    const previewContainer = $("#cs-score-preset-preview");
+    const messageEl = $("#cs-score-preset-message");
+    if (!previewContainer.length) return;
+
+    const store = getScorePresetStore();
+    const preset = presetName && store?.[presetName] ? store[presetName] : null;
+    const currentWeights = collectScoreWeights();
+
+    if (!preset) {
+        previewContainer.html('<p class="cs-helper-text">Pick a preset to compare scoring weights.</p>');
+        if (messageEl.length) {
+            messageEl.text('Select a preset to preview its scoring emphasis against the active profile.');
+        }
+        return;
+    }
+
+    const weights = preset.weights || {};
+    const maxValue = SCORE_WEIGHT_KEYS.reduce((max, key) => {
+        const presetVal = Math.abs(Number(weights[key] ?? 0));
+        const currentVal = Math.abs(Number(currentWeights[key] ?? 0));
+        return Math.max(max, presetVal, currentVal);
+    }, 1);
+
+    const table = $('<table>').addClass('cs-score-preview-table');
+    const tbody = $('<tbody>');
+    SCORE_WEIGHT_KEYS.forEach((key) => {
+        const label = SCORE_WEIGHT_LABELS[key] || key;
+        const presetVal = Number(weights[key] ?? 0);
+        const currentVal = Number(currentWeights[key] ?? 0);
+        const delta = presetVal - currentVal;
+        const diffText = delta === 0 ? '—' : formatScoreNumber(delta, { showSign: true });
+        const diffClass = delta > 0 ? 'is-positive' : delta < 0 ? 'is-negative' : 'is-neutral';
+        const width = Math.min(100, Math.abs(presetVal) / maxValue * 100);
+
+        const bar = $('<div>').addClass('cs-weight-bar');
+        bar.append($('<span>').addClass('cs-weight-bar-fill').toggleClass('is-negative', presetVal < 0).css('width', `${width}%`));
+        bar.append($('<span>').addClass('cs-weight-bar-value').text(formatScoreNumber(presetVal)));
+
+        const row = $('<tr>');
+        row.append($('<th>').text(label));
+        row.append($('<td>').append(bar));
+        row.append($('<td>').text(formatScoreNumber(currentVal)));
+        row.append($('<td>').addClass(diffClass).text(diffText));
+        tbody.append(row);
+    });
+    table.append(tbody);
+
+    previewContainer.empty().append(table);
+    if (messageEl.length) {
+        const parts = [];
+        if (preset.description) parts.push(preset.description);
+        parts.push(preset.builtIn ? 'Built-in preset' : 'Custom preset');
+        messageEl.text(parts.join(' • '));
+    }
+}
+
+function setActiveScorePreset(name) {
+    const settings = getSettings();
+    if (!settings) return;
+    if (name && settings.scorePresets?.[name]) {
+        settings.activeScorePreset = name;
+        state.activeScorePresetKey = name;
+    } else {
+        state.activeScorePresetKey = null;
+        settings.activeScorePreset = '';
+    }
+    updateScorePresetNameInputPlaceholder();
+}
+
+function upsertScorePreset(name, presetData = {}) {
+    if (!name) return null;
+    const store = getScorePresetStore();
+    const existing = store?.[name];
+    const payload = {
+        ...existing,
+        ...presetData,
+    };
+    payload.builtIn = Boolean(payload.builtIn) || BUILTIN_SCORE_PRESET_KEYS.has(name);
+    if (!existing || !Number.isFinite(payload.createdAt)) {
+        payload.createdAt = Date.now();
+    }
+    payload.updatedAt = Date.now();
+    const normalized = normalizeScorePresetEntry(name, payload);
+    if (normalized && existing?.createdAt) {
+        normalized.createdAt = existing.createdAt;
+    }
+    if (normalized) {
+        store[name] = normalized;
+    }
+    return normalized;
+}
+
+function deleteScorePreset(name) {
+    if (!name) return false;
+    const store = getScorePresetStore();
+    const preset = store?.[name];
+    if (!preset || preset.builtIn) {
+        return false;
+    }
+    delete store[name];
+    if (state.activeScorePresetKey === name) {
+        setActiveScorePreset('');
+    }
+    return true;
+}
+
+function applyScorePresetByName(name) {
+    const store = getScorePresetStore();
+    const preset = store?.[name];
+    if (!preset) return false;
+    const profile = getActiveProfile();
+    if (!profile) return false;
+    applyScoreWeightsToProfile(profile, preset.weights);
+    syncProfileFieldsToUI(profile, SCORE_WEIGHT_KEYS);
+    renderScorePresetPreview(name);
+    return true;
 }
 
 
@@ -1153,6 +1622,8 @@ function loadProfile(profileName) {
     renderMappings(profile);
     recompileRegexes();
     updateFocusLockUI();
+    populateScorePresetDropdown(getSettings()?.activeScorePreset || state.activeScorePresetKey);
+    refreshCoverageFromLastReport();
 }
 
 function saveCurrentProfileData() {
@@ -1333,6 +1804,265 @@ function updateTesterTopCharactersDisplay(entries) {
 
     el.textContent = entries.map(entry => entry.name).join(', ');
     el.classList.remove('cs-tester-list-placeholder');
+}
+
+function renderTesterScoreBreakdown(details) {
+    const table = $('#cs-test-score-breakdown');
+    if (!table.length) return;
+    let tbody = table.find('tbody');
+    if (!tbody.length) {
+        tbody = $('<tbody>');
+        table.append(tbody);
+    }
+    tbody.empty();
+
+    if (!Array.isArray(details) || !details.length) {
+        tbody.append($('<tr>').append($('<td>', {
+            colspan: 3,
+            class: 'cs-tester-list-placeholder',
+            text: 'Run the tester to see weighted scores.',
+        })));
+        return;
+    }
+
+    const maxAbs = details.reduce((max, detail) => {
+        if (!detail) return max;
+        const positive = Math.max(0, (detail.priorityScore || 0) + (detail.biasBonus || 0) + (detail.rosterBonus || 0));
+        const penalty = Math.max(0, detail.distancePenalty || 0);
+        const total = Math.abs(detail.totalScore || 0);
+        return Math.max(max, positive, penalty, total);
+    }, 1);
+
+    details.forEach((detail) => {
+        if (!detail) return;
+        const triggerCell = $('<td>').append(
+            $('<div>').addClass('cs-score-trigger')
+                .append($('<strong>').text(detail.name || '(unknown)'))
+                .append($('<small>').text(`${detail.matchKind || 'unknown'} • char ${Number.isFinite(detail.charIndex) ? detail.charIndex + 1 : '?'}`))
+        );
+
+        const positive = Math.max(0, (detail.priorityScore || 0) + (detail.biasBonus || 0) + (detail.rosterBonus || 0));
+        const penalty = Math.max(0, detail.distancePenalty || 0);
+        const positiveWidth = Math.min(100, (positive / maxAbs) * 100);
+        const penaltyWidth = Math.min(100, (penalty / maxAbs) * 100);
+        const bar = $('<div>').addClass('cs-score-bar');
+        if (positiveWidth > 0) {
+            bar.append($('<span>').addClass('cs-score-bar-positive').css('width', `${positiveWidth}%`));
+        }
+        if (penaltyWidth > 0) {
+            bar.append($('<span>').addClass('cs-score-bar-penalty').css('width', `${penaltyWidth}%`));
+        }
+        bar.append($('<span>').addClass('cs-score-bar-total').text(formatScoreNumber(detail.totalScore)));
+        const totalCell = $('<td>').append(bar);
+
+        const breakdownParts = [];
+        breakdownParts.push(`priority ${formatScoreNumber(detail.priorityScore)}`);
+        if (detail.biasBonus) {
+            breakdownParts.push(`bias ${formatScoreNumber(detail.biasBonus, { showSign: true })}`);
+        }
+        if (detail.rosterBonus) {
+            breakdownParts.push(`roster ${formatScoreNumber(detail.rosterBonus, { showSign: true })}`);
+        }
+        if (detail.distancePenalty) {
+            breakdownParts.push(`distance -${formatScoreNumber(detail.distancePenalty)}`);
+        }
+        const breakdownCell = $('<td>').text(breakdownParts.join(' · ') || '—');
+
+        const row = $('<tr>').append(triggerCell, totalCell, breakdownCell);
+        if (detail.totalScore < 0) {
+            row.addClass('cs-score-row-negative');
+        }
+        if (detail.inRoster) {
+            row.addClass('cs-score-row-roster');
+        }
+        tbody.append(row);
+    });
+}
+
+function renderTesterRosterTimeline(events, warnings) {
+    const list = $('#cs-test-roster-timeline');
+    if (!list.length) return;
+    list.empty();
+
+    if (!Array.isArray(events) || !events.length) {
+        list.append($('<li>').addClass('cs-tester-list-placeholder').text('No roster activity in this sample.'));
+    } else {
+        events.forEach((event) => {
+            if (!event) return;
+            const item = $('<li>').addClass('cs-roster-event');
+            if (event.type === 'join') {
+                item.addClass('cs-roster-event-join');
+                item.append($('<strong>').text(event.name || '(unknown)'));
+                item.append($('<small>').text(`${event.matchKind || 'unknown'} • char ${Number.isFinite(event.charIndex) ? event.charIndex + 1 : '?'}`));
+            } else if (event.type === 'refresh') {
+                item.addClass('cs-roster-event-refresh');
+                item.append($('<strong>').text(event.name || '(unknown)'));
+                item.append($('<small>').text(`refreshed via ${event.matchKind || 'unknown'} @ char ${Number.isFinite(event.charIndex) ? event.charIndex + 1 : '?'}`));
+            } else if (event.type === 'expiry-warning') {
+                item.addClass('cs-roster-event-warning');
+                const names = Array.isArray(event.names) && event.names.length ? event.names.join(', ') : '(unknown)';
+                item.append($('<strong>').text('TTL warning'));
+                item.append($('<small>').text(`${names} expire after this message`));
+            } else {
+                item.append($('<strong>').text(event.name || '(unknown)'));
+            }
+            list.append(item);
+        });
+    }
+
+    const warningContainer = $('#cs-test-roster-warning');
+    if (warningContainer.length) {
+        warningContainer.empty();
+        if (Array.isArray(warnings) && warnings.length) {
+            warnings.forEach((warning) => {
+                const message = warning?.message || 'Roster TTL warning triggered.';
+                warningContainer.append($('<div>').addClass('cs-roster-warning').text(message));
+            });
+        } else {
+            warningContainer.text('No TTL warnings triggered.');
+        }
+    }
+}
+
+function normalizeVerbCandidate(word) {
+    let base = String(word || '').toLowerCase();
+    base = base.replace(/['’]s$/u, '');
+    if (base.endsWith('ing') && base.length > 4) {
+        base = base.slice(0, -3);
+    } else if (base.endsWith('ies') && base.length > 4) {
+        base = `${base.slice(0, -3)}y`;
+    } else if (base.endsWith('ed') && base.length > 3) {
+        base = base.slice(0, -2);
+    } else if (base.endsWith('es') && base.length > 3) {
+        base = base.slice(0, -2);
+    } else if (base.endsWith('s') && base.length > 3) {
+        base = base.slice(0, -1);
+    }
+    return base;
+}
+
+function analyzeCoverageDiagnostics(text, profile = getActiveProfile()) {
+    if (!text) {
+        return { missingPronouns: [], missingAttributionVerbs: [], missingActionVerbs: [], totalTokens: 0 };
+    }
+
+    const normalized = normalizeStreamText(text).toLowerCase();
+    const tokens = normalized.match(COVERAGE_TOKEN_REGEX) || [];
+    const pronounSet = new Set((profile?.pronounVocabulary || DEFAULT_PRONOUNS).map(value => String(value).toLowerCase()));
+    const attributionSet = new Set((profile?.attributionVerbs || []).map(value => String(value).toLowerCase()));
+    const actionSet = new Set((profile?.actionVerbs || []).map(value => String(value).toLowerCase()));
+
+    const missingPronouns = new Set();
+    const missingAttribution = new Set();
+    const missingAction = new Set();
+
+    tokens.forEach((token) => {
+        const lower = String(token || '').toLowerCase();
+        if (KNOWN_PRONOUNS.has(lower) && !pronounSet.has(lower)) {
+            missingPronouns.add(lower);
+        }
+        const base = normalizeVerbCandidate(lower);
+        if (KNOWN_ATTRIBUTION_VERBS.has(base) && !attributionSet.has(base)) {
+            missingAttribution.add(base);
+        }
+        if (KNOWN_ACTION_VERBS.has(base) && !actionSet.has(base)) {
+            missingAction.add(base);
+        }
+    });
+
+    return {
+        missingPronouns: Array.from(missingPronouns).sort(),
+        missingAttributionVerbs: Array.from(missingAttribution).sort(),
+        missingActionVerbs: Array.from(missingAction).sort(),
+        totalTokens: tokens.length,
+    };
+}
+
+function renderCoverageDiagnostics(result) {
+    const data = result || { missingPronouns: [], missingAttributionVerbs: [], missingActionVerbs: [] };
+    const update = (selector, values, type) => {
+        const container = $(selector);
+        if (!container.length) return;
+        container.empty();
+        if (!Array.isArray(values) || !values.length) {
+            container.append($('<span>').addClass('cs-tester-list-placeholder').text('No gaps detected.'));
+            return;
+        }
+        values.forEach((value) => {
+            const pill = $('<button>')
+                .addClass('cs-coverage-pill')
+                .attr('type', 'button')
+                .attr('data-type', type)
+                .attr('data-value', value)
+                .text(value);
+            container.append(pill);
+        });
+    };
+
+    update('#cs-coverage-pronouns', data.missingPronouns, 'pronoun');
+    update('#cs-coverage-attribution', data.missingAttributionVerbs, 'attribution');
+    update('#cs-coverage-action', data.missingActionVerbs, 'action');
+    state.coverageDiagnostics = data;
+}
+
+function refreshCoverageFromLastReport() {
+    const text = state.lastTesterReport?.normalizedInput;
+    const profile = getActiveProfile();
+    if (text) {
+        const coverage = analyzeCoverageDiagnostics(text, profile);
+        renderCoverageDiagnostics(coverage);
+        if (state.lastTesterReport) {
+            state.lastTesterReport.coverage = coverage;
+        }
+    } else {
+        renderCoverageDiagnostics(null);
+    }
+}
+
+function mergeLexiconList(target = [], additions = []) {
+    const list = Array.isArray(target) ? [...target] : [];
+    const seen = new Set(list.map(item => String(item).toLowerCase()));
+    (additions || []).forEach((item) => {
+        const value = String(item || '').trim();
+        if (!value) return;
+        const lower = value.toLowerCase();
+        if (!seen.has(lower)) {
+            list.push(value);
+            seen.add(lower);
+        }
+    });
+    return list;
+}
+
+function applyLexiconPack(packKey) {
+    const pack = LEXICON_PACKS?.[packKey];
+    const profile = getActiveProfile();
+    if (!pack || !profile) {
+        return false;
+    }
+
+    profile.pronounVocabulary = mergeLexiconList(profile.pronounVocabulary, pack.pronouns);
+    profile.attributionVerbs = mergeLexiconList(profile.attributionVerbs, pack.attributionVerbs);
+    profile.actionVerbs = mergeLexiconList(profile.actionVerbs, pack.actionVerbs);
+    syncProfileFieldsToUI(profile, ['pronounVocabulary', 'attributionVerbs', 'actionVerbs']);
+    recompileRegexes();
+    refreshCoverageFromLastReport();
+    return true;
+}
+
+function populateLexiconPackButtons() {
+    const container = $('#cs-lexicon-pack-buttons');
+    if (!container.length) return;
+    container.empty();
+    Object.entries(LEXICON_PACKS).forEach(([key, pack]) => {
+        const button = $('<button>')
+            .addClass('menu_button interactable cs-lexicon-pack')
+            .attr('type', 'button')
+            .attr('data-pack', key)
+            .attr('title', pack.description || '')
+            .text(pack.name);
+        container.append(button);
+    });
 }
 
 function copyTextToClipboard(text) {
@@ -1524,6 +2254,27 @@ function formatTesterReport(report) {
         lines.push('  (none)');
     }
 
+    if (Array.isArray(report.scoreDetails)) {
+        lines.push('');
+        lines.push('Detection Score Breakdown:');
+        if (report.scoreDetails.length) {
+            report.scoreDetails.slice(0, 10).forEach((detail, idx) => {
+                const charPos = Number.isFinite(detail.charIndex) ? detail.charIndex + 1 : '?';
+                const parts = [];
+                parts.push(`priority ${formatScoreNumber(detail.priorityScore)}`);
+                if (detail.biasBonus) parts.push(`bias ${formatScoreNumber(detail.biasBonus, { showSign: true })}`);
+                if (detail.rosterBonus) parts.push(`roster ${formatScoreNumber(detail.rosterBonus, { showSign: true })}`);
+                if (detail.distancePenalty) parts.push(`distance -${formatScoreNumber(detail.distancePenalty)}`);
+                lines.push(`  ${idx + 1}. ${detail.name} (${detail.matchKind}) – total ${formatScoreNumber(detail.totalScore)} [${parts.join(', ')}] @ char ${charPos}`);
+            });
+            if (report.scoreDetails.length > 10) {
+                lines.push(`  ... (${report.scoreDetails.length - 10} more detections)`);
+            }
+        } else {
+            lines.push('  (none)');
+        }
+    }
+
     const switchSummary = summarizeSwitchesForReport(report.events || []);
     lines.push('');
     lines.push('Switch Summary:');
@@ -1598,6 +2349,48 @@ function formatTesterReport(report) {
         }
     }
 
+    if (Array.isArray(report.rosterTimeline)) {
+        lines.push('');
+        lines.push('Roster Timeline:');
+        if (report.rosterTimeline.length) {
+            report.rosterTimeline.forEach((event, idx) => {
+                if (event.type === 'join') {
+                    lines.push(`  ${idx + 1}. ${event.name} joined via ${event.matchKind || 'unknown'} (char ${Number.isFinite(event.charIndex) ? event.charIndex + 1 : '?'})`);
+                } else if (event.type === 'refresh') {
+                    lines.push(`  ${idx + 1}. ${event.name} refreshed (char ${Number.isFinite(event.charIndex) ? event.charIndex + 1 : '?'})`);
+                } else if (event.type === 'expiry-warning') {
+                    const names = Array.isArray(event.names) && event.names.length ? event.names.join(', ') : '(unknown)';
+                    lines.push(`  ${idx + 1}. TTL warning for ${names}`);
+                } else {
+                    lines.push(`  ${idx + 1}. ${event.name || '(event)'}`);
+                }
+            });
+        } else {
+            lines.push('  (none)');
+        }
+    }
+
+    if (Array.isArray(report.rosterWarnings) && report.rosterWarnings.length) {
+        lines.push('');
+        lines.push('Roster Warnings:');
+        report.rosterWarnings.forEach((warning, idx) => {
+            const message = warning?.message || 'Roster TTL warning triggered.';
+            lines.push(`  ${idx + 1}. ${message}`);
+        });
+    }
+
+    if (report.coverage) {
+        lines.push('');
+        lines.push('Vocabulary Coverage:');
+        const coverage = report.coverage;
+        const pronouns = coverage.missingPronouns?.length ? coverage.missingPronouns.join(', ') : 'none';
+        const attribution = coverage.missingAttributionVerbs?.length ? coverage.missingAttributionVerbs.join(', ') : 'none';
+        const action = coverage.missingActionVerbs?.length ? coverage.missingActionVerbs.join(', ') : 'none';
+        lines.push(`  Missing pronouns: ${pronouns}`);
+        lines.push(`  Missing attribution verbs: ${attribution}`);
+        lines.push(`  Missing action verbs: ${action}`);
+    }
+
     if (report.profileSnapshot) {
         const summaryKeys = ['globalCooldownMs', 'perTriggerCooldownMs', 'repeatSuppressMs', 'tokenProcessThreshold'];
         lines.push('');
@@ -1649,7 +2442,7 @@ function simulateTesterStream(combined, profile, bufKey) {
     const events = [];
     const msgState = state.perMessageStates.get(bufKey);
     if (!msgState) {
-        return { events, finalState: null };
+        return { events, finalState: null, rosterTimeline: [], rosterWarnings: [] };
     }
 
     const simulationState = {
@@ -1664,6 +2457,9 @@ function simulateTesterStream(combined, profile, bufKey) {
     const rosterTTL = profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL;
     const repeatSuppress = Number(profile.repeatSuppressMs) || 0;
     let buffer = '';
+    const rosterTimeline = [];
+    const rosterWarnings = [];
+    const rosterDisplayNames = new Map();
     for (let i = 0; i < combined.length; i++) {
         buffer = (buffer + combined[i]).slice(-maxBuffer);
         state.perMessageBuffers.set(bufKey, buffer);
@@ -1686,8 +2482,21 @@ function simulateTesterStream(combined, profile, bufKey) {
         if (!bestMatch) continue;
 
         if (profile.enableSceneRoster) {
-            msgState.sceneRoster.add(bestMatch.name.toLowerCase());
+            const normalized = String(bestMatch.name || '').toLowerCase();
+            const wasPresent = normalized ? msgState.sceneRoster.has(normalized) : false;
+            if (normalized) {
+                msgState.sceneRoster.add(normalized);
+                rosterDisplayNames.set(normalized, bestMatch.name);
+            }
             msgState.rosterTTL = rosterTTL;
+            rosterTimeline.push({
+                type: wasPresent ? 'refresh' : 'join',
+                name: bestMatch.name,
+                matchKind: bestMatch.matchKind,
+                charIndex: i,
+                timestamp: i * 50,
+                rosterSize: msgState.sceneRoster.size,
+            });
         }
 
         if (bestMatch.matchKind !== 'pronoun') {
@@ -1707,13 +2516,13 @@ function simulateTesterStream(combined, profile, bufKey) {
         const decision = evaluateSwitchDecision(bestMatch.name, { matchKind: bestMatch.matchKind }, simulationState, virtualNow);
         if (decision.shouldSwitch) {
             events.push({
-                type: 'switch',
-                name: bestMatch.name,
-                folder: decision.folder,
-                matchKind: bestMatch.matchKind,
-                score: Math.round(bestMatch.score ?? 0),
-                charIndex: i,
-            });
+        type: 'switch',
+        name: bestMatch.name,
+        folder: decision.folder,
+        matchKind: bestMatch.matchKind,
+        score: Math.round(bestMatch.score ?? 0),
+        charIndex: i,
+    });
             simulationState.lastIssuedCostume = decision.name;
             simulationState.lastSwitchTimestamp = decision.now;
             simulationState.lastTriggerTimes.set(decision.folder, decision.now);
@@ -1739,7 +2548,27 @@ function simulateTesterStream(combined, profile, bufKey) {
         virtualDurationMs: combined.length > 0 ? Math.max(0, (combined.length - 1) * 50) : 0,
     };
 
-    return { events, finalState };
+    if (profile.enableSceneRoster && msgState.sceneRoster.size > 0) {
+        const turnsRemaining = (msgState.rosterTTL ?? rosterTTL) - 1;
+        if (turnsRemaining <= 0) {
+            const names = Array.from(msgState.sceneRoster || []).map((name) => rosterDisplayNames.get(name) || name);
+            rosterWarnings.push({
+                type: 'ttl-expiry',
+                turnsRemaining: Math.max(0, turnsRemaining),
+                names,
+                message: `Scene roster TTL of ${rosterTTL} will clear ${names.join(', ')} before the next message. Consider increas` +
+                    'ing the TTL for longer conversations.',
+            });
+            rosterTimeline.push({
+                type: 'expiry-warning',
+                turnsRemaining: Math.max(0, turnsRemaining),
+                names,
+                timestamp: finalState.virtualDurationMs,
+            });
+        }
+    }
+
+    return { events, finalState, rosterTimeline, rosterWarnings };
 }
 
 function renderTesterStream(eventList, events) {
@@ -1780,6 +2609,9 @@ function testRegexPattern() {
     updateTesterCopyButton();
     updateTesterTopCharactersDisplay(null);
     $("#cs-test-veto-result").text('N/A').css('color', 'var(--text-color-soft)');
+    renderTesterScoreBreakdown(null);
+    renderTesterRosterTimeline(null, null);
+    renderCoverageDiagnostics(null);
     const text = $("#cs-regex-test-input").val();
     if (!text) {
         $("#cs-test-all-detections, #cs-test-winner-list").html('<li class="cs-tester-list-placeholder">Enter text to test.</li>');
@@ -1822,13 +2654,18 @@ function testRegexPattern() {
         generatedAt: Date.now(),
     };
 
+    const coverage = analyzeCoverageDiagnostics(combined, tempProfile);
+
     if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(combined)) {
         const vetoMatch = combined.match(state.compiledRegexes.vetoRegex)?.[0] || 'unknown veto phrase';
         $("#cs-test-veto-result").html(`Vetoed by: <b style="color: var(--red);">${vetoMatch}</b>`);
         allDetectionsList.html('<li class="cs-tester-list-placeholder">Message vetoed.</li>');
         const vetoEvents = [{ type: 'veto', match: vetoMatch, charIndex: combined.length - 1 }];
         renderTesterStream(streamList, vetoEvents);
-        state.lastTesterReport = { ...reportBase, vetoed: true, vetoMatch, events: vetoEvents, matches: [], topCharacters: [] };
+        renderTesterScoreBreakdown([]);
+        renderTesterRosterTimeline([], []);
+        renderCoverageDiagnostics(coverage);
+        state.lastTesterReport = { ...reportBase, vetoed: true, vetoMatch, events: vetoEvents, matches: [], topCharacters: [], rosterTimeline: [], rosterWarnings: [], scoreDetails: [], coverage };
         updateTesterTopCharactersDisplay([]);
         updateTesterCopyButton();
     } else {
@@ -1857,6 +2694,17 @@ function testRegexPattern() {
             rosterBonus: resolveNumericSetting(tempProfile?.rosterBonus, PROFILE_DEFAULTS.rosterBonus),
             priorityMultiplier: 100,
         });
+        const detailedScores = scoreMatchesDetailed(allMatches, combined.length, {
+            rosterSet: testerRoster,
+            profile: tempProfile,
+            distancePenaltyWeight: resolveNumericSetting(tempProfile?.distancePenaltyWeight, PROFILE_DEFAULTS.distancePenaltyWeight),
+            rosterBonus: resolveNumericSetting(tempProfile?.rosterBonus, PROFILE_DEFAULTS.rosterBonus),
+            rosterPriorityDropoff: resolveNumericSetting(tempProfile?.rosterPriorityDropoff, PROFILE_DEFAULTS.rosterPriorityDropoff),
+            priorityMultiplier: 100,
+        });
+        renderTesterScoreBreakdown(detailedScores);
+        renderTesterRosterTimeline(simulationResult?.rosterTimeline || [], simulationResult?.rosterWarnings || []);
+        renderCoverageDiagnostics(coverage);
         updateTesterTopCharactersDisplay(topCharacters);
         state.lastTesterReport = {
             ...reportBase,
@@ -1880,6 +2728,10 @@ function testRegexPattern() {
                 inSceneRoster: entry.inSceneRoster,
                 score: Number.isFinite(entry.score) ? Math.round(entry.score) : 0,
             })),
+            rosterTimeline: Array.isArray(simulationResult?.rosterTimeline) ? simulationResult.rosterTimeline.map(event => ({ ...event })) : [],
+            rosterWarnings: Array.isArray(simulationResult?.rosterWarnings) ? simulationResult.rosterWarnings.map(warn => ({ ...warn })) : [],
+            scoreDetails: detailedScores.map(detail => ({ ...detail })),
+            coverage,
         };
         updateTesterCopyButton();
     }
@@ -2010,6 +2862,17 @@ function wireUI() {
             descriptionEl.text("Load a recommended configuration into the current profile.");
         }
     });
+    $(document).on('change', '#cs-score-preset-select', function() {
+        const selected = $(this).val();
+        if (selected) {
+            setActiveScorePreset(selected);
+            renderScorePresetPreview(selected);
+        } else {
+            setActiveScorePreset('');
+            renderScorePresetPreview(null);
+        }
+        $('#cs-score-preset-name').val('');
+    });
     $(document).on('click', '#cs-preset-load', () => {
         const presetKey = $("#cs-preset-select").val();
         if (!presetKey) {
@@ -2022,6 +2885,172 @@ function wireUI() {
             Object.assign(currentProfile, preset.settings);
             loadProfile(settings.activeProfile); // Reload UI to show changes
             persistSettings(`"${preset.name}" preset loaded.`);
+        }
+    });
+    $(document).on('click', '#cs-score-preset-apply', () => {
+        const selected = $("#cs-score-preset-select").val();
+        if (!selected) {
+            showStatus('Select a scoring preset to apply.', 'error');
+            return;
+        }
+        if (applyScorePresetByName(selected)) {
+            setActiveScorePreset(selected);
+            persistSettings(`Applied scoring preset "${escapeHtml(selected)}".`);
+        } else {
+            showStatus('Unable to apply the selected preset.', 'error');
+        }
+    });
+    $(document).on('click', '#cs-score-preset-save', () => {
+        const selected = $("#cs-score-preset-select").val();
+        if (!selected) {
+            showStatus('Select a preset to overwrite or use Save As to create a new one.', 'error');
+            return;
+        }
+        const store = getScorePresetStore();
+        const preset = store?.[selected];
+        if (!preset) {
+            showStatus('Preset not found.', 'error');
+            return;
+        }
+        if (preset.builtIn) {
+            showStatus('Built-in presets are read-only. Use Save As to create your own copy.', 'error');
+            return;
+        }
+        const weights = collectScoreWeights();
+        upsertScorePreset(selected, { weights, description: preset.description, builtIn: false, createdAt: preset.createdAt });
+        populateScorePresetDropdown(selected);
+        persistSettings(`Updated preset "${escapeHtml(selected)}".`);
+    });
+    $(document).on('click', '#cs-score-preset-saveas', () => {
+        const desiredRaw = $("#cs-score-preset-name").val();
+        const desired = normalizeScorePresetName(desiredRaw);
+        if (!desired) {
+            showStatus('Enter a name before saving a new scoring preset.', 'error');
+            return;
+        }
+        if (BUILTIN_SCORE_PRESET_KEYS.has(desired)) {
+            showStatus('That name is reserved for a built-in preset. Please choose another.', 'error');
+            return;
+        }
+        const store = getScorePresetStore();
+        if (store[desired] && !confirm(`A preset named "${desired}" already exists. Overwrite it?`)) {
+            return;
+        }
+        const weights = collectScoreWeights();
+        upsertScorePreset(desired, { weights, description: store[desired]?.description || '', builtIn: false });
+        setActiveScorePreset(desired);
+        populateScorePresetDropdown(desired);
+        $("#cs-score-preset-name").val('');
+        persistSettings(`Saved current weights as "${escapeHtml(desired)}".`);
+    });
+    $(document).on('click', '#cs-score-preset-rename', () => {
+        const selected = $("#cs-score-preset-select").val();
+        if (!selected) {
+            showStatus('Select a preset to rename.', 'error');
+            return;
+        }
+        const store = getScorePresetStore();
+        const preset = store?.[selected];
+        if (!preset) {
+            showStatus('Preset not found.', 'error');
+            return;
+        }
+        if (preset.builtIn) {
+            showStatus('Built-in presets cannot be renamed.', 'error');
+            return;
+        }
+        const desiredRaw = $("#cs-score-preset-name").val();
+        const desired = normalizeScorePresetName(desiredRaw);
+        if (!desired) {
+            showStatus('Enter a new name to rename the preset.', 'error');
+            return;
+        }
+        if (BUILTIN_SCORE_PRESET_KEYS.has(desired)) {
+            showStatus('That name is reserved for a built-in preset. Please choose another.', 'error');
+            return;
+        }
+        if (getScorePresetStore()?.[desired] && desired !== selected) {
+            showStatus('Another preset already uses that name.', 'error');
+            return;
+        }
+        if (desired === selected) {
+            showStatus('Preset already uses that name.', 'info');
+            return;
+        }
+        const clone = { ...preset, name: desired, builtIn: false };
+        delete store[selected];
+        const normalized = normalizeScorePresetEntry(desired, clone);
+        if (normalized) {
+            normalized.createdAt = preset.createdAt;
+            normalized.updatedAt = Date.now();
+            store[desired] = normalized;
+            setActiveScorePreset(desired);
+            populateScorePresetDropdown(desired);
+            $("#cs-score-preset-name").val('');
+            persistSettings(`Renamed preset to "${escapeHtml(desired)}".`);
+        } else {
+            store[selected] = preset;
+            showStatus('Unable to rename preset.', 'error');
+        }
+    });
+    $(document).on('click', '#cs-score-preset-delete', () => {
+        const selected = $("#cs-score-preset-select").val();
+        if (!selected) {
+            showStatus('Select a preset to delete.', 'error');
+            return;
+        }
+        const store = getScorePresetStore();
+        const preset = store?.[selected];
+        if (!preset) {
+            showStatus('Preset not found.', 'error');
+            return;
+        }
+        if (preset.builtIn) {
+            showStatus('Built-in presets cannot be deleted.', 'error');
+            return;
+        }
+        if (!confirm(`Delete preset "${selected}"? This cannot be undone.`)) {
+            return;
+        }
+        if (deleteScorePreset(selected)) {
+            populateScorePresetDropdown('');
+            $("#cs-score-preset-name").val('');
+            persistSettings(`Deleted preset "${escapeHtml(selected)}".`, 'info');
+        } else {
+            showStatus('Unable to delete preset.', 'error');
+        }
+    });
+    $(document).on('click', '.cs-coverage-pill', function() {
+        const profile = getActiveProfile();
+        if (!profile) return;
+        const type = $(this).data('type');
+        const value = String($(this).data('value') || '').trim();
+        if (!value) return;
+        let field = null;
+        if (type === 'pronoun') {
+            profile.pronounVocabulary = mergeLexiconList(profile.pronounVocabulary, [value]);
+            field = 'pronounVocabulary';
+        } else if (type === 'attribution') {
+            profile.attributionVerbs = mergeLexiconList(profile.attributionVerbs, [value]);
+            field = 'attributionVerbs';
+        } else if (type === 'action') {
+            profile.actionVerbs = mergeLexiconList(profile.actionVerbs, [value]);
+            field = 'actionVerbs';
+        }
+        if (field) {
+            syncProfileFieldsToUI(profile, [field]);
+            recompileRegexes();
+            refreshCoverageFromLastReport();
+            showStatus(`Added "${escapeHtml(value)}" to ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}.`, 'success');
+        }
+    });
+    $(document).on('click', '.cs-lexicon-pack', function() {
+        const key = $(this).data('pack');
+        if (applyLexiconPack(key)) {
+            const packName = LEXICON_PACKS?.[key]?.name || 'Lexicon pack';
+            showStatus(`Imported ${escapeHtml(packName)}.`, 'success');
+        } else {
+            showStatus('Unable to apply lexicon pack.', 'error');
         }
     });
     $(document).on('click', '#cs-focus-lock-toggle', async () => {
@@ -2726,6 +3755,8 @@ function getSettingsObj() {
         storeSource[extensionName].profiles[profileName] = Object.assign({}, structuredClone(PROFILE_DEFAULTS), storeSource[extensionName].profiles[profileName]);
     }
 
+    ensureScorePresetStructure(storeSource[extensionName]);
+
     const sessionDefaults = {
         topCharacters: [],
         topCharactersNormalized: [],
@@ -2756,6 +3787,8 @@ jQuery(async () => {
 
         populateProfileDropdown();
         populatePresetDropdown();
+        populateScorePresetDropdown();
+        populateLexiconPackButtons();
         loadProfile(getSettings().activeProfile);
         wireUI();
         registerCommands();
