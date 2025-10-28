@@ -453,26 +453,64 @@
   padding: 18px;
 }
 
-#costume-switcher-settings.cs-theme .cs-tester-columns {
+#costume-switcher-settings.cs-theme .cs-tester-panels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-primary,
+#costume-switcher-settings.cs-theme .cs-tester-sidebar {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
-#costume-switcher-settings.cs-theme .cs-tester-col {
+#costume-switcher-settings.cs-theme .cs-tester-panel {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 12px;
   min-height: 0;
 }
 
-#costume-switcher-settings.cs-theme .cs-tester-col--insights {
-  gap: 16px;
-  min-width: 260px;
+#costume-switcher-settings.cs-theme .cs-tester-panel--score {
+  gap: 14px;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-scroll {
+  max-height: 260px;
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.01);
+  padding: 8px 4px;
+}
+
+#costume-switcher-settings.cs-theme .cs-score-scroll table {
+  margin: 0;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-title--sub {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-sidebar .cs-helper-text {
+  margin: 0;
+}
+
+@media (max-width: 1080px) {
+  #costume-switcher-settings.cs-theme .cs-tester-panels {
+    grid-template-columns: 1fr;
+  }
 }
 
 #costume-switcher-settings.cs-theme .cs-tester-title {
@@ -770,22 +808,6 @@
 #costume-switcher-settings.cs-theme .cs-coverage-pill:hover {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
-#costume-switcher-settings.cs-theme .cs-lexicon-tools {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-#costume-switcher-settings.cs-theme .cs-pack-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 #costume-switcher-settings.cs-theme #cs-mappings {
