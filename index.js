@@ -7,6 +7,7 @@ import {
     EXTENDED_ACTION_VERBS,
     EXTENDED_ATTRIBUTION_VERBS,
 } from "./verbs.js";
+import { loadProfiles, normalizeProfile, normalizeMappingEntry } from "./profile-utils.js";
 
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
@@ -1083,7 +1084,7 @@ function rebuildMappingLookup(profile) {
             if (!entry) continue;
             const normalized = normalizeCostumeName(entry.name);
             if (!normalized) continue;
-            const folder = String(entry.folder ?? '').trim();
+            const folder = String(entry.defaultFolder ?? entry.folder ?? '').trim();
             map.set(normalized.toLowerCase(), folder || normalized);
         }
     }
@@ -1677,7 +1678,14 @@ function saveCurrentProfileData() {
     $("#cs-mappings-tbody tr").each(function () {
         const name = $(this).find(".map-name").val().trim();
         const folder = $(this).find(".map-folder").val().trim();
-        if (name && folder) profileData.mappings.push({ name, folder });
+        const outfitsData = $(this).data('outfits');
+        const outfits = Array.isArray(outfitsData)
+            ? (typeof structuredClone === 'function' ? structuredClone(outfitsData) : outfitsData.slice())
+            : [];
+        const mapping = normalizeMappingEntry({ name, defaultFolder: folder, outfits });
+        if (mapping.name && mapping.defaultFolder) {
+            profileData.mappings.push(mapping);
+        }
     });
     return profileData;
 }
@@ -1686,11 +1694,17 @@ function renderMappings(profile) {
     const tbody = $("#cs-mappings-tbody");
     tbody.empty();
     (profile.mappings || []).forEach((m, idx) => {
-        tbody.append($("<tr>").attr("data-idx", idx)
-            .append($("<td>").append($("<input>").addClass("map-name text_pole").val(m.name || "")))
-            .append($("<td>").append($("<input>").addClass("map-folder text_pole").val(m.folder || "")))
-            .append($("<td>").append($("<button>").addClass("map-remove menu_button interactable").html('<i class="fa-solid fa-trash-can"></i>')))
-        );
+        const normalized = normalizeMappingEntry(m);
+        profile.mappings[idx] = normalized;
+        const row = $("<tr>").attr("data-idx", idx);
+        const outfits = Array.isArray(normalized.outfits)
+            ? (typeof structuredClone === 'function' ? structuredClone(normalized.outfits) : normalized.outfits.slice())
+            : [];
+        row.data('outfits', outfits);
+        row.append($("<td>").append($("<input>").addClass("map-name text_pole").val(normalized.name || "")));
+        row.append($("<td>").append($("<input>").addClass("map-folder text_pole").val(normalized.defaultFolder || normalized.folder || "")));
+        row.append($("<td>").append($("<button>").addClass("map-remove menu_button interactable").html('<i class="fa-solid fa-trash-can"></i>'))));
+        tbody.append(row);
     });
 }
 
@@ -2742,7 +2756,7 @@ function wireUI() {
         const desiredName = normalizeProfileNameInput($("#cs-profile-name").val());
         if (!desiredName) { showStatus('Enter a name to save a new profile.', 'error'); return; }
         if (settings.profiles[desiredName]) { showStatus('A profile with that name already exists.', 'error'); return; }
-        const profileData = Object.assign({}, structuredClone(PROFILE_DEFAULTS), saveCurrentProfileData());
+        const profileData = normalizeProfile(saveCurrentProfileData(), PROFILE_DEFAULTS);
         settings.profiles[desiredName] = profileData;
         settings.activeProfile = desiredName;
         populateProfileDropdown();
@@ -2779,7 +2793,7 @@ function wireUI() {
         if (!activeProfile) return;
         const baseName = normalizeProfileNameInput($("#cs-profile-name").val()) || `${settings.activeProfile} Copy`;
         const uniqueName = getUniqueProfileName(baseName);
-        settings.profiles[uniqueName] = Object.assign({}, structuredClone(PROFILE_DEFAULTS), structuredClone(activeProfile));
+        settings.profiles[uniqueName] = normalizeProfile(structuredClone(activeProfile), PROFILE_DEFAULTS);
         settings.activeProfile = uniqueName;
         populateProfileDropdown();
         loadProfile(uniqueName);
@@ -2817,7 +2831,7 @@ function wireUI() {
                 if (!content.name || !content.data) throw new Error("Invalid profile format.");
                 let profileName = content.name;
                 if (settings.profiles[profileName]) profileName = `${profileName} (Imported) ${Date.now()}`;
-                settings.profiles[profileName] = Object.assign({}, structuredClone(PROFILE_DEFAULTS), content.data);
+                settings.profiles[profileName] = normalizeProfile(content.data, PROFILE_DEFAULTS);
                 settings.activeProfile = profileName;
                 populateProfileDropdown(); loadProfile(profileName);
                 persistSettings(`Imported profile as "${escapeHtml(profileName)}".`);
@@ -3032,7 +3046,7 @@ function wireUI() {
     $(document).on('click', '#cs-mapping-add', () => {
         const profile = getActiveProfile();
         if (profile) {
-            profile.mappings.push({ name: "", folder: "" });
+            profile.mappings.push(normalizeMappingEntry({ name: "", defaultFolder: "", outfits: [] }));
             renderMappings(profile);
             rebuildMappingLookup(profile);
         }
@@ -3373,7 +3387,7 @@ function registerCommands() {
             const folder = cleanArgs.slice(toIndex + 1).join(' ').trim();
 
             if (alias && folder) {
-                profile.mappings.push({ name: alias, folder: folder });
+                profile.mappings.push(normalizeMappingEntry({ name: alias, defaultFolder: folder }));
                 rebuildMappingLookup(profile);
                 renderMappings(profile);
                 applyCommandProfileUpdates(profile, [], { persist });
@@ -3715,9 +3729,7 @@ function getSettingsObj() {
     }
     
     storeSource[extensionName] = Object.assign({}, structuredClone(DEFAULTS), storeSource[extensionName]);
-    for (const profileName in storeSource[extensionName].profiles) {
-        storeSource[extensionName].profiles[profileName] = Object.assign({}, structuredClone(PROFILE_DEFAULTS), storeSource[extensionName].profiles[profileName]);
-    }
+    storeSource[extensionName].profiles = loadProfiles(storeSource[extensionName].profiles, PROFILE_DEFAULTS);
 
     ensureScorePresetStructure(storeSource[extensionName]);
 
