@@ -1,6 +1,12 @@
 import { extension_settings, getContext } from "../../../extensions.js";
 import { saveSettingsDebounced, event_types, eventSource } from "../../../../script.js";
 import { executeSlashCommandsOnChatInput, registerSlashCommand } from "../../../slash-commands.js";
+import {
+    DEFAULT_ACTION_VERBS,
+    DEFAULT_ATTRIBUTION_VERBS,
+    EXTENDED_ACTION_VERBS,
+    EXTENDED_ATTRIBUTION_VERBS,
+} from "./verbs.js";
 
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
@@ -159,26 +165,6 @@ const EXTENDED_PRONOUNS = [
     'zie', 'zir', 'it', 'its', 'someone', 'something',
 ];
 
-const EXTENDED_ATTRIBUTION_VERBS = [
-    'intoned', 'proclaimed', 'recited', 'declared', 'pronounced',
-    'transmitted', 'pinged', 'reported', 'uploaded',
-    'muttered', 'rasped', 'drawled', 'grumbled',
-    'whispered', 'murmured', 'breathed', 'confessed', 'promised', 'sighed',
-    'hissed', 'croaked', 'whimpered', 'moaned',
-    'spat', 'barked', 'hollered', 'whooped',
-    'shouted', 'pleaded', 'exclaimed', 'yelled',
-];
-
-const EXTENDED_ACTION_VERBS = [
-    'brandished', 'summoned', 'conjured', 'smote', 'unsheathed', 'teleported',
-    'calibrated', 'recalibrated', 'synced', 'overclocked', 'hacked', 'booted',
-    'lurched', 'leaned', 'nursed', 'shadowed', 'tailed', 'poured',
-    'caressed', 'embraced', 'kissed', 'lingered', 'blushed', 'cradled',
-    'slithered', 'crept', 'stalked', 'screeched', 'shuddered',
-    'lassoed', 'saddled', 'spurred', 'tilted', 'spat', 'squared',
-    'transformed', 'charged', 'sparked', 'posed', 'radiated',
-];
-
 const COVERAGE_TOKEN_REGEX = /[\p{L}\p{M}']+/gu;
 
 const UNICODE_WORD_PATTERN = '[\\p{L}\\p{M}\\p{N}_]';
@@ -249,8 +235,8 @@ const PROFILE_DEFAULTS = {
     detectPronoun: true,
     detectGeneral: false,
     pronounVocabulary: [...DEFAULT_PRONOUNS],
-    attributionVerbs: ["acknowledged", "added", "admitted", "advised", "affirmed", "agreed", "announced", "answered", "argued", "asked", "barked", "began", "bellowed", "blurted", "boasted", "bragged", "called", "chirped", "commanded", "commented", "complained", "conceded", "concluded", "confessed", "confirmed", "continued", "countered", "cried", "croaked", "crowed", "declared", "decreed", "demanded", "denied", "drawled", "echoed", "emphasized", "enquired", "enthused", "estimated", "exclaimed", "explained", "gasped", "insisted", "instructed", "interjected", "interrupted", "joked", "lamented", "lied", "maintained", "moaned", "mumbled", "murmured", "mused", "muttered", "nagged", "nodded", "noted", "objected", "offered", "ordered", "perked up", "pleaded", "prayed", "predicted", "proclaimed", "promised", "proposed", "protested", "queried", "questioned", "quipped", "rambled", "reasoned", "reassured", "recited", "rejoined", "remarked", "repeated", "replied", "responded", "retorted", "roared", "said", "scolded", "scoffed", "screamed", "shouted", "sighed", "snapped", "snarled", "spoke", "stammered", "stated", "stuttered", "suggested", "surmised", "tapped", "threatened", "turned", "urged", "vowed", "wailed", "warned", "whimpered", "whispered", "wondered", "yelled"],
-    actionVerbs: ["adjust", "adjusted", "appear", "appeared", "approach", "approached", "arrive", "arrived", "blink", "blinked", "bow", "bowed", "charge", "charged", "chase", "chased", "climb", "climbed", "collapse", "collapsed", "crawl", "crawled", "crept", "crouch", "crouched", "dance", "danced", "dart", "darted", "dash", "dashed", "depart", "departed", "dive", "dived", "dodge", "dodged", "drag", "dragged", "drift", "drifted", "drop", "dropped", "emerge", "emerged", "enter", "entered", "exit", "exited", "fall", "fell", "flee", "fled", "flinch", "flinched", "float", "floated", "fly", "flew", "follow", "followed", "freeze", "froze", "frown", "frowned", "gesture", "gestured", "giggle", "giggled", "glance", "glanced", "grab", "grabbed", "grasp", "grasped", "grin", "grinned", "groan", "groaned", "growl", "growled", "grumble", "grumbled", "grunt", "grunted", "hold", "held", "hit", "hop", "hopped", "hurry", "hurried", "jerk", "jerked", "jog", "jogged", "jump", "jumped", "kneel", "knelt", "laugh", "laughed", "lean", "leaned", "leap", "leapt", "left", "limp", "limped", "look", "looked", "lower", "lowered", "lunge", "lunged", "march", "marched", "motion", "motioned", "move", "moved", "nod", "nodded", "observe", "observed", "pace", "paced", "pause", "paused", "point", "pointed", "pop", "popped", "position", "positioned", "pounce", "pounced", "push", "pushed", "race", "raced", "raise", "raised", "reach", "reached", "retreat", "retreated", "rise", "rose", "run", "ran", "rush", "rushed", "sit", "sat", "scramble", "scrambled", "set", "shift", "shifted", "shake", "shook", "shrug", "shrugged", "shudder", "shuddered", "sigh", "sighed", "sip", "sipped", "slip", "slipped", "slump", "slumped", "smile", "smiled", "snort", "snorted", "spin", "spun", "sprint", "sprinted", "stagger", "staggered", "stare", "stared", "step", "stepped", "stand", "stood", "straighten", "straightened", "stumble", "stumbled", "swagger", "swaggered", "swallow", "swallowed", "swap", "swapped", "swing", "swung", "tap", "tapped", "throw", "threw", "tilt", "tilted", "tiptoe", "tiptoed", "take", "took", "toss", "tossed", "trudge", "trudged", "turn", "turned", "twist", "twisted", "vanish", "vanished", "wake", "woke", "walk", "walked", "wander", "wandered", "watch", "watched", "wave", "waved", "wince", "winced", "withdraw", "withdrew"],
+    attributionVerbs: [...DEFAULT_ATTRIBUTION_VERBS],
+    actionVerbs: [...DEFAULT_ACTION_VERBS],
     detectionBias: 0,
     enableSceneRoster: true,
     sceneRosterTTL: 5,
