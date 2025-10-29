@@ -82,44 +82,6 @@ function notifyInvalidPatterns(invalidEntries = [], context = 'pattern') {
     updatePatternErrorDisplay();
 }
 
-function notifyPatternFallback(entries = [], context = 'pattern', error = null) {
-    const scope = String(context || 'pattern');
-
-    if (!entries.length || !(error instanceof Error)) {
-        patternFallbackCache.delete(scope);
-        return;
-    }
-
-    const labels = entries
-        .map((entry) => formatPatternLabel(entry))
-        .filter(Boolean);
-
-    if (!labels.length) {
-        patternFallbackCache.delete(scope);
-        return;
-    }
-
-    const fingerprint = `${labels.slice().sort().join('||')}::${error.message}`;
-    const existing = patternFallbackCache.get(scope);
-    if (existing?.fingerprint === fingerprint) {
-        return;
-    }
-
-    const previewCount = Math.min(labels.length, 3);
-    const preview = labels
-        .slice(0, previewCount)
-        .map((label) => `<code>${escapeHtml(label)}</code>`)
-        .join(', ');
-    const remaining = labels.length - previewCount;
-    const remainderText = remaining > 0 ? `, and ${remaining} more` : '';
-    const plural = labels.length === 1 ? '' : 's';
-    const message = `Using literal matching for ${labels.length} ${context}${plural}: ${preview}${remainderText}. (reason: ${escapeHtml(error.message)})`;
-
-    console.warn(`${logPrefix} ${message}`, { entries, error });
-    showStatus(message, 'info', 6000);
-    patternFallbackCache.set(scope, { fingerprint, message });
-}
-
 const LITERAL_ESCAPE_PATTERN = /[.*+?^${}()|[\]\\]/g;
 
 function escapeLiteralPattern(source) {
@@ -133,18 +95,10 @@ export function parsePatternEntry(entry) {
     if (typeof entry === 'string') {
         const trimmed = entry.trim();
         if (!trimmed) return null;
-        try {
-            new RegExp(trimmed, 'u');
-            return { body: trimmed, raw: trimmed };
-        } catch (rawError) {
-            const escapedBody = escapeLiteralPattern(trimmed);
-            try {
-                new RegExp(escapedBody, 'u');
-                return { body: escapedBody, raw: trimmed };
-            } catch (escapedError) {
-                return { body: escapedBody, raw: trimmed, error: escapedError };
-            }
-        }
+        const body = trimmed
+            .replace(/[.*+?^${}()|[\]\\]/g, (match) => `\\${match}`)
+            .replace(/\s+/g, () => '\\s+');
+        return { body, raw: trimmed };
     }
     if (entry instanceof RegExp) {
         return { body: entry.source, raw: entry.source };
@@ -223,51 +177,13 @@ export function buildRegex(patterns, template, { flags = 'iu', extraFlags = '', 
     try {
         const compiled = new RegExp(body, finalFlags);
         notifyInvalidPatterns(invalidEntries, context);
-        notifyPatternFallback([], context);
         return compiled;
     } catch (compileError) {
-        const fallbackPieces = [];
-        const fallbackSeen = new Set();
-
-        for (const entry of validEntries) {
-            const source = typeof entry.raw === 'string' && entry.raw.trim() ? entry.raw : entry.body;
-            if (!source) continue;
-            const literal = escapeLiteralPattern(source);
-            try {
-                new RegExp(literal, finalFlags);
-                if (!fallbackSeen.has(literal)) {
-                    fallbackSeen.add(literal);
-                    fallbackPieces.push(literal);
-                }
-            } catch (literalError) {
-                invalidEntries.push({ ...entry, error: literalError });
-            }
-        }
-
-        if (fallbackPieces.length) {
-            try {
-                const fallbackBody = template.replace('{{PATTERNS}}', `(?:${fallbackPieces.join('|')})`);
-                const fallbackRegex = new RegExp(fallbackBody, finalFlags);
-                notifyInvalidPatterns(invalidEntries, context);
-                notifyPatternFallback(validEntries, context, compileError);
-                return fallbackRegex;
-            } catch (fallbackError) {
-                const combined = [
-                    ...invalidEntries,
-                    ...validEntries.map(entry => ({ ...entry, error: fallbackError })),
-                ];
-                notifyInvalidPatterns(combined, context);
-                notifyPatternFallback([], context);
-                return null;
-            }
-        }
-
         const combined = [
             ...invalidEntries,
             ...validEntries.map(entry => ({ ...entry, error: compileError })),
         ];
         notifyInvalidPatterns(combined, context);
-        notifyPatternFallback([], context);
         return null;
     }
 }
@@ -320,50 +236,13 @@ export function buildGenericRegex(patterns, { flags = 'iu', context = 'veto patt
     try {
         const compiled = new RegExp(validPieces.join('|'), finalFlags);
         notifyInvalidPatterns(invalidEntries, context);
-        notifyPatternFallback([], context);
         return compiled;
     } catch (compileError) {
-        const fallbackPieces = [];
-        const fallbackSeen = new Set();
-
-        for (const entry of validEntries) {
-            const source = typeof entry.raw === 'string' && entry.raw.trim() ? entry.raw : entry.body;
-            if (!source) continue;
-            const literal = escapeLiteralPattern(source);
-            try {
-                new RegExp(literal, finalFlags);
-                if (!fallbackSeen.has(literal)) {
-                    fallbackSeen.add(literal);
-                    fallbackPieces.push(literal);
-                }
-            } catch (literalError) {
-                invalidEntries.push({ ...entry, error: literalError });
-            }
-        }
-
-        if (fallbackPieces.length) {
-            try {
-                const fallbackRegex = new RegExp(fallbackPieces.join('|'), finalFlags);
-                notifyInvalidPatterns(invalidEntries, context);
-                notifyPatternFallback(validEntries, context, compileError);
-                return fallbackRegex;
-            } catch (fallbackError) {
-                const combined = [
-                    ...invalidEntries,
-                    ...validEntries.map(entry => ({ ...entry, error: fallbackError })),
-                ];
-                notifyInvalidPatterns(combined, context);
-                notifyPatternFallback([], context);
-                return null;
-            }
-        }
-
         const combined = [
             ...invalidEntries,
             ...validEntries.map(entry => ({ ...entry, error: compileError })),
         ];
         notifyInvalidPatterns(combined, context);
-        notifyPatternFallback([], context);
         return null;
     }
 }
