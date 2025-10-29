@@ -11,6 +11,23 @@ import { showStatus } from "./status.js";
 
 const invalidPatternCache = new Map();
 
+function updatePatternErrorDisplay() {
+    if (typeof $ !== 'function') return;
+    const $error = $("#cs-error");
+    if (!$error.length) return;
+
+    const messages = Array.from(invalidPatternCache.values())
+        .map(entry => entry?.message)
+        .filter(Boolean);
+
+    if (!messages.length) {
+        $error.prop('hidden', true).find('.cs-status-text').text('');
+        return;
+    }
+
+    $error.prop('hidden', false).find('.cs-status-text').html(messages.join('<br>'));
+}
+
 function formatPatternLabel(entry) {
     if (!entry) return '';
     if (typeof entry.raw === 'string' && entry.raw.trim()) {
@@ -23,21 +40,24 @@ function formatPatternLabel(entry) {
 }
 
 function notifyInvalidPatterns(invalidEntries = [], context = 'pattern') {
+    const scope = String(context || 'pattern');
+
     if (!invalidEntries.length) {
-        invalidPatternCache.delete(context);
+        invalidPatternCache.delete(scope);
+        updatePatternErrorDisplay();
         return;
     }
 
-    const key = invalidEntries
+    const fingerprint = invalidEntries
         .map((entry) => formatPatternLabel(entry))
         .filter(Boolean)
         .sort()
         .join('||');
 
-    if (invalidPatternCache.get(context) === key) {
+    const existing = invalidPatternCache.get(scope);
+    if (existing?.fingerprint === fingerprint) {
         return;
     }
-    invalidPatternCache.set(context, key);
 
     const previewCount = Math.min(invalidEntries.length, 3);
     const preview = invalidEntries
@@ -55,8 +75,10 @@ function notifyInvalidPatterns(invalidEntries = [], context = 'pattern') {
     const hint = sampleError ? ` (example error: ${escapeHtml(sampleError)})` : '';
     const message = `Skipped ${invalidEntries.length} invalid ${contextLabel}: ${preview}${remainderText}.${hint}`;
 
-    console.warn(`${logPrefix} ${message}`, invalidEntries.map((entry) => ({ label: formatPatternLabel(entry), error: entry.error })));
+    console.warn(`${logPrefix} ${message}`, invalidEntries.map((entry) => ({ label: formatPatternLabel(entry), error: entry.error }))); 
     showStatus(message, 'error', 7000);
+    invalidPatternCache.set(scope, { fingerprint, message });
+    updatePatternErrorDisplay();
 }
 
 export function parsePatternEntry(entry) {
@@ -119,11 +141,6 @@ export function buildRegex(patterns, template, { flags = 'iu', extraFlags = '', 
     notifyInvalidPatterns(invalidEntries, context);
 
     if (!validPieces.length) {
-        if (invalidEntries.length) {
-            const error = new SyntaxError(`Unable to compile ${context} regex – all patterns were invalid.`);
-            error.invalidPatterns = invalidEntries;
-            throw error;
-        }
         return null;
     }
 
@@ -167,11 +184,6 @@ export function buildGenericRegex(patterns, { flags = 'iu', context = 'veto patt
     notifyInvalidPatterns(invalidEntries, context);
 
     if (!validPieces.length) {
-        if (invalidEntries.length) {
-            const error = new SyntaxError(`Unable to compile ${context} regex – all patterns were invalid.`);
-            error.invalidPatterns = invalidEntries;
-            throw error;
-        }
         return null;
     }
 
@@ -249,7 +261,11 @@ export function recompileRegexes() {
             vetoRegex: buildGenericRegex(profile.vetoPatterns),
         };
         rebuildMappingLookup(profile);
-        $("#cs-error").prop('hidden', true).find('.cs-status-text').text('');
+        if (invalidPatternCache.size === 0) {
+            $("#cs-error").prop('hidden', true).find('.cs-status-text').text('');
+        } else {
+            updatePatternErrorDisplay();
+        }
     } catch (e) {
         $("#cs-error").prop('hidden', false).find('.cs-status-text').text(`Pattern compile error: ${String(e)}`);
         showStatus(`Pattern compile error: ${String(e)}`, 'error', 5000);
