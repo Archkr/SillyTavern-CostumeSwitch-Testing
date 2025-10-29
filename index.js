@@ -159,7 +159,11 @@ const DEFAULT_PRONOUNS = ['he', 'she', 'they'];
 
 const EXTENDED_PRONOUNS = [
     'thee', 'thou', 'thy', 'thine', 'yon', 'ye',
-    'xe', 'xem', 'xyr', 'ze', 'zir', 'theyre',
+    'xe', 'xem', 'xyr', 'xyrs', 'xemself', 'ze', 'zir', 'zirs', 'zirself',
+    'zie', 'zim', 'zir', 'zirself', 'sie', 'hir', 'hirs', 'hirself',
+    'ey', 'em', 'eir', 'eirs', 'eirself', 'ae', 'aer', 'aers', 'aerself',
+    'fae', 'faer', 'faers', 'faerself', 've', 'ver', 'vis', 'verself',
+    'ne', 'nem', 'nir', 'nirs', 'nirself', 'per', 'pers', 'perself',
     'ya', "ya'll", 'y\'all', 'yer', 'yourselves',
     'watashi', 'boku', 'ore', 'anata', 'kanojo', 'kare',
     'zie', 'zir', 'it', 'its', 'someone', 'something',
