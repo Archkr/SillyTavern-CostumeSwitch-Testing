@@ -94,18 +94,10 @@ export function parsePatternEntry(entry) {
     if (typeof entry === 'string') {
         const trimmed = entry.trim();
         if (!trimmed) return null;
-        try {
-            new RegExp(trimmed, 'u');
-            return { body: trimmed, raw: trimmed };
-        } catch (rawError) {
-            const escapedBody = escapeLiteralPattern(trimmed);
-            try {
-                new RegExp(escapedBody, 'u');
-                return { body: escapedBody, raw: trimmed };
-            } catch (escapedError) {
-                return { body: escapedBody, raw: trimmed, error: escapedError };
-            }
-        }
+        const body = trimmed
+            .replace(/[.*+?^${}()|[\]\\]/g, (match) => `\\${match}`)
+            .replace(/\s+/g, () => '\\s+');
+        return { body, raw: trimmed };
     }
     if (entry instanceof RegExp) {
         return { body: entry.source, raw: entry.source };
