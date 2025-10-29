@@ -1690,6 +1690,448 @@ function saveCurrentProfileData() {
     return profileData;
 }
 
+function cloneOutfitList(outfits) {
+    if (!Array.isArray(outfits)) {
+        return [];
+    }
+
+    const cloned = [];
+    outfits.forEach((entry) => {
+        if (entry == null) {
+            return;
+        }
+        if (typeof entry === 'string') {
+            const trimmed = entry.trim();
+            if (trimmed) {
+                cloned.push(trimmed);
+            }
+            return;
+        }
+        if (typeof structuredClone === 'function') {
+            try {
+                cloned.push(structuredClone(entry));
+                return;
+            } catch (err) {
+                // Fall back to JSON-based cloning
+            }
+        }
+        try {
+            cloned.push(JSON.parse(JSON.stringify(entry)));
+        } catch (err) {
+            if (typeof entry === 'object') {
+                cloned.push({ ...entry });
+            }
+        }
+    });
+
+    return cloned;
+}
+
+function normalizeOutfitVariant(rawVariant = {}) {
+    if (rawVariant == null) {
+        return { folder: '', triggers: [] };
+    }
+
+    if (typeof rawVariant === 'string') {
+        return { folder: rawVariant.trim(), triggers: [] };
+    }
+
+    let variant;
+    if (typeof structuredClone === 'function') {
+        try {
+            variant = structuredClone(rawVariant);
+        } catch (err) {
+            // Ignore and fall back to JSON cloning
+        }
+    }
+    if (!variant) {
+        try {
+            variant = JSON.parse(JSON.stringify(rawVariant));
+        } catch (err) {
+            variant = { ...rawVariant };
+        }
+    }
+
+    const normalized = typeof variant === 'object' && variant !== null ? variant : {};
+    const folder = typeof normalized.folder === 'string' ? normalized.folder.trim() : '';
+    normalized.folder = folder;
+
+    const slot = typeof normalized.slot === 'string' ? normalized.slot.trim() : '';
+    const labelSource = typeof normalized.label === 'string' ? normalized.label.trim()
+        : (typeof normalized.name === 'string' ? normalized.name.trim()
+            : slot);
+    if (labelSource) {
+        normalized.label = labelSource;
+    } else {
+        delete normalized.label;
+    }
+    if (slot) {
+        normalized.slot = slot;
+    } else {
+        delete normalized.slot;
+    }
+
+    const triggers = [];
+    const arrayCandidates = [normalized.triggers, normalized.patterns, normalized.matchers];
+    arrayCandidates.forEach((candidate) => {
+        if (!Array.isArray(candidate)) {
+            return;
+        }
+        candidate.forEach((value) => {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (trimmed) {
+                triggers.push(trimmed);
+            }
+        });
+    });
+
+    const stringCandidates = [normalized.trigger, normalized.matcher];
+    stringCandidates.forEach((candidate) => {
+        if (typeof candidate !== 'string') {
+            return;
+        }
+        candidate.split(/\r?\n|,/).forEach((value) => {
+            const trimmed = value.trim();
+            if (trimmed) {
+                triggers.push(trimmed);
+            }
+        });
+    });
+
+    const uniqueTriggers = [...new Set(triggers)];
+    normalized.triggers = uniqueTriggers;
+    delete normalized.patterns;
+    delete normalized.matchers;
+    delete normalized.trigger;
+    delete normalized.matcher;
+
+    return normalized;
+}
+
+function extractDirectoryFromFileList(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) {
+        return '';
+    }
+    const file = files[0];
+    if (file && typeof file.webkitRelativePath === 'string' && file.webkitRelativePath) {
+        const segments = file.webkitRelativePath.split('/');
+        if (segments.length > 1) {
+            segments.pop();
+            return segments.join('/');
+        }
+        return file.webkitRelativePath;
+    }
+    if (file && typeof file.name === 'string') {
+        return file.name;
+    }
+    return '';
+}
+
+function getMappingRow(idx) {
+    const rows = $("#cs-mappings-tbody tr");
+    const row = rows.eq(idx);
+    return row.length ? row : $();
+}
+
+function syncMappingRowName(idx, name) {
+    const row = getMappingRow(idx);
+    if (!row.length) return;
+    row.find('.map-name').val(name);
+}
+
+function syncMappingRowFolder(idx, folder) {
+    const row = getMappingRow(idx);
+    if (!row.length) return;
+    row.find('.map-folder').val(folder);
+}
+
+function syncMappingRowOutfits(idx, outfits) {
+    const row = getMappingRow(idx);
+    if (!row.length) return;
+    row.data('outfits', cloneOutfitList(outfits));
+}
+
+function updateOutfitLabEnabledState(enabled) {
+    const editor = $('#cs-outfit-editor');
+    const notice = $('#cs-outfit-disabled-notice');
+    const addButton = $('#cs-outfit-add-character');
+    const isEnabled = Boolean(enabled);
+    if (editor.length) {
+        editor.toggleClass('is-disabled', !isEnabled);
+        editor.attr('aria-disabled', String(!isEnabled));
+    }
+    if (notice.length) {
+        notice.prop('hidden', isEnabled);
+    }
+    if (addButton.length) {
+        addButton.prop('disabled', !isEnabled);
+    }
+}
+
+function createOutfitVariantElement(profile, mapping, mappingIdx, variant, variantIndex) {
+    const normalized = (mapping?.outfits && mapping.outfits[variantIndex] === variant)
+        ? variant
+        : normalizeOutfitVariant(variant);
+
+    if (!Array.isArray(mapping.outfits)) {
+        mapping.outfits = [];
+    }
+    mapping.outfits[variantIndex] = normalized;
+
+    const variantEl = $('<div>')
+        .addClass('cs-outfit-variant')
+        .attr('data-variant-index', variantIndex)
+        .data('variant', normalized);
+
+    const header = $('<div>').addClass('cs-outfit-variant-header');
+    header.append($('<h4>').text(`Variation ${variantIndex + 1}`));
+    const removeButton = $('<button>', {
+        type: 'button',
+        class: 'menu_button interactable cs-outfit-variant-remove cs-button-danger',
+    }).append($('<i>').addClass('fa-solid fa-trash-can'), $('<span>').text('Remove'));
+    header.append(removeButton);
+    variantEl.append(header);
+
+    const grid = $('<div>').addClass('cs-outfit-variant-grid');
+    const labelId = `cs-outfit-variant-label-${mappingIdx}-${variantIndex}`;
+    const labelField = $('<div>').addClass('cs-field')
+        .append($('<label>', { for: labelId, text: 'Label (optional)' }));
+    const labelInput = $('<input>', {
+        id: labelId,
+        type: 'text',
+        placeholder: 'Display name',
+    }).addClass('text_pole cs-outfit-variant-label')
+        .val(normalized.label || normalized.slot || '');
+    labelField.append(labelInput);
+
+    const folderId = `cs-outfit-variant-folder-${mappingIdx}-${variantIndex}`;
+    const folderField = $('<div>').addClass('cs-field')
+        .append($('<label>', { for: folderId, text: 'Folder' }));
+    const folderRow = $('<div>').addClass('cs-outfit-folder-row');
+    const folderInput = $('<input>', {
+        id: folderId,
+        type: 'text',
+        placeholder: 'Enter folder path…',
+    }).addClass('text_pole cs-outfit-variant-folder')
+        .val(normalized.folder || '');
+    const folderPicker = $('<input>', { type: 'file', hidden: true });
+    folderPicker.attr({ webkitdirectory: 'true', directory: 'true', multiple: 'true' });
+    const folderButton = $('<button>', {
+        type: 'button',
+        class: 'menu_button interactable cs-outfit-pick-folder',
+    }).append($('<i>').addClass('fa-solid fa-folder-open'), $('<span>').text('Pick Folder'))
+        .on('click', () => folderPicker.trigger('click'));
+    folderPicker.on('change', function() {
+        const folderPath = extractDirectoryFromFileList(this.files || []);
+        if (folderPath) {
+            folderInput.val(folderPath);
+            folderInput.trigger('input');
+        }
+        $(this).val('');
+    });
+    folderRow.append(folderInput, folderButton, folderPicker);
+    folderField.append(folderRow);
+
+    grid.append(labelField, folderField);
+    variantEl.append(grid);
+
+    const triggerId = `cs-outfit-variant-triggers-${mappingIdx}-${variantIndex}`;
+    const triggerField = $('<div>').addClass('cs-field')
+        .append($('<label>', { for: triggerId, text: 'Triggers' }));
+    const triggerTextarea = $('<textarea>', {
+        id: triggerId,
+        rows: 3,
+        placeholder: 'One trigger per line',
+    }).addClass('text_pole cs-outfit-variant-triggers')
+        .val((normalized.triggers || []).join('\n'));
+    triggerField.append(triggerTextarea);
+    triggerField.append($('<small>').text('Trigger keywords or /regex/ patterns that activate this outfit.'));
+    variantEl.append(triggerField);
+
+    labelInput.on('input', () => {
+        const value = labelInput.val().trim();
+        if (value) {
+            normalized.label = value;
+        } else {
+            delete normalized.label;
+        }
+        syncMappingRowOutfits(mappingIdx, mapping.outfits);
+    });
+
+    folderInput.on('input', () => {
+        normalized.folder = folderInput.val().trim();
+        syncMappingRowOutfits(mappingIdx, mapping.outfits);
+    });
+
+    triggerTextarea.on('input', () => {
+        const triggers = triggerTextarea.val()
+            .split(/\r?\n/)
+            .map(value => value.trim())
+            .filter(Boolean);
+        normalized.triggers = triggers;
+        syncMappingRowOutfits(mappingIdx, mapping.outfits);
+    });
+
+    removeButton.on('click', () => {
+        const activeProfile = profile || getActiveProfile();
+        if (!activeProfile?.mappings?.[mappingIdx]) {
+            return;
+        }
+        activeProfile.mappings[mappingIdx].outfits.splice(variantIndex, 1);
+        syncMappingRowOutfits(mappingIdx, activeProfile.mappings[mappingIdx].outfits);
+        variantEl.remove();
+        const card = $(`.cs-outfit-card[data-idx="${mappingIdx}"]`);
+        const variantContainer = card.find('.cs-outfit-variants');
+        variantContainer.find('.cs-outfit-variant').each(function(index) {
+            $(this).attr('data-variant-index', index);
+            $(this).find('.cs-outfit-variant-header h4').text(`Variation ${index + 1}`);
+        });
+        if (!variantContainer.find('.cs-outfit-variant').length) {
+            variantContainer.append($('<div>').addClass('cs-outfit-empty-variants').text('No variations yet. Add one to test trigger-based outfits.'));
+        }
+    });
+
+    return variantEl;
+}
+
+function createOutfitCard(profile, mapping, idx) {
+    const card = $('<article>').addClass('cs-outfit-card').attr('data-idx', idx);
+    const header = $('<div>').addClass('cs-outfit-card-header');
+    const title = $('<div>').addClass('cs-outfit-card-title');
+    title.append($('<i>').addClass('fa-solid fa-user-astronaut'));
+
+    const nameId = `cs-outfit-name-${idx}`;
+    const nameField = $('<div>').addClass('cs-field')
+        .append($('<label>', { for: nameId, text: 'Character Name' }));
+    const nameInput = $('<input>', {
+        id: nameId,
+        type: 'text',
+        placeholder: 'e.g., Alice',
+    }).addClass('text_pole cs-outfit-character-name')
+        .val(mapping.name || '');
+    nameField.append(nameInput);
+    title.append(nameField);
+    header.append(title);
+
+    const removeButton = $('<button>', {
+        type: 'button',
+        class: 'menu_button interactable cs-button-danger cs-outfit-remove-character',
+    }).append($('<i>').addClass('fa-solid fa-trash-can'), $('<span>').text('Remove Character'))
+        .on('click', () => {
+            if (!profile?.mappings) return;
+            profile.mappings.splice(idx, 1);
+            renderMappings(profile);
+            rebuildMappingLookup(profile);
+        });
+    header.append(removeButton);
+    card.append(header);
+
+    const defaultId = `cs-outfit-default-${idx}`;
+    const defaultField = $('<div>').addClass('cs-field')
+        .append($('<label>', { for: defaultId, text: 'Default Folder' }));
+    const defaultRow = $('<div>').addClass('cs-outfit-folder-row');
+    const defaultInput = $('<input>', {
+        id: defaultId,
+        type: 'text',
+        placeholder: 'Enter folder path…',
+    }).addClass('text_pole cs-outfit-default-folder')
+        .val(mapping.defaultFolder || '');
+    const defaultPicker = $('<input>', { type: 'file', hidden: true });
+    defaultPicker.attr({ webkitdirectory: 'true', directory: 'true', multiple: 'true' });
+    const defaultButton = $('<button>', {
+        type: 'button',
+        class: 'menu_button interactable cs-outfit-pick-folder',
+    }).append($('<i>').addClass('fa-solid fa-folder-open'), $('<span>').text('Pick Folder'))
+        .on('click', () => defaultPicker.trigger('click'));
+    defaultPicker.on('change', function() {
+        const folderPath = extractDirectoryFromFileList(this.files || []);
+        if (folderPath) {
+            defaultInput.val(folderPath);
+            defaultInput.trigger('input');
+        }
+        $(this).val('');
+    });
+    defaultRow.append(defaultInput, defaultButton, defaultPicker);
+    defaultField.append(defaultRow);
+    defaultField.append($('<small>').text('Fallback folder when no variation triggers.'));
+    card.append(defaultField);
+
+    const variantsContainer = $('<div>').addClass('cs-outfit-variants');
+    if (!Array.isArray(mapping.outfits) || !mapping.outfits.length) {
+        mapping.outfits = [];
+        variantsContainer.append($('<div>').addClass('cs-outfit-empty-variants').text('No variations yet. Add one to test trigger-based outfits.'));
+    } else {
+        mapping.outfits.forEach((variant, variantIndex) => {
+            variantsContainer.append(createOutfitVariantElement(profile, mapping, idx, variant, variantIndex));
+        });
+    }
+    card.append(variantsContainer);
+
+    const addVariantButton = $('<button>', {
+        type: 'button',
+        class: 'menu_button interactable cs-outfit-add-variant',
+    }).append($('<i>').addClass('fa-solid fa-plus'), $('<span>').text('Add Outfit Variation'))
+        .on('click', () => {
+            if (!Array.isArray(mapping.outfits)) {
+                mapping.outfits = [];
+            }
+            const variantIndex = mapping.outfits.length;
+            const newVariant = normalizeOutfitVariant({ folder: '', triggers: [] });
+            mapping.outfits.push(newVariant);
+            variantsContainer.find('.cs-outfit-empty-variants').remove();
+            const variantEl = createOutfitVariantElement(profile, mapping, idx, newVariant, variantIndex);
+            variantsContainer.append(variantEl);
+            syncMappingRowOutfits(idx, mapping.outfits);
+            variantEl.find('.cs-outfit-variant-folder').trigger('focus');
+        });
+    card.append(addVariantButton);
+
+    nameInput.on('input', () => {
+        mapping.name = nameInput.val().trim();
+        syncMappingRowName(idx, nameInput.val());
+    });
+    nameInput.on('change', () => {
+        rebuildMappingLookup(profile);
+    });
+
+    defaultInput.on('input', () => {
+        const value = defaultInput.val().trim();
+        mapping.defaultFolder = value;
+        mapping.folder = value;
+        syncMappingRowFolder(idx, defaultInput.val());
+    });
+    defaultInput.on('change', () => {
+        rebuildMappingLookup(profile);
+    });
+
+    syncMappingRowOutfits(idx, mapping.outfits);
+
+    return card;
+}
+
+function renderOutfitLab(profile) {
+    const container = $('#cs-outfit-character-list');
+    if (!container.length) {
+        return;
+    }
+
+    container.empty();
+    const mappings = Array.isArray(profile?.mappings) ? profile.mappings : [];
+    if (!mappings.length) {
+        const emptyText = container.attr('data-empty-text') || 'No characters configured yet.';
+        container.append($('<div>').addClass('cs-outfit-empty').text(emptyText));
+    } else {
+        mappings.forEach((entry, idx) => {
+            const normalized = normalizeMappingEntry(entry);
+            profile.mappings[idx] = normalized;
+            container.append(createOutfitCard(profile, normalized, idx));
+        });
+    }
+
+    updateOutfitLabEnabledState(profile?.enableOutfits);
+}
+
 function renderMappings(profile) {
     const tbody = $("#cs-mappings-tbody");
     tbody.empty();
@@ -1706,6 +2148,7 @@ function renderMappings(profile) {
         row.append($("<td>").append($("<button>").addClass("map-remove menu_button interactable").html('<i class="fa-solid fa-trash-can"></i>')));
         tbody.append(row);
     });
+    renderOutfitLab(profile);
 }
 
 async function fetchBuildMetadata() {
@@ -3057,6 +3500,64 @@ function wireUI() {
         if (profile && !isNaN(idx)) {
             profile.mappings.splice(idx, 1);
             renderMappings(profile); // Re-render to update indices
+            rebuildMappingLookup(profile);
+        }
+    });
+    $(document).on('change', '#cs-outfits-enable', function() {
+        const profile = getActiveProfile();
+        const enabled = $(this).prop('checked');
+        if (profile) {
+            profile.enableOutfits = enabled;
+        }
+        updateOutfitLabEnabledState(enabled);
+    });
+    $(document).on('click', '#cs-outfit-add-character', () => {
+        const profile = getActiveProfile();
+        if (!profile) {
+            return;
+        }
+        profile.mappings.push(normalizeMappingEntry({ name: '', defaultFolder: '', outfits: [] }));
+        renderMappings(profile);
+        rebuildMappingLookup(profile);
+        const newCard = $('#cs-outfit-character-list .cs-outfit-card').last();
+        if (newCard.length) {
+            newCard.find('.cs-outfit-character-name').trigger('focus');
+        }
+    });
+    $(document).on('input', '#cs-mappings-tbody .map-name', function() {
+        const idx = parseInt($(this).closest('tr').attr('data-idx'), 10);
+        if (Number.isNaN(idx)) {
+            return;
+        }
+        const value = String($(this).val() ?? '');
+        const profile = getActiveProfile();
+        if (profile?.mappings?.[idx]) {
+            profile.mappings[idx].name = value.trim();
+        }
+        $(`.cs-outfit-card[data-idx="${idx}"]`).find('.cs-outfit-character-name').val(value);
+    });
+    $(document).on('change', '#cs-mappings-tbody .map-name', () => {
+        const profile = getActiveProfile();
+        if (profile) {
+            rebuildMappingLookup(profile);
+        }
+    });
+    $(document).on('input', '#cs-mappings-tbody .map-folder', function() {
+        const idx = parseInt($(this).closest('tr').attr('data-idx'), 10);
+        if (Number.isNaN(idx)) {
+            return;
+        }
+        const value = String($(this).val() ?? '');
+        const profile = getActiveProfile();
+        if (profile?.mappings?.[idx]) {
+            profile.mappings[idx].defaultFolder = value.trim();
+            profile.mappings[idx].folder = value.trim();
+        }
+        $(`.cs-outfit-card[data-idx="${idx}"]`).find('.cs-outfit-default-folder').val(value);
+    });
+    $(document).on('change', '#cs-mappings-tbody .map-folder', () => {
+        const profile = getActiveProfile();
+        if (profile) {
             rebuildMappingLookup(profile);
         }
     });
