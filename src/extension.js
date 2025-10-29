@@ -904,23 +904,6 @@ function renderTesterRosterTimeline(events, warnings) {
     }
 }
 
-function normalizeVerbCandidate(word) {
-    let base = String(word || '').toLowerCase();
-    base = base.replace(/['’]s$/u, '');
-    if (base.endsWith('ing') && base.length > 4) {
-        base = base.slice(0, -3);
-    } else if (base.endsWith('ies') && base.length > 4) {
-        base = `${base.slice(0, -3)}y`;
-    } else if (base.endsWith('ed') && base.length > 3) {
-        base = base.slice(0, -2);
-    } else if (base.endsWith('es') && base.length > 3) {
-        base = base.slice(0, -2);
-    } else if (base.endsWith('s') && base.length > 3) {
-        base = base.slice(0, -1);
-    }
-    return base;
-}
-
 function analyzeCoverageDiagnostics(text, profile = getActiveProfile()) {
     if (!text) {
         return { missingPronouns: [], missingAttributionVerbs: [], missingActionVerbs: [], totalTokens: 0 };
