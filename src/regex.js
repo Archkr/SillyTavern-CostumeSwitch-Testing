@@ -81,15 +81,31 @@ function notifyInvalidPatterns(invalidEntries = [], context = 'pattern') {
     updatePatternErrorDisplay();
 }
 
+const LITERAL_ESCAPE_PATTERN = /[.*+?^${}()|[\]\\]/g;
+
+function escapeLiteralPattern(source) {
+    return source
+        .replace(LITERAL_ESCAPE_PATTERN, (match) => `\\${match}`)
+        .replace(/\s+/g, () => '\\s+');
+}
+
 export function parsePatternEntry(entry) {
     if (!entry) return null;
     if (typeof entry === 'string') {
         const trimmed = entry.trim();
         if (!trimmed) return null;
-        const body = trimmed
-            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-            .replace(/\s+/g, '\\s+');
-        return { body, raw: trimmed };
+        try {
+            new RegExp(trimmed, 'u');
+            return { body: trimmed, raw: trimmed };
+        } catch (rawError) {
+            const escapedBody = escapeLiteralPattern(trimmed);
+            try {
+                new RegExp(escapedBody, 'u');
+                return { body: escapedBody, raw: trimmed };
+            } catch (escapedError) {
+                return { body: escapedBody, raw: trimmed, error: escapedError };
+            }
+        }
     }
     if (entry instanceof RegExp) {
         return { body: entry.source, raw: entry.source };
@@ -100,6 +116,9 @@ export function parsePatternEntry(entry) {
         }
         if (typeof entry.pattern === 'string') {
             return parsePatternEntry(entry.pattern);
+        }
+        if (typeof entry.body === 'string') {
+            return parsePatternEntry(entry.body);
         }
     }
     return null;
@@ -122,15 +141,22 @@ export function buildRegex(patterns, template, { flags = 'iu', extraFlags = '', 
 
     const finalFlags = Array.from(new Set(`${flags}${extraFlags}`.split('').filter(Boolean))).join('');
     const validPieces = [];
+    const validEntries = [];
     const invalidEntries = [];
     const seen = new Set();
 
     for (const entry of entries) {
-        if (!entry.body) continue;
+        if (!entry?.body) {
+            if (entry?.error instanceof Error) {
+                invalidEntries.push(entry);
+            }
+            continue;
+        }
         try {
             new RegExp(entry.body, finalFlags);
             if (!seen.has(entry.body)) {
                 validPieces.push(entry.body);
+                validEntries.push(entry);
                 seen.add(entry.body);
             }
         } catch (error) {
@@ -138,14 +164,35 @@ export function buildRegex(patterns, template, { flags = 'iu', extraFlags = '', 
         }
     }
 
-    notifyInvalidPatterns(invalidEntries, context);
-
     if (!validPieces.length) {
+        notifyInvalidPatterns(invalidEntries, context);
         return null;
     }
 
-    const body = template.replace('{{PATTERNS}}', `(?:${validPieces.join('|')})`);
-    return new RegExp(body, finalFlags);
+    let body;
+    try {
+        body = template.replace('{{PATTERNS}}', `(?:${validPieces.join('|')})`);
+    } catch (buildError) {
+        const combined = [
+            ...invalidEntries,
+            ...validEntries.map(entry => ({ ...entry, error: buildError })),
+        ];
+        notifyInvalidPatterns(combined, context);
+        return null;
+    }
+
+    try {
+        const compiled = new RegExp(body, finalFlags);
+        notifyInvalidPatterns(invalidEntries, context);
+        return compiled;
+    } catch (compileError) {
+        const combined = [
+            ...invalidEntries,
+            ...validEntries.map(entry => ({ ...entry, error: compileError })),
+        ];
+        notifyInvalidPatterns(combined, context);
+        return null;
+    }
 }
 
 export function buildGenericRegex(patterns, { flags = 'iu', context = 'veto pattern' } = {}) {
@@ -165,15 +212,22 @@ export function buildGenericRegex(patterns, { flags = 'iu', context = 'veto patt
 
     const finalFlags = Array.from(new Set(String(flags || '').split('').filter(Boolean))).join('');
     const validPieces = [];
+    const validEntries = [];
     const invalidEntries = [];
     const seen = new Set();
 
     for (const entry of entries) {
-        if (!entry.body) continue;
+        if (!entry?.body) {
+            if (entry?.error instanceof Error) {
+                invalidEntries.push(entry);
+            }
+            continue;
+        }
         try {
             new RegExp(entry.body, finalFlags);
             if (!seen.has(entry.body)) {
                 validPieces.push(entry.body);
+                validEntries.push(entry);
                 seen.add(entry.body);
             }
         } catch (error) {
@@ -181,13 +235,23 @@ export function buildGenericRegex(patterns, { flags = 'iu', context = 'veto patt
         }
     }
 
-    notifyInvalidPatterns(invalidEntries, context);
-
     if (!validPieces.length) {
+        notifyInvalidPatterns(invalidEntries, context);
         return null;
     }
 
-    return new RegExp(validPieces.join('|'), finalFlags);
+    try {
+        const compiled = new RegExp(validPieces.join('|'), finalFlags);
+        notifyInvalidPatterns(invalidEntries, context);
+        return compiled;
+    } catch (compileError) {
+        const combined = [
+            ...invalidEntries,
+            ...validEntries.map(entry => ({ ...entry, error: compileError })),
+        ];
+        notifyInvalidPatterns(combined, context);
+        return null;
+    }
 }
 
 export function ensureMap(value) {
@@ -219,25 +283,37 @@ export function recompileRegexes() {
         const lowerIgnored = (profile.ignorePatterns || []).map(p => String(p).trim().toLowerCase());
         const effectivePatterns = (profile.patterns || []).filter(p => !lowerIgnored.includes(String(p).trim().toLowerCase()));
 
-        const escapeVerbList = (list) => {
+        const escapeVerbList = (list, contextLabel) => {
             const seen = new Set();
-            return (list || [])
-                .map(entry => parsePatternEntry(entry))
-                .filter(Boolean)
-                .map(entry => entry.body)
-                .filter(body => {
-                    if (!body || seen.has(body)) return false;
-                    seen.add(body);
-                    return true;
-                })
-                .join('|');
+            const valid = [];
+            const invalid = [];
+            (list || []).forEach((item) => {
+                const parsed = parsePatternEntry(item);
+                if (!parsed) return;
+                if (!parsed.body) {
+                    if (parsed.error instanceof Error) {
+                        invalid.push(parsed);
+                    }
+                    return;
+                }
+                if (seen.has(parsed.body)) return;
+                try {
+                    new RegExp(parsed.body, 'iu');
+                    seen.add(parsed.body);
+                    valid.push(parsed);
+                } catch (error) {
+                    invalid.push({ ...parsed, error });
+                }
+            });
+            notifyInvalidPatterns(invalid, contextLabel);
+            return { pattern: valid.map(entry => entry.body).join('|'), validEntries: valid, invalidEntries: invalid };
         };
-        const attributionVerbsPattern = escapeVerbList(profile.attributionVerbs);
-        const actionVerbsPattern = escapeVerbList(profile.actionVerbs);
+        const { pattern: attributionVerbsPattern } = escapeVerbList(profile.attributionVerbs, 'attribution verb');
+        const { pattern: actionVerbsPattern, invalidEntries: actionVerbInvalid = [] } = escapeVerbList(profile.actionVerbs, 'action verb');
         const pronounVocabulary = Array.isArray(profile.pronounVocabulary) && profile.pronounVocabulary.length
             ? profile.pronounVocabulary
             : DEFAULT_PRONOUNS;
-        const pronounPattern = escapeVerbList(pronounVocabulary);
+        const { pattern: pronounPattern, invalidEntries: pronounInvalid = [] } = escapeVerbList(pronounVocabulary, 'pronoun vocabulary');
 
         const speakerTemplate = '(?:^|[\r\n]+|[>\]]\s*)({{PATTERNS}})\s*:';
         const boundaryLookbehind = "(?<![A-Za-z0-9_'’])";
@@ -248,13 +324,29 @@ export function recompileRegexes() {
             ? `${boundaryLookbehind}({{PATTERNS}})(?:['’]s)?\\s+(?:${UNICODE_WORD_PATTERN}+\\s+){0,3}?(?:${actionVerbsPattern})`
             : null;
 
+        let pronounRegex = null;
+        if (actionVerbsPattern && pronounPattern) {
+            const pronounBody = `(?:^|[\r\n]+)\s*(?:${pronounPattern})(?:['’]s)?\s+(?:${UNICODE_WORD_PATTERN}+\s+){0,3}?(?:${actionVerbsPattern})`;
+            try {
+                pronounRegex = new RegExp(pronounBody, 'iu');
+                notifyInvalidPatterns([], 'pronoun pattern');
+            } catch (error) {
+                const combinedInvalid = [
+                    ...pronounInvalid,
+                    ...actionVerbInvalid,
+                    { body: pronounBody, raw: pronounBody, error },
+                ];
+                notifyInvalidPatterns(combinedInvalid, 'pronoun pattern');
+            }
+        } else {
+            notifyInvalidPatterns([], 'pronoun pattern');
+        }
+
         state.compiledRegexes = {
             speakerRegex: buildRegex(effectivePatterns, speakerTemplate),
             attributionRegex: attributionTemplate ? buildRegex(effectivePatterns, attributionTemplate) : null,
             actionRegex: actionTemplate ? buildRegex(effectivePatterns, actionTemplate, { extraFlags: 'u' }) : null,
-            pronounRegex: (actionVerbsPattern && pronounPattern)
-                ? new RegExp(`(?:^|[\r\n]+)\s*(?:${pronounPattern})(?:['’]s)?\s+(?:${UNICODE_WORD_PATTERN}+\\s+){0,3}?(?:${actionVerbsPattern})`, 'iu')
-                : null,
+            pronounRegex,
             vocativeRegex: buildRegex(effectivePatterns, `["“'\\s]({{PATTERNS}})[,.!?]`),
             possessiveRegex: buildRegex(effectivePatterns, `\\b({{PATTERNS}})['’]s\\b`),
             nameRegex: buildRegex(effectivePatterns, `\\b({{PATTERNS}})\\b`),
