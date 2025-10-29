@@ -10,6 +10,7 @@ import { normalizeCostumeName, escapeHtml } from "./utils.js";
 import { showStatus } from "./status.js";
 
 const invalidPatternCache = new Map();
+const patternFallbackCache = new Map();
 
 function updatePatternErrorDisplay() {
     if (typeof $ !== 'function') return;
