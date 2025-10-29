@@ -1703,7 +1703,7 @@ function renderMappings(profile) {
         row.data('outfits', outfits);
         row.append($("<td>").append($("<input>").addClass("map-name text_pole").val(normalized.name || "")));
         row.append($("<td>").append($("<input>").addClass("map-folder text_pole").val(normalized.defaultFolder || normalized.folder || "")));
-        row.append($("<td>").append($("<button>").addClass("map-remove menu_button interactable").html('<i class="fa-solid fa-trash-can"></i>'))));
+        row.append($("<td>").append($("<button>").addClass("map-remove menu_button interactable").html('<i class="fa-solid fa-trash-can"></i>')));
         tbody.append(row);
     });
 }
