@@ -221,19 +221,6 @@ function getUniqueProfileName(baseName = 'Profile') {
     return `${attempt} (${counter})`;
 }
 
-function resolveMaxBufferChars(profile) {
-    const raw = Number(profile?.maxBufferChars);
-    if (Number.isFinite(raw) && raw > 0) {
-        return raw;
-    }
-    return PROFILE_DEFAULTS.maxBufferChars;
-}
-
-function resolveNumericSetting(value, fallback) {
-    const num = Number(value);
-    return Number.isFinite(num) ? num : fallback;
-}
-
 function populateProfileDropdown() {
     const select = $("#cs-profile-select");
     const settings = getSettings();
