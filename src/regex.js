@@ -87,8 +87,8 @@ export function parsePatternEntry(entry) {
         const trimmed = entry.trim();
         if (!trimmed) return null;
         const body = trimmed
-            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-            .replace(/\s+/g, '\\s+');
+            .replace(/[.*+?^${}()|[\]\\]/g, (match) => `\\${match}`)
+            .replace(/\s+/g, () => '\\s+');
         return { body, raw: trimmed };
     }
     if (entry instanceof RegExp) {
