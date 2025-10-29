@@ -35,6 +35,10 @@
         <i class="fa-solid fa-users"></i>
         <span>Characters</span>
       </button>
+      <button class="cs-tab-button" id="cs-tab-outfits" type="button" role="tab" aria-selected="false" aria-controls="cs-panel-outfits" data-tab="outfits">
+        <i class="fa-solid fa-shirt"></i>
+        <span>Outfits (Labs)</span>
+      </button>
       <button class="cs-tab-button" id="cs-tab-detection" type="button" role="tab" aria-selected="false" aria-controls="cs-panel-detection" data-tab="detection">
         <i class="fa-solid fa-sliders"></i>
         <span>Detection &amp; Timing</span>
@@ -183,6 +187,43 @@
                   <tbody id="cs-mappings-tbody"></tbody>
                 </table>
                 <button id="cs-mapping-add" class="menu_button interactable" style="margin-top: 12px;">Add Mapping</button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="cs-tab-panel" id="cs-panel-outfits" role="tabpanel" aria-labelledby="cs-tab-outfits" data-tab="outfits" hidden>
+        <div class="cs-layout">
+          <div class="cs-column cs-column--wide">
+            <section class="cs-card">
+              <header class="cs-card-header">
+                <div class="cs-card-title">
+                  <i class="fa-solid fa-user-astronaut"></i>
+                  <div>
+                    <h3>Outfit Lab</h3>
+                    <p>Prototype controls for multi-outfit experimentation.</p>
+                  </div>
+                </div>
+              </header>
+              <div class="cs-card-body cs-card-body--stacked">
+                <div class="cs-experiment-banner" role="note" aria-live="polite">
+                  <span class="cs-experiment-badge">Experimental</span>
+                  <p>
+                    Outfit awareness is an early preview feature. Expect rough edges, limited functionality, and breaking changes as the system evolves.
+                  </p>
+                </div>
+                <label class="cs-master-toggle" for="cs-outfits-enable">
+                  <input id="cs-outfits-enable" type="checkbox" />
+                  <span class="cs-switch-thumb" aria-hidden="true"></span>
+                  <div class="cs-switch-copy">
+                    <strong>Enable Experimental Outfits</strong>
+                    <small>Turns on the lab features in this tab. Leave disabled if you need today&rsquo;s stable behaviour.</small>
+                  </div>
+                </label>
+                <p class="cs-helper-text">
+                  Nothing else lives here yet&mdash;flip the switch to opt into future outfit slot editors and awareness rules as they land.
+                </p>
               </div>
             </section>
           </div>

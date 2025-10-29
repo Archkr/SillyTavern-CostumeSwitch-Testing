@@ -105,6 +105,39 @@
   gap: 20px;
 }
 
+#costume-switcher-settings.cs-theme .cs-experiment-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.5;
+}
+
+#costume-switcher-settings.cs-theme .cs-experiment-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#costume-switcher-settings.cs-theme .cs-experiment-banner p {
+  margin: 0;
+  flex: 1;
+  font-size: 0.95rem;
+}
+
 #costume-switcher-settings.cs-theme .cs-card--compact {
   padding: 16px 22px;
 }
