@@ -207,11 +207,16 @@
                 </div>
               </header>
               <div class="cs-card-body cs-card-body--stacked">
-                <div class="cs-experiment-banner" role="note" aria-live="polite">
+                <div class="cs-experiment-banner cs-experiment-banner--outfits" role="note" aria-live="polite">
                   <span class="cs-experiment-badge">Experimental</span>
-                  <p>
-                    Outfit awareness is an early preview feature. Expect rough edges, limited functionality, and breaking changes as the system evolves.
-                  </p>
+                  <div class="cs-experiment-copy">
+                    <p>
+                      Outfit awareness is an early preview feature. Expect rough edges, limited functionality, and breaking changes as the system evolves.
+                    </p>
+                    <p class="cs-experiment-subcopy">
+                      Use this lab to stage per-character wardrobes before the feature graduates into the main Characters tab.
+                    </p>
+                  </div>
                 </div>
                 <label class="cs-master-toggle" for="cs-outfits-enable">
                   <input id="cs-outfits-enable" type="checkbox" />
@@ -221,9 +226,23 @@
                     <small>Turns on the lab features in this tab. Leave disabled if you need today&rsquo;s stable behaviour.</small>
                   </div>
                 </label>
-                <p class="cs-helper-text">
-                  Nothing else lives here yet&mdash;this section was added to make transferring to the new profile system go smoothly.
-                </p>
+                <div id="cs-outfit-disabled-notice" class="cs-outfit-disabled-notice" role="alert" hidden>
+                  <i class="fa-solid fa-flask"></i>
+                  <div>
+                    <strong>Flip the switch above to explore the Outfit Lab.</strong>
+                    <p>When disabled the editor remains read-only so your current profile stays stable.</p>
+                  </div>
+                </div>
+                <div id="cs-outfit-editor" class="cs-outfit-editor" aria-live="polite" aria-busy="false">
+                  <p class="cs-helper-text cs-outfit-editor-intro">
+                    Add characters to prototype nested outfit mappings. Each variation will try to match its triggers (one per line, supports <code>/regex/</code>) before falling back to the default folder.
+                  </p>
+                  <div id="cs-outfit-character-list" class="cs-outfit-character-list" data-empty-text="No characters have outfit variations yet."></div>
+                  <button id="cs-outfit-add-character" class="menu_button interactable cs-outfit-add-button" type="button">
+                    <i class="fa-solid fa-user-plus"></i>
+                    <span>Add Character Slot</span>
+                  </button>
+                </div>
               </div>
             </section>
           </div>
