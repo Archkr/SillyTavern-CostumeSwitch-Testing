@@ -66,6 +66,40 @@ test("resolveOutfitForMatch selects variant by trigger match", () => {
     assert.equal(result.trigger.pattern, "sword");
 });
 
+test("resolveOutfitForMatch honors matchKinds filters", () => {
+    const profile = setupProfile({
+        mappings: [
+            {
+                name: "Alex",
+                defaultFolder: "alex/base",
+                outfits: [
+                    { folder: "alex/dialogue", matchKinds: ["speaker", "vocative"] },
+                    { folder: "alex/action", matchKinds: ["action"] },
+                ],
+            },
+        ],
+    });
+
+    const speaker = resolveOutfitForMatch("Alex", {
+        profile,
+        context: { matchKind: "speaker" },
+    });
+    assert.equal(speaker.folder, "alex/dialogue");
+
+    const action = resolveOutfitForMatch("Alex", {
+        profile,
+        context: { matchKind: "action" },
+    });
+    assert.equal(action.folder, "alex/action");
+
+    const fallback = resolveOutfitForMatch("Alex", {
+        profile,
+        context: { matchKind: "pronoun" },
+    });
+    assert.equal(fallback.folder, "alex/base");
+    assert.equal(fallback.reason, "default-folder");
+});
+
 test("resolveOutfitForMatch respects awareness requirements", () => {
     const profile = setupProfile({
         mappings: [

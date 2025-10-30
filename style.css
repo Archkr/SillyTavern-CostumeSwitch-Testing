@@ -339,6 +339,45 @@
   resize: vertical;
 }
 
+#costume-switcher-settings.cs-theme .cs-outfit-matchkind-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px 12px;
+  margin-top: 8px;
+}
+
+#costume-switcher-settings.cs-theme .cs-outfit-matchkind-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.9rem;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#costume-switcher-settings.cs-theme .cs-outfit-matchkind-option input {
+  margin-top: 2px;
+}
+
+#costume-switcher-settings.cs-theme .cs-outfit-matchkind small,
+#costume-switcher-settings.cs-theme .cs-outfit-awareness small {
+  color: var(--text-muted);
+}
+
+#costume-switcher-settings.cs-theme .cs-outfit-awareness-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 16px;
+  margin-top: 8px;
+}
+
+#costume-switcher-settings.cs-theme .cs-outfit-awareness-field textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
 #costume-switcher-settings.cs-theme .cs-outfit-variant small {
   color: var(--text-muted);
 }
