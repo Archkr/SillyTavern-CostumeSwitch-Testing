@@ -161,6 +161,46 @@ Fine-tune responsiveness and tie-breaking behaviour:
 ### Costume Mappings
 Map any detected name or alias to a specific costume folder. Use **Add Mapping** to append rows, then fill in the character and destination folder names.
 
+#### Organizing multi-character cards
+
+Multi-character cards treat the parent directory as the shared biography. Create a child folder for every persona and point each mapping to that nested path. Costume Switcher resolves slash-delimited paths relative to your `characters/` root, so tidy folder names translate directly into mappings.
+
+**Example: Deep-space crew**
+
+```
+SillyTavern/data/default-user/characters/Starship Polaris/
+├── Captain Aris/
+├── Engineer Sol/
+└── Diplomat Lyra/
+```
+
+Map the characters to `Starship Polaris/Captain Aris`, `Starship Polaris/Engineer Sol`, and `Starship Polaris/Diplomat Lyra`. Each subfolder can contain its own portrait variants, background art, or expression packs without leaking into the others.
+
+**Example: Academy roommates**
+
+```
+SillyTavern/data/default-user/characters/Frostglen Dorm/
+├── Ember Hart/
+├── Quinn Vale/
+└── Mira Snow/
+```
+
+If Ember occasionally switches into a winter outfit, add another directory—`Frostglen Dorm/Ember Hart/Winter Gala/`—and point an outfit variant at that path. The base mapping still targets `Frostglen Dorm/Ember Hart`, while the variant appends the extra folder when its trigger (e.g., "snowstorm" or a `/winter/i` regex) fires.
+
+**Example: Band with stage personas**
+
+```
+SillyTavern/data/default-user/characters/Neon Skyline/
+├── Lead Echo/
+├── Bass Nova/
+└── Drummer Pulse/
+```
+
+Use `Neon Skyline/Lead Echo`, `Neon Skyline/Bass Nova`, and `Neon Skyline/Drummer Pulse` as the core mappings. When the group performs an acoustic set, you can swap all three at once by preparing alternate folders such as `Neon Skyline/Lead Echo/Unplugged/` and invoking the `/cs-map` slash command to temporarily reroute the mappings.
+
+Keep folder names readable—those exact strings show up in the UI and make debugging easier when reviewing switch telemetry.
+
+
 ### Live Pattern Tester
 Paste sample prose and inspect:
 - **All Detections** – Every match in order with its type and priority.
