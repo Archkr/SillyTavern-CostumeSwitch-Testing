@@ -4,5 +4,9 @@
   "type": "module",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "en-inflectors": "^1.0.12",
+    "wink-lemmatizer": "^3.0.4"
   }
 }
