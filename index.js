@@ -2272,6 +2272,29 @@ function extractDirectoryFromFileList(fileList) {
     return '';
 }
 
+function buildVariantFolderPath(characterName, folderPath) {
+    const rawFolder = (folderPath || "").trim();
+    if (!rawFolder) {
+        return "";
+    }
+    let normalizedFolder = rawFolder.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+    if (!normalizedFolder) {
+        return "";
+    }
+    const rawName = (characterName || "").trim();
+    if (!rawName) {
+        return normalizedFolder;
+    }
+    const normalizedName = rawName.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+    if (!normalizedName) {
+        return normalizedFolder;
+    }
+    if (normalizedFolder === normalizedName || normalizedFolder.startsWith(`${normalizedName}/`)) {
+        return normalizedFolder;
+    }
+    return `${normalizedName}/${normalizedFolder}`;
+}
+
 function getMappingRow(idx) {
     const rows = $("#cs-mappings-tbody tr");
     const row = rows.eq(idx);
@@ -2369,7 +2392,8 @@ function createOutfitVariantElement(profile, mapping, mappingIdx, variant, varia
     folderPicker.on('change', function() {
         const folderPath = extractDirectoryFromFileList(this.files || []);
         if (folderPath) {
-            folderInput.val(folderPath);
+            const combinedPath = buildVariantFolderPath(mapping?.name, folderPath);
+            folderInput.val(combinedPath);
             folderInput.trigger('input');
         }
         $(this).val('');
