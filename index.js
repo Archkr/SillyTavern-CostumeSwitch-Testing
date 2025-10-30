@@ -2160,6 +2160,16 @@ function saveCurrentProfileData() {
     return profileData;
 }
 
+const OUTFIT_MATCH_KIND_OPTIONS = [
+    { value: "speaker", label: "Speaker tags (Name: \"Hello\")" },
+    { value: "attribution", label: "Attribution cues (\"...\" she said)" },
+    { value: "action", label: "Action narration (He nodded)" },
+    { value: "pronoun", label: "Pronoun resolution" },
+    { value: "vocative", label: "Vocative mentions (\"Hey, Alice!\")" },
+    { value: "possessive", label: "Possessive mentions (Alice's staff)" },
+    { value: "name", label: "General name hits (any mention)" },
+];
+
 function cloneOutfitList(outfits) {
     if (!Array.isArray(outfits)) {
         return [];
@@ -2195,6 +2205,29 @@ function cloneOutfitList(outfits) {
     });
 
     return cloned;
+}
+
+function gatherVariantStringList(value) {
+    const results = [];
+    const visit = (entry) => {
+        if (entry == null) {
+            return;
+        }
+        if (Array.isArray(entry)) {
+            entry.forEach(visit);
+            return;
+        }
+        if (typeof entry === "string") {
+            entry.split(/\r?\n|,/).forEach((part) => {
+                const trimmed = part.trim();
+                if (trimmed) {
+                    results.push(trimmed);
+                }
+            });
+        }
+    };
+    visit(value);
+    return [...new Set(results)];
 }
 
 function normalizeOutfitVariant(rawVariant = {}) {
@@ -2241,39 +2274,89 @@ function normalizeOutfitVariant(rawVariant = {}) {
         delete normalized.slot;
     }
 
-    const triggers = [];
-    const arrayCandidates = [normalized.triggers, normalized.patterns, normalized.matchers];
-    arrayCandidates.forEach((candidate) => {
-        if (!Array.isArray(candidate)) {
-            return;
-        }
-        candidate.forEach((value) => {
-            const trimmed = typeof value === 'string' ? value.trim() : '';
-            if (trimmed) {
-                triggers.push(trimmed);
-            }
-        });
-    });
-
-    const stringCandidates = [normalized.trigger, normalized.matcher];
-    stringCandidates.forEach((candidate) => {
-        if (typeof candidate !== 'string') {
-            return;
-        }
-        candidate.split(/\r?\n|,/).forEach((value) => {
-            const trimmed = value.trim();
-            if (trimmed) {
-                triggers.push(trimmed);
-            }
-        });
-    });
-
-    const uniqueTriggers = [...new Set(triggers)];
+    const uniqueTriggers = gatherVariantStringList([
+        normalized.triggers,
+        normalized.patterns,
+        normalized.matchers,
+        normalized.trigger,
+        normalized.matcher,
+    ]);
     normalized.triggers = uniqueTriggers;
     delete normalized.patterns;
     delete normalized.matchers;
     delete normalized.trigger;
     delete normalized.matcher;
+
+    const matchKinds = gatherVariantStringList([
+        normalized.matchKinds,
+        normalized.matchKind,
+        normalized.kinds,
+        normalized.kind,
+    ]).map((value) => value.toLowerCase());
+    const uniqueMatchKinds = [...new Set(matchKinds)];
+    if (uniqueMatchKinds.length) {
+        normalized.matchKinds = uniqueMatchKinds;
+    } else {
+        delete normalized.matchKinds;
+    }
+    delete normalized.matchKind;
+    delete normalized.kinds;
+    delete normalized.kind;
+
+    const awarenessSource = typeof normalized.awareness === 'object' && normalized.awareness !== null
+        ? normalized.awareness
+        : {};
+    const normalizedAwareness = {};
+    const requiresAll = gatherVariantStringList([
+        awarenessSource.requires,
+        awarenessSource.requiresAll,
+        awarenessSource.all,
+        normalized.requires,
+        normalized.requiresAll,
+        normalized.all,
+    ]);
+    if (requiresAll.length) {
+        normalizedAwareness.requires = requiresAll;
+    }
+    const requiresAny = gatherVariantStringList([
+        awarenessSource.requiresAny,
+        awarenessSource.any,
+        awarenessSource.oneOf,
+        normalized.requiresAny,
+        normalized.any,
+        normalized.oneOf,
+    ]);
+    if (requiresAny.length) {
+        normalizedAwareness.requiresAny = requiresAny;
+    }
+    const excludes = gatherVariantStringList([
+        awarenessSource.excludes,
+        awarenessSource.absent,
+        awarenessSource.none,
+        awarenessSource.forbid,
+        normalized.excludes,
+        normalized.absent,
+        normalized.none,
+        normalized.forbid,
+    ]);
+    if (excludes.length) {
+        normalizedAwareness.excludes = excludes;
+    }
+    if (Object.keys(normalizedAwareness).length) {
+        normalized.awareness = normalizedAwareness;
+    } else {
+        delete normalized.awareness;
+    }
+    delete normalized.requires;
+    delete normalized.requiresAll;
+    delete normalized.all;
+    delete normalized.requiresAny;
+    delete normalized.any;
+    delete normalized.oneOf;
+    delete normalized.excludes;
+    delete normalized.absent;
+    delete normalized.none;
+    delete normalized.forbid;
 
     return normalized;
 }
@@ -2418,6 +2501,111 @@ function createOutfitVariantElement(profile, mapping, mappingIdx, variant, varia
     triggerField.append(triggerTextarea);
     triggerField.append($('<small>').text('Trigger keywords or /regex/ patterns that activate this outfit.'));
     variantEl.append(triggerField);
+
+    const matchKindField = $('<div>').addClass('cs-field cs-outfit-matchkind');
+    matchKindField.append($('<label>').text('Match Types (optional)'));
+    const matchKindList = $('<div>').addClass('cs-outfit-matchkind-options');
+    const selectedKinds = new Set((Array.isArray(normalized.matchKinds) ? normalized.matchKinds : []).map((value) => String(value).toLowerCase()));
+    OUTFIT_MATCH_KIND_OPTIONS.forEach((option) => {
+        const checkboxId = `cs-outfit-variant-kind-${mappingIdx}-${variantIndex}-${option.value}`;
+        const optionLabel = $('<label>', { class: 'cs-outfit-matchkind-option', for: checkboxId });
+        const checkbox = $('<input>', {
+            type: 'checkbox',
+            id: checkboxId,
+            value: option.value,
+        }).prop('checked', selectedKinds.has(option.value));
+        const text = $('<span>').text(option.label);
+        optionLabel.append(checkbox, text);
+        matchKindList.append(optionLabel);
+        checkbox.on('change', () => {
+            const checked = matchKindList.find('input:checked').map((_, el) => el.value).get();
+            if (checked.length) {
+                normalized.matchKinds = checked;
+            } else {
+                delete normalized.matchKinds;
+            }
+            syncMappingRowOutfits(mappingIdx, mapping.outfits);
+        });
+    });
+    matchKindField.append(matchKindList);
+    matchKindField.append($('<small>').text('Limit this variant to detections from specific match types. Leave unchecked to accept any match.'));
+    variantEl.append(matchKindField);
+
+    const awarenessField = $('<div>').addClass('cs-field cs-outfit-awareness');
+    awarenessField.append($('<label>').text('Scene Awareness (optional)'));
+    const awarenessGrid = $('<div>').addClass('cs-outfit-awareness-grid');
+    const awarenessState = typeof normalized.awareness === 'object' && normalized.awareness !== null ? normalized.awareness : {};
+    const requiresId = `cs-outfit-variant-requires-${mappingIdx}-${variantIndex}`;
+    const requiresField = $('<div>').addClass('cs-field cs-outfit-awareness-field')
+        .append($('<label>', { for: requiresId, text: 'Requires all of…' }));
+    const requiresTextarea = $('<textarea>', {
+        id: requiresId,
+        rows: 2,
+        placeholder: 'One name per line',
+    }).addClass('text_pole cs-outfit-awareness-input')
+        .val(Array.isArray(awarenessState.requires) ? awarenessState.requires.join('\n') : '');
+    requiresField.append(requiresTextarea);
+    requiresField.append($('<small>').text('Every listed character must be active in the scene roster.'));
+
+    const anyId = `cs-outfit-variant-any-${mappingIdx}-${variantIndex}`;
+    const anyField = $('<div>').addClass('cs-field cs-outfit-awareness-field')
+        .append($('<label>', { for: anyId, text: 'Requires any of…' }));
+    const anyTextarea = $('<textarea>', {
+        id: anyId,
+        rows: 2,
+        placeholder: 'One name per line',
+    }).addClass('text_pole cs-outfit-awareness-input')
+        .val(Array.isArray(awarenessState.requiresAny) ? awarenessState.requiresAny.join('\n') : '');
+    anyField.append(anyTextarea);
+    anyField.append($('<small>').text('At least one of these characters must be active.'));
+
+    const excludesId = `cs-outfit-variant-excludes-${mappingIdx}-${variantIndex}`;
+    const excludesField = $('<div>').addClass('cs-field cs-outfit-awareness-field')
+        .append($('<label>', { for: excludesId, text: 'Exclude when present' }));
+    const excludesTextarea = $('<textarea>', {
+        id: excludesId,
+        rows: 2,
+        placeholder: 'One name per line',
+    }).addClass('text_pole cs-outfit-awareness-input')
+        .val(Array.isArray(awarenessState.excludes) ? awarenessState.excludes.join('\n') : '');
+    excludesField.append(excludesTextarea);
+    excludesField.append($('<small>').text('Leave blank if the variant should ignore scene roster conflicts.'));
+
+    awarenessGrid.append(requiresField, anyField, excludesField);
+    awarenessField.append(awarenessGrid);
+    awarenessField.append($('<small>').text('Scene awareness relies on the Scene Roster detector setting. Names are matched case-insensitively.'));
+    variantEl.append(awarenessField);
+
+    const parseListInput = (value) => value
+        .split(/\r?\n|,/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+
+    const updateAwarenessState = () => {
+        const requiresList = parseListInput(requiresTextarea.val());
+        const anyList = parseListInput(anyTextarea.val());
+        const excludesList = parseListInput(excludesTextarea.val());
+        const next = {};
+        if (requiresList.length) {
+            next.requires = requiresList;
+        }
+        if (anyList.length) {
+            next.requiresAny = anyList;
+        }
+        if (excludesList.length) {
+            next.excludes = excludesList;
+        }
+        if (Object.keys(next).length) {
+            normalized.awareness = next;
+        } else {
+            delete normalized.awareness;
+        }
+        syncMappingRowOutfits(mappingIdx, mapping.outfits);
+    };
+
+    requiresTextarea.on('input', updateAwarenessState);
+    anyTextarea.on('input', updateAwarenessState);
+    excludesTextarea.on('input', updateAwarenessState);
 
     labelInput.on('input', () => {
         const value = labelInput.val().trim();
