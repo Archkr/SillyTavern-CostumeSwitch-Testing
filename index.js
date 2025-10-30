@@ -335,6 +335,24 @@ function ensureMappingCardId(mapping) {
     return mapping.__cardId;
 }
 
+function markMappingForInitialCollapse(mapping) {
+    if (!mapping || typeof mapping !== "object") {
+        return mapping;
+    }
+
+    try {
+        Object.defineProperty(mapping, "__startCollapsed", {
+            value: true,
+            enumerable: false,
+            configurable: true,
+        });
+    } catch (err) {
+        mapping.__startCollapsed = true;
+    }
+
+    return mapping;
+}
+
 const TAB_STORAGE_KEY = `${extensionName}-active-tab`;
 
 function initTabNavigation() {
@@ -2846,8 +2864,19 @@ function createOutfitCard(profile, mapping, idx) {
         rebuildMappingLookup(profile);
     });
 
-    const collapsed = state.outfitCardCollapse instanceof Map && state.outfitCardCollapse.get(cardId) === true;
+    const collapseStore = ensureCollapseStore();
+    let collapsed = collapseStore.get(cardId) === true;
+    if (!collapsed && mapping && Object.prototype.hasOwnProperty.call(mapping, "__startCollapsed")) {
+        collapsed = true;
+    }
     setCollapsed(collapsed);
+    if (mapping && Object.prototype.hasOwnProperty.call(mapping, "__startCollapsed")) {
+        try {
+            delete mapping.__startCollapsed;
+        } catch (err) {
+            mapping.__startCollapsed = undefined;
+        }
+    }
     syncMappingRowOutfits(idx, mapping.outfits);
 
     return card;
@@ -4298,7 +4327,7 @@ function wireUI() {
     $(document).on('click', '#cs-mapping-add', () => {
         const profile = getActiveProfile();
         if (profile) {
-            profile.mappings.push(normalizeMappingEntry({ name: "", defaultFolder: "", outfits: [] }));
+            profile.mappings.push(markMappingForInitialCollapse(normalizeMappingEntry({ name: "", defaultFolder: "", outfits: [] })));
             renderMappings(profile);
             rebuildMappingLookup(profile);
         }
@@ -4329,12 +4358,17 @@ function wireUI() {
         if (!profile) {
             return;
         }
-        profile.mappings.push(normalizeMappingEntry({ name: '', defaultFolder: '', outfits: [] }));
+        profile.mappings.push(markMappingForInitialCollapse(normalizeMappingEntry({ name: '', defaultFolder: '', outfits: [] })));
         renderMappings(profile);
         rebuildMappingLookup(profile);
         const newCard = $('#cs-outfit-character-list .cs-outfit-card').last();
         if (newCard.length) {
-            newCard.find('.cs-outfit-character-name').trigger('focus');
+            const toggle = newCard.find('.cs-outfit-card-toggle');
+            if (toggle.length) {
+                toggle.trigger('focus');
+            } else {
+                newCard.find('.cs-outfit-character-name').trigger('focus');
+            }
         }
     });
     $(document).on('input', '#cs-mappings-tbody .map-name', function() {
@@ -4701,7 +4735,7 @@ function registerCommands() {
             const folder = cleanArgs.slice(toIndex + 1).join(' ').trim();
 
             if (alias && folder) {
-                profile.mappings.push(normalizeMappingEntry({ name: alias, defaultFolder: folder }));
+                profile.mappings.push(markMappingForInitialCollapse(normalizeMappingEntry({ name: alias, defaultFolder: folder })));
                 rebuildMappingLookup(profile);
                 renderMappings(profile);
                 applyCommandProfileUpdates(profile, [], { persist });
