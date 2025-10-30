@@ -3,9 +3,18 @@ import { saveSettingsDebounced, event_types, eventSource } from "../../../../scr
 import { executeSlashCommandsOnChatInput, registerSlashCommand } from "../../../slash-commands.js";
 import {
     DEFAULT_ACTION_VERBS,
+    DEFAULT_ACTION_VERBS_PRESENT,
+    DEFAULT_ACTION_VERBS_THIRD_PERSON,
     DEFAULT_ATTRIBUTION_VERBS,
+    DEFAULT_ATTRIBUTION_VERBS_PRESENT,
+    DEFAULT_ATTRIBUTION_VERBS_THIRD_PERSON,
     EXTENDED_ACTION_VERBS,
+    EXTENDED_ACTION_VERBS_PRESENT,
+    EXTENDED_ACTION_VERBS_THIRD_PERSON,
     EXTENDED_ATTRIBUTION_VERBS,
+    EXTENDED_ATTRIBUTION_VERBS_PRESENT,
+    EXTENDED_ATTRIBUTION_VERBS_THIRD_PERSON,
+    buildVerbSlices,
 } from "./verbs.js";
 import { loadProfiles, normalizeProfile, normalizeMappingEntry } from "./profile-utils.js";
 
@@ -266,13 +275,25 @@ const KNOWN_PRONOUNS = new Set([
 
 const KNOWN_ATTRIBUTION_VERBS = new Set([
     ...PROFILE_DEFAULTS.attributionVerbs,
+    ...DEFAULT_ATTRIBUTION_VERBS_PRESENT,
+    ...DEFAULT_ATTRIBUTION_VERBS_THIRD_PERSON,
     ...EXTENDED_ATTRIBUTION_VERBS,
+    ...EXTENDED_ATTRIBUTION_VERBS_PRESENT,
+    ...EXTENDED_ATTRIBUTION_VERBS_THIRD_PERSON,
 ].map(value => String(value).toLowerCase()));
 
 const KNOWN_ACTION_VERBS = new Set([
     ...PROFILE_DEFAULTS.actionVerbs,
+    ...DEFAULT_ACTION_VERBS_PRESENT,
+    ...DEFAULT_ACTION_VERBS_THIRD_PERSON,
     ...EXTENDED_ACTION_VERBS,
+    ...EXTENDED_ACTION_VERBS_PRESENT,
+    ...EXTENDED_ACTION_VERBS_THIRD_PERSON,
 ].map(value => String(value).toLowerCase()));
+
+function getVerbInflections(category = "attribution", edition = "default") {
+    return buildVerbSlices({ category, edition });
+}
 
 const DEFAULTS = {
     enabled: true,
@@ -5048,6 +5069,7 @@ export {
     summarizeOutfitDecision,
     state,
     extensionName,
+    getVerbInflections,
 };
 
 function load() {

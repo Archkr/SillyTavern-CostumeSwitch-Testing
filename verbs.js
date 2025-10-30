@@ -1,188 +1,44 @@
-export const DEFAULT_ATTRIBUTION_VERBS = [
-    "acknowledged", "added", "addressed", "admitted", "advised", "affirmed",
-    "agreed", "announced", "answered", "argued", "asked", "asserted",
-    "assured", "averred", "avowed", "barked", "begged", "began",
-    "bellowed", "blurted", "boasted", "bragged", "breathed", "called",
-    "cautioned", "cheered", "chimed", "chirped", "clarified", "commanded",
-    "commented", "complained", "conceded", "concluded", "confessed",
-    "confirmed", "consoled", "continued", "countered", "cried", "croaked",
-    "crowed", "declared", "decreed", "demanded", "denied", "described",
-    "directed", "drawled", "echoed", "emphasized", "encouraged",
-    "enquired", "entreated", "enthused", "estimated", "exclaimed",
-    "explained", "expressed", "gasped", "grinned", "grumbled", "guaranteed",
-    "guessed", "hinted", "insisted", "instructed", "interjected",
-    "interrupted", "intimated", "joked", "lamented", "laughed", "lied",
-    "maintained", "mentioned", "murmured", "mused", "muttered", "nagged",
-    "nodded", "noted", "objected", "observed", "offered", "opined",
-    "ordered", "perked up", "pleaded", "pledged", "pondered", "prayed",
-    "predicted", "proclaimed", "promised", "proposed", "protested",
-    "quavered", "queried", "questioned", "quipped", "quoted", "rambled",
-    "reasoned", "reassured", "recited", "recognized", "recounted",
-    "rejoined", "remarked", "repeated", "replied", "reported", "requested",
-    "responded", "restated", "retorted", "revealed", "roared", "sang",
-    "scolded", "scoffed", "screeched", "shrieked", "sighed", "snapped",
-    "snarled", "soothed", "spoke", "stammered", "stated", "stressed",
-    "stuttered", "suggested", "surmised", "swore", "thanked", "threatened",
-    "told", "touted", "trembled", "urged", "uttered", "vowed", "wailed",
-    "warned", "whimpered", "whined", "whispered", "wondered", "yelled",
-    "yowled"
-];
+import {
+    VERB_CATALOG,
+    buildLegacyVerbList,
+    buildVerbSlices,
+} from "./src/data/verbCatalog.js";
 
-export const DEFAULT_ACTION_VERBS = [
-    "adjust", "adjusted", "amble", "ambled", "appear", "appeared",
-    "approach", "approached", "arc", "arched", "arrive", "arrived", "ascend",
-    "ascended", "balance", "balanced", "bend", "bent", "blink", "blinked",
-    "bolt", "bolted", "bound", "bounded", "bow", "bowed", "breathe",
-    "breathed", "charge", "charged", "chase", "chased", "circle", "circled",
-    "clamber", "clambered", "clap", "clapped", "climb", "climbed",
-    "collapse", "collapsed", "crawl", "crawled", "creep", "crept",
-    "crouch", "crouched", "dance", "danced", "dart", "darted", "dash",
-    "dashed", "depart", "departed", "descend", "descended", "dive",
-    "dived", "dodge", "dodged", "drag", "dragged", "drift", "drifted",
-    "drop", "dropped", "duck", "ducked", "emerge", "emerged", "enter",
-    "entered", "escape", "escaped", "exit", "exited", "fall", "fell",
-    "fidget", "fidgeted", "flee", "fled", "flinch", "flinched", "float",
-    "floated", "flow", "flowed", "flurry", "flurried", "fly", "flew",
-    "follow", "followed", "freeze", "froze", "frown", "frowned", "gallop",
-    "galloped", "gesture", "gestured", "giggle", "giggled", "glance",
-    "glanced", "glide", "glided", "glimmer", "glimmered", "grab",
-    "grabbed", "grasp", "grasped", "grimace", "grimaced", "grin",
-    "grinned", "groan", "groaned", "growl", "growled", "grumble",
-    "grumbled", "grunt", "grunted", "hitch", "hitched", "hobble",
-    "hobbled", "hold", "held", "hop", "hopped", "huddle", "huddled",
-    "hurry", "hurried", "inch", "inched", "jerk", "jerked", "jog",
-    "jogged", "jolt", "jolted", "jump", "jumped", "kick", "kicked",
-    "kneel", "knelt", "knock", "knocked", "laugh", "laughed", "lean",
-    "leaned", "leap", "leapt", "left", "limp", "limped", "lurch",
-    "lurched", "look", "looked", "loosen", "loosened", "lower", "lowered",
-    "lunge", "lunged", "march", "marched", "meander", "meandered",
-    "motion", "motioned", "move", "moved", "nod", "nodded", "observe",
-    "observed", "pace", "paced", "pause", "paused", "peek", "peeked",
-    "peer", "peered", "pivot", "pivoted", "point", "pointed", "pop",
-    "popped", "position", "positioned", "pounce", "pounced", "prowl",
-    "prowled", "pull", "pulled", "push", "pushed", "race", "raced",
-    "raise", "raised", "reach", "reached", "recoil", "recoiled",
-    "retreat", "retreated", "rise", "rose", "roll", "rolled", "run",
-    "ran", "rush", "rushed", "scoot", "scooted", "scramble", "scrambled",
-    "scurry", "scurried", "set", "shift", "shifted", "shimmy", "shimmied",
-    "shiver", "shivered", "shake", "shook", "shrug", "shrugged", "shudder",
-    "shuddered", "sigh", "sighed", "slink", "slinked", "slip", "slipped",
-    "slither", "slithered", "slouch", "slouched", "slump", "slumped",
-    "smile", "smiled", "smirk", "smirked", "snap", "snapped", "snort",
-    "snorted", "sprawl", "sprawled", "spin", "spun", "sprint",
-    "sprinted", "squirm", "squirmed", "stagger", "staggered", "stalk",
-    "stalked", "stare", "stared", "step", "stepped", "stomp", "stomped",
-    "stoop", "stooped", "stride", "strode", "strike", "struck",
-    "strut", "strutted", "stumble", "stumbled", "sway", "swayed",
-    "swagger", "swaggered", "swallow", "swallowed", "swap", "swapped",
-    "sweep", "swept", "swing", "swung", "tackle", "tackled", "tap",
-    "tapped", "throw", "threw", "tilt", "tilted", "tiptoe", "tiptoed",
-    "toss", "tossed", "tramp", "tramped", "tremble", "trembled", "trudge",
-    "trudged", "turn", "turned", "twirl", "twirled", "twist", "twisted",
-    "vault", "vaulted", "veer", "veered", "wade", "waded", "wake",
-    "woke", "walk", "walked", "wander", "wandered", "watch", "watched",
-    "wave", "waved", "wince", "winced", "withdraw", "withdrew"
-];
+const defaultAttributionSlices = buildVerbSlices({ category: "attribution", edition: "default" });
+const extendedAttributionSlices = buildVerbSlices({ category: "attribution", edition: "extended" });
+const defaultActionSlices = buildVerbSlices({ category: "action", edition: "default" });
+const extendedActionSlices = buildVerbSlices({ category: "action", edition: "extended" });
 
-export const EXTENDED_ATTRIBUTION_VERBS = [
-    "acknowledged", "added", "addressed", "adjudged", "admitted", "affirmed",
-    "agreed", "alleged", "announced", "answered", "appealed", "applauded",
-    "argued", "articulated", "asked", "asserted", "assured", "avowed",
-    "averred", "babbled", "bantered", "barked", "bawled", "begged",
-    "bellowed", "blathered", "bleated", "blubbered", "blurted", "boasted",
-    "bragged", "breathed", "bubbled", "cackled", "cajoled", "called",
-    "cautioned", "celebrated", "chanted", "chatted", "cheered", "chirped",
-    "chortled", "chuckled", "clamored", "clarified", "commanded",
-    "commented", "conceded", "confessed", "confided", "confirmed",
-    "congratulated", "contended", "continued", "countered", "croaked",
-    "crowed", "cried", "debated", "declared", "decreed", "defended",
-    "demanded", "denied", "described", "detailed", "dictated", "drawled",
-    "droned", "emphasized", "enquired", "entreated", "enumerated",
-    "enthused", "epitomized", "equivocated", "exclaimed",
-    "exhorted", "exonerated", "explained", "expounded", "expostulated",
-    "fumed", "gasped", "gestured", "giggled", "grinned", "groaned",
-    "growled", "grumbled", "guaranteed", "guessed",
-    "harangued", "hinted", "hissed", "hollered", "howled", "hypothesized",
-    "implored", "implied", "improvised", "insisted", "intoned", "intimated",
-    "interjected", "interrogated", "interrupted", "inquired", "jabbered",
-    "jeered", "jested", "joked", "lectured", "lamented", "laughed",
-    "maintained", "marveled", "mewled", "mimicked", "mumbled", "murmured",
-    "mused", "muttered", "nagged", "narrated", "noted", "notified",
-    "observed", "offered", "opined", "orated", "ordered", "petitioned",
-    "phrased", "pleaded", "pledged", "posited", "prattled", "preached",
-    "predicated", "prescribed", "proclaimed", "professed", "proffered",
-    "prognosticated", "promised", "pronounced", "proposed", "protested",
-    "purred", "queried", "questioned", "quipped", "quoted", "rambled",
-    "rasped", "reasoned", "reassured", "rebuked", "rebutted", "recalled",
-    "recited", "recommended", "recounted", "referred", "reiterated",
-    "remarked", "reminded", "repeated", "replied", "reported", "requested",
-    "resolved", "responded", "restated", "retorted", "revealed", "roared",
-    "sang", "sassed", "scolded", "screeched", "shouted", "shrieked",
-    "sighed", "slurred", "snapped", "sneered", "snickered", "sniped",
-    "snorted", "sobbed", "soothed", "speculated", "spluttered", "spoke",
-    "sprouted", "sputtered", "stammered", "stated", "stipulated", "stormed",
-    "suggested", "summarized", "surmised", "swore", "taunted", "teased",
-    "testified", "thanked", "theorized", "threatened", "trilled", "trumpeted",
-    "tweeted", "twittered", "underlined", "updated", "uploaded", "urged",
-    "uttered", "vowed", "wailed", "warned", "whimpered", "whined",
-    "whispered", "whooped", "wondered", "yelled", "yelped", "yowled"
-];
+export const DEFAULT_ATTRIBUTION_VERBS = buildLegacyVerbList({ category: "attribution", edition: "default" });
+export const DEFAULT_ATTRIBUTION_VERBS_PRESENT = defaultAttributionSlices.base;
+export const DEFAULT_ATTRIBUTION_VERBS_THIRD_PERSON = defaultAttributionSlices.thirdPerson;
+export const DEFAULT_ATTRIBUTION_VERBS_PAST = defaultAttributionSlices.past;
+export const DEFAULT_ATTRIBUTION_VERBS_PAST_PARTICIPLE = defaultAttributionSlices.pastParticiple;
+export const DEFAULT_ATTRIBUTION_VERBS_PRESENT_PARTICIPLE = defaultAttributionSlices.presentParticiple;
 
-export const EXTENDED_ACTION_VERBS = [
-    "accelerated", "ambled", "angled", "arched", "ascended", "assembled",
-    "attacked", "backpedaled", "balanced", "barged", "beckoned", "bolted",
-    "bounded", "braced", "brandished", "breached", "breezed", "bristled",
-    "brooded", "brushed", "burrowed", "bustled", "butted", "calibrated",
-    "careened", "carved", "cast", "charged", "chased", "circled",
-    "clambered", "clapped", "clashed", "clawed", "clenched", "clung",
-    "clutched", "coiled", "collided", "commandeered", "commanded",
-    "conjured", "contorted", "contemplated", "corkscrewed", "crawled",
-    "cowered", "cradled", "crashed", "creaked", "crept", "crinkled",
-    "crooned", "crumpled", "crushed", "curled", "darted", "dashed",
-    "deflected", "descended", "detoured", "dipped", "dodged", "drained",
-    "draped", "drifted", "drilled", "dripped", "drizzled", "drummed",
-    "faltered", "fidgeted", "flared", "fled", "flew", "flinched",
-    "flitted", "flopped", "flourished", "fluttered", "focused", "forged",
-    "fractured", "frolicked", "galloped", "gathered", "glanced", "glided",
-    "glimmered", "glinted", "glissaded", "glowered", "gnashed", "gnawed",
-    "grimaced", "grinned", "gripped", "groaned", "ground", "hacked",
-    "halted", "hammered", "harnessed", "hauled", "heaved", "hinged",
-    "hissed", "hovered", "huddled", "hunted", "hustled", "illuminated",
-    "immerged", "inched", "intercepted", "jogged", "jolted", "jostled",
-    "juggled", "jutted", "kindled", "knelt", "knitted", "knocked",
-    "lanced", "lashed", "laughed", "launched", "leaned", "leapt",
-    "levered", "lingered", "loomed", "lunged", "lurched", "massed",
-    "meandered", "melted", "mended", "merged", "migrated", "milled",
-    "mimed", "morphed", "motioned", "mounted", "mustered", "muttered",
-    "navigated", "nodded", "nudged", "nuzzled", "observed", "orbited",
-    "paced", "paddled", "parried", "paused", "pawed", "peered", "perched",
-    "pivoted", "planted", "plodded", "plotted", "plowed", "plucked",
-    "plummeted", "pounced", "pranced", "preened", "pressed", "prodded",
-    "propelled", "prowled", "pulsed", "pummeled", "pumped", "punched",
-    "pursued", "quaked", "quavered", "quivered", "raced", "radiated",
-    "rallied", "rattled", "reeled", "refracted", "reached", "recoiled",
-    "redirected", "reduced", "retreated", "reversed", "revolved",
-    "ricocheted", "roared", "rocked", "rolled", "sailed", "sallied",
-    "sashayed", "savored", "scampered", "scattered", "screeched",
-    "scrubbed", "scudded", "scurried", "seeped", "seized", "shaded",
-    "shadowed", "sharpened", "shifted", "shimmered", "shivered", "shone",
-    "shouted", "shrugged", "shuddered", "sidestepped", "sifted", "sighed",
-    "sketched", "skidded", "skimmed", "skipped", "slashed", "slithered",
-    "slunk", "sluiced", "smirked", "smote", "snaked", "snapped",
-    "sneered", "snickered", "sniffed", "snorted", "snowballed", "soared",
-    "sparked", "spilled", "spiraled", "splashed", "sprawled", "sprayed",
-    "sprouted", "sprinted", "sprung", "spun", "spurred", "sputtered",
-    "squared", "squeezed", "squinted", "staggered", "stalked", "stilled",
-    "stooped", "stormed", "straddled", "strained", "strayed", "streaked",
-    "stretched", "strode", "strolled", "struggled", "strummed", "strutted",
-    "submerged", "summoned", "surged", "swarmed", "swatted", "swirled",
-    "swiveled", "swung", "tackled", "tailed", "tensed", "thrashed",
-    "threw", "thrust", "thudded", "ticked", "tilted", "tingled", "tipped",
-    "toppled", "tracked", "traced", "trailed", "tramped", "transfixed",
-    "trickled", "trilled", "trudged", "trundled", "twined", "twirled",
-    "twisted", "undulated", "unsheathed", "vaulted", "veered", "vibrated",
-    "waded", "waited", "wandered", "warped", "watched", "weaved", "whirled",
-    "whispered", "whistled", "widened", "windmilled", "winced", "wound",
-    "wove", "wrapped", "wrestled", "wriggled", "yanked", "yearned",
-    "yawed", "zigzagged"
-];
+export const EXTENDED_ATTRIBUTION_VERBS = buildLegacyVerbList({ category: "attribution", edition: "extended" });
+export const EXTENDED_ATTRIBUTION_VERBS_PRESENT = extendedAttributionSlices.base;
+export const EXTENDED_ATTRIBUTION_VERBS_THIRD_PERSON = extendedAttributionSlices.thirdPerson;
+export const EXTENDED_ATTRIBUTION_VERBS_PAST = extendedAttributionSlices.past;
+export const EXTENDED_ATTRIBUTION_VERBS_PAST_PARTICIPLE = extendedAttributionSlices.pastParticiple;
+export const EXTENDED_ATTRIBUTION_VERBS_PRESENT_PARTICIPLE = extendedAttributionSlices.presentParticiple;
+
+export const DEFAULT_ACTION_VERBS = buildLegacyVerbList({ category: "action", edition: "default" });
+export const DEFAULT_ACTION_VERBS_PRESENT = defaultActionSlices.base;
+export const DEFAULT_ACTION_VERBS_THIRD_PERSON = defaultActionSlices.thirdPerson;
+export const DEFAULT_ACTION_VERBS_PAST = defaultActionSlices.past;
+export const DEFAULT_ACTION_VERBS_PAST_PARTICIPLE = defaultActionSlices.pastParticiple;
+export const DEFAULT_ACTION_VERBS_PRESENT_PARTICIPLE = defaultActionSlices.presentParticiple;
+
+export const EXTENDED_ACTION_VERBS = buildLegacyVerbList({ category: "action", edition: "extended" });
+export const EXTENDED_ACTION_VERBS_PRESENT = extendedActionSlices.base;
+export const EXTENDED_ACTION_VERBS_THIRD_PERSON = extendedActionSlices.thirdPerson;
+export const EXTENDED_ACTION_VERBS_PAST = extendedActionSlices.past;
+export const EXTENDED_ACTION_VERBS_PAST_PARTICIPLE = extendedActionSlices.pastParticiple;
+export const EXTENDED_ACTION_VERBS_PRESENT_PARTICIPLE = extendedActionSlices.presentParticiple;
+
+export {
+    VERB_CATALOG,
+    buildLegacyVerbList,
+    buildVerbSlices,
+};
