@@ -13,20 +13,25 @@ Under the hood the extension listens to streaming output from your model, scores
 1. [Highlights at a Glance](#highlights-at-a-glance)
 2. [Requirements](#requirements)
 3. [Installation](#installation)
-4. [Getting Started in Five Minutes](#getting-started-in-five-minutes)
-5. [Tour of the Settings UI](#tour-of-the-settings-ui)
-6. [Understanding Live Tester Reports](#understanding-live-tester-reports)
-7. [Advanced Configuration Tips](#advanced-configuration-tips)
-8. [Slash Commands](#slash-commands)
-9. [Sharing Top Characters with Other Extensions](#sharing-top-characters-with-other-extensions)
-10. [Troubleshooting Checklist](#troubleshooting-checklist)
-11. [Support & Contributions](#support--contributions)
+4. [Architecture Overview](#architecture-overview)
+5. [Custom Detection Engines](#custom-detection-engines)
+   1. [Main Detection Engine (v3)](#main-detection-engine-v3)
+   2. [Outfit Detection Engine (v1)](#outfit-detection-engine-v1)
+6. [Getting Started in Five Minutes](#getting-started-in-five-minutes)
+7. [Tour of the Settings UI](#tour-of-the-settings-ui)
+8. [Understanding Live Tester Reports](#understanding-live-tester-reports)
+9. [Advanced Configuration Tips](#advanced-configuration-tips)
+10. [Slash Commands](#slash-commands)
+11. [Sharing Top Characters with Other Extensions](#sharing-top-characters-with-other-extensions)
+12. [Troubleshooting Checklist](#troubleshooting-checklist)
+13. [Support & Contributions](#support--contributions)
 
 ---
 
 ## Highlights at a Glance
 
 - **Narrative-aware detection** – Attribution, action, vocative, possessive, pronoun, and general mention detectors can be mixed to match the format of your prose.
+- **Custom engine lineage** – The fully bespoke detection stack (currently in its third major revision) fuses streaming analysis with explainable telemetry so you always know why a switch occurred.
 - **Scene roster logic** – Track who is currently in the conversation and favour them during tight scoring races.
 - **Modern profile workflow** – Save, duplicate, rename, and export complete configurations with a couple of clicks.
 - **Performance tuning** – Adjust global, per-trigger, and failed-trigger cooldowns plus the maximum buffer size and processing cadence.
@@ -55,6 +60,46 @@ Under the hood the extension listens to streaming output from your model, scores
 4. Enable **Costume Switcher** from the Extensions list if it is not activated automatically.
 
 To update, return to the Extension Manager and click **Update all** or reinstall from the same URL.
+
+---
+
+## Architecture Overview
+
+Costume Switcher combines a lightweight UI layer with a purpose-built streaming analysis pipeline so that avatar changes arrive in perfect sync with the narrative.
+
+- **Streaming bridge** – The extension taps into SillyTavern’s token stream and normalises messages into an incremental buffer that can be rescored every few characters without stalling the UI.
+- **Profile-driven configuration** – Every slider, toggle, and text field in the settings drawer writes to a structured profile object. The profile is compiled into runtime detectors, cooldown rules, and costume mappings that can be swapped on the fly when you change stories.
+- **Detection orchestration** – When new text appears, the orchestrator fans out the analysis work across multiple detectors, merges the results into a weighted scorecard, and then applies cooldowns, veto phrases, and roster context to determine which character should take the spotlight.
+- **Rendering layer** – Once a winner is chosen, the renderer resolves the final costume folder, handles manual focus overrides, and dispatches the change to SillyTavern’s avatar manager without blocking the rest of the extension.
+
+The entire stack was designed in tandem so that authors can iterate quickly, experiment with edge cases in the Live Pattern Tester, and ship polished character experiences without juggling ad-hoc scripts.
+
+---
+
+## Custom Detection Engines
+
+Costume Switcher does not rely on third-party libraries for detection. Every matcher, bias rule, and cooldown is part of a fully custom detection stack purpose-built for SillyTavern roleplay. Both engines below share a common orchestration layer, yet each is tuned for a different job so you can mix expressive character work with razor-sharp costume swaps.
+
+### Main Detection Engine (v3)
+
+Version 3 of the primary detection engine powers all speaker attribution. It represents the third full rewrite of the pipeline and ships with the following pillars:
+
+- **Adaptive mention parsing** – Custom lexers interpret narrative dialogue markers, action beats, and pronoun references in real time to deliver confident matches even when prose gets experimental.
+- **Contextual weighting** – Scene roster intelligence, recency decay, and per-detector weights are blended to promote the most believable speaker rather than the most frequent name.
+- **Cooldown governance** – Global, per-trigger, and failure-specific cooldowns are enforced centrally so that rapid-fire switches stay smooth instead of jittery.
+- **Explainer-first telemetry** – Every detection is logged with type, score, and rationale, powering the Live Pattern Tester’s switch timeline and exported reports for transparent debugging.
+
+The v3 engine is the culmination of extensive field feedback. It prioritises deterministic behaviour, approachable tuning, and maintainability so new detectors can slot in without destabilising existing stories.
+
+### Outfit Detection Engine (v1)
+
+Costume changes deserve their own specialised logic. The outfit detection engine (currently version 1) translates the winning speaker into a wardrobe action using a mapping table, fallback defaults, and optional manual focus locks.
+
+- **Folder resolution graph** – Character aliases, regex entries, and manual overrides converge into a single resolved costume path so you can align multiple avatars with one identity.
+- **Bias-aware switching** – The engine respects the same cooldown and veto logic as the primary detector, ensuring costume swaps mirror narrative intent without visual whiplash.
+- **State recovery** – Manual resets and default costume fallbacks keep the experience resilient; even if the roster changes mid-session the engine gracefully lands on a sensible wardrobe.
+
+Future updates will iterate on version 1 by layering in richer wardrobe states and shared presets while preserving the confidence-first ethos of the current build.
 
 ---
 
