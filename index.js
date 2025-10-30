@@ -563,8 +563,9 @@ function findAllMatches(combined) {
     });
 }
 
-function findBestMatch(combined, precomputedMatches = null) {
+function findBestMatch(combined, precomputedMatches = null, options = {}) {
     const profile = getActiveProfile();
+    if (!profile) return null;
     const allMatches = Array.isArray(precomputedMatches) ? precomputedMatches : findAllMatches(combined);
     if (allMatches.length === 0) return null;
 
@@ -584,6 +585,10 @@ function findBestMatch(combined, precomputedMatches = null) {
         priorityMultiplier: 100,
     };
 
+    if (Number.isFinite(options?.minIndex) && options.minIndex >= 0) {
+        scoringOptions.minIndex = options.minIndex;
+    }
+
     return getWinner(allMatches, profile.detectionBias, combined.length, scoringOptions);
 }
 
@@ -599,8 +604,15 @@ function getWinner(matches, bias = 0, textLength = 0, options = {}) {
     const priorityMultiplier = Number.isFinite(options?.priorityMultiplier)
         ? options.priorityMultiplier
         : 100;
-    const scoredMatches = matches.map(match => {
+    const minIndex = Number.isFinite(options?.minIndex) && options.minIndex >= 0 ? options.minIndex : null;
+    const scoredMatches = [];
+
+    matches.forEach((match) => {
         const isActive = match.priority >= 3; // speaker, attribution, action
+        const hasFiniteIndex = Number.isFinite(match.matchIndex);
+        if (minIndex != null && hasFiniteIndex && match.matchIndex <= minIndex) {
+            return;
+        }
         const distanceFromEnd = Number.isFinite(textLength)
             ? Math.max(0, textLength - match.matchIndex)
             : 0;
@@ -617,7 +629,7 @@ function getWinner(matches, bias = 0, textLength = 0, options = {}) {
                 score += bonus;
             }
         }
-        return { ...match, score };
+        scoredMatches.push({ ...match, score });
     });
     scoredMatches.sort((a, b) => b.score - a.score);
     return scoredMatches[0];
@@ -3449,6 +3461,27 @@ function copyTesterReport() {
         });
 }
 
+function adjustWindowForTrim(msgState, trimmedChars, combinedLength) {
+    if (!msgState) {
+        return;
+    }
+
+    if (!Number.isFinite(msgState.processedLength)) {
+        msgState.processedLength = 0;
+    }
+
+    if (Number.isFinite(trimmedChars) && trimmedChars > 0) {
+        if (Number.isFinite(msgState.lastAcceptedIndex) && msgState.lastAcceptedIndex >= 0) {
+            msgState.lastAcceptedIndex = Math.max(-1, msgState.lastAcceptedIndex - trimmedChars);
+        }
+        msgState.processedLength = Math.max(0, msgState.processedLength - trimmedChars);
+    }
+
+    if (Number.isFinite(combinedLength)) {
+        msgState.processedLength = Math.min(msgState.processedLength, combinedLength);
+    }
+}
+
 function createTesterMessageState(profile) {
     return {
         lastAcceptedName: null,
@@ -3488,7 +3521,10 @@ function simulateTesterStream(combined, profile, bufKey) {
     const rosterWarnings = [];
     const rosterDisplayNames = new Map();
     for (let i = 0; i < combined.length; i++) {
-        buffer = (buffer + combined[i]).slice(-maxBuffer);
+        const appended = buffer + combined[i];
+        buffer = appended.slice(-maxBuffer);
+        const trimmedChars = appended.length - buffer.length;
+        adjustWindowForTrim(msgState, trimmedChars, buffer.length);
         state.perMessageBuffers.set(bufKey, buffer);
 
         if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(buffer)) {
@@ -4586,6 +4622,7 @@ function createMessageState(profile, bufKey) {
         rosterTTL: profile.sceneRosterTTL,
         outfitTTL: profile.sceneRosterTTL,
         processedLength: 0,
+        lastAcceptedIndex: -1,
     };
 
     if (newState.sceneRoster.size > 0) {
@@ -4714,8 +4751,12 @@ const handleStream = (...args) => {
         if (msgState.vetoed) return;
 
         const prev = state.perMessageBuffers.get(bufKey) || "";
+        const normalizedToken = normalizeStreamText(tokenText);
+        const appended = prev + normalizedToken;
         const maxBuffer = resolveMaxBufferChars(profile);
-        const combined = (prev + normalizeStreamText(tokenText)).slice(-maxBuffer);
+        const combined = appended.slice(-maxBuffer);
+        const trimmedChars = appended.length - combined.length;
+        adjustWindowForTrim(msgState, trimmedChars, combined.length);
         state.perMessageBuffers.set(bufKey, combined);
 
         const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : null;
@@ -4726,7 +4767,7 @@ const handleStream = (...args) => {
         }
 
         msgState.processedLength = combined.length;
-        const bestMatch = findBestMatch(combined, analytics?.matches);
+        const bestMatch = findBestMatch(combined, analytics?.matches, { minIndex: msgState.lastAcceptedIndex });
         debugLog(`[STREAM] Buffer len: ${combined.length}. Match:`, bestMatch ? `${bestMatch.name} (${bestMatch.matchKind})` : 'None');
 
         if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(combined)) {
@@ -4754,6 +4795,9 @@ const handleStream = (...args) => {
 
             msgState.lastAcceptedName = matchedName;
             msgState.lastAcceptedTs = now;
+            if (Number.isFinite(bestMatch.matchIndex)) {
+                msgState.lastAcceptedIndex = bestMatch.matchIndex;
+            }
             issueCostumeForName(matchedName, {
                 matchKind,
                 bufKey,
@@ -4844,6 +4888,9 @@ export {
     state,
     extensionName,
     getVerbInflections,
+    getWinner,
+    findBestMatch,
+    adjustWindowForTrim,
 };
 
 function load() {
