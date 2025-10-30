@@ -2837,7 +2837,7 @@ function createOutfitCard(profile, mapping, idx) {
             toggleButton.attr('title', 'Collapse character slot');
             toggleButton.attr('aria-label', 'Collapse character slot');
             toggleLabel.text('Collapse');
-            ensureCollapseStore().delete(cardId);
+            ensureCollapseStore().set(cardId, false);
         }
     };
 
@@ -2865,9 +2865,9 @@ function createOutfitCard(profile, mapping, idx) {
     });
 
     const collapseStore = ensureCollapseStore();
-    let collapsed = collapseStore.get(cardId) === true;
-    if (!collapsed && mapping && Object.prototype.hasOwnProperty.call(mapping, "__startCollapsed")) {
-        collapsed = true;
+    let collapsed = true;
+    if (collapseStore.has(cardId)) {
+        collapsed = collapseStore.get(cardId) === true;
     }
     setCollapsed(collapsed);
     if (mapping && Object.prototype.hasOwnProperty.call(mapping, "__startCollapsed")) {
