@@ -292,9 +292,11 @@ const MAX_TRACKED_MESSAGES = 24;
 
 const state = {
     lastIssuedCostume: null,
+    lastIssuedFolder: null,
     lastSwitchTimestamp: 0,
     lastTriggerTimes: new Map(),
     failedTriggerTimes: new Map(),
+    characterOutfits: new Map(),
     perMessageBuffers: new Map(),
     perMessageStates: new Map(),
     messageStats: new Map(), // For statistical logging
@@ -1092,6 +1094,389 @@ function rebuildMappingLookup(profile) {
     return map;
 }
 
+function findMappingForName(profile, normalizedName) {
+    if (!profile || !Array.isArray(profile.mappings) || !normalizedName) {
+        return null;
+    }
+
+    const lowered = normalizedName.toLowerCase();
+    for (const entry of profile.mappings) {
+        if (!entry) continue;
+        const candidate = normalizeCostumeName(entry.name);
+        if (candidate && candidate.toLowerCase() === lowered) {
+            return entry;
+        }
+    }
+    return null;
+}
+
+function parseTriggerPattern(trigger) {
+    if (typeof trigger !== "string") {
+        return null;
+    }
+    const trimmed = trigger.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    const regexMatch = trimmed.match(/^\/((?:\\.|[^/])+?)\/([gimsuy]*)$/);
+    if (regexMatch) {
+        const source = regexMatch[1];
+        const rawFlags = regexMatch[2] || "";
+        const mergedFlags = Array.from(new Set((rawFlags + "i").split(""))).filter(flag => "gimsuy".includes(flag)).join("");
+        try {
+            return { type: "regex", raw: trimmed, regex: new RegExp(source, mergedFlags || "i") };
+        } catch (err) {
+            console.warn(`${logPrefix} Invalid outfit trigger regex: ${trimmed}`, err);
+            return null;
+        }
+    }
+
+    return { type: "literal", raw: trimmed, value: trimmed.toLowerCase() };
+}
+
+function evaluateOutfitTriggers(variant, context) {
+    const triggers = Array.isArray(variant?.triggers) ? variant.triggers : [];
+    if (triggers.length === 0) {
+        return { matched: true, trigger: null, triggerType: null, matchIndex: -1, snippet: null };
+    }
+
+    const text = String(context?.text ?? "");
+    const lower = text.toLowerCase();
+
+    for (const trigger of triggers) {
+        const pattern = parseTriggerPattern(trigger);
+        if (!pattern) {
+            continue;
+        }
+
+        if (pattern.type === "regex") {
+            pattern.regex.lastIndex = 0;
+            const match = pattern.regex.exec(text);
+            if (match) {
+                const index = Number.isFinite(match.index) ? match.index : 0;
+                const length = typeof match[0] === "string" ? match[0].length : 0;
+                const snippet = text.slice(Math.max(0, index - 20), Math.min(text.length, index + length + 20)).trim();
+                return {
+                    matched: true,
+                    trigger: pattern.raw,
+                    triggerType: "regex",
+                    matchIndex: index,
+                    snippet,
+                };
+            }
+        } else if (pattern.type === "literal") {
+            const index = lower.indexOf(pattern.value);
+            if (index !== -1) {
+                const snippet = text.slice(Math.max(0, index - 20), Math.min(text.length, index + pattern.value.length + 20)).trim();
+                return {
+                    matched: true,
+                    trigger: pattern.raw,
+                    triggerType: "literal",
+                    matchIndex: index,
+                    snippet,
+                };
+            }
+        }
+    }
+
+    return { matched: false, trigger: null, triggerType: null, matchIndex: -1, snippet: null };
+}
+
+function normalizeAwarenessList(value) {
+    if (value == null) {
+        return [];
+    }
+
+    const array = Array.isArray(value) ? value : [value];
+    return array
+        .map(entry => normalizeCostumeName(entry))
+        .map(name => name.toLowerCase())
+        .filter(Boolean);
+}
+
+function evaluateAwarenessPredicates(predicates, context) {
+    if (!predicates || typeof predicates !== "object") {
+        return { ok: true, reason: "no-awareness", reasons: [] };
+    }
+
+    const rosterSet = context?.rosterNormalized instanceof Set
+        ? context.rosterNormalized
+        : buildLowercaseSet(context?.roster);
+
+    const reasons = [];
+
+    const requiresAll = normalizeAwarenessList(predicates.requires ?? predicates.all ?? null);
+    if (requiresAll.length) {
+        if (!(rosterSet && rosterSet.size)) {
+            return { ok: false, reason: "requires-missing", missing: requiresAll };
+        }
+        const missing = requiresAll.filter(name => !rosterSet.has(name));
+        if (missing.length) {
+            return { ok: false, reason: "requires-missing", missing };
+        }
+        reasons.push({ type: "requires", values: requiresAll });
+    }
+
+    const requiresAny = normalizeAwarenessList(predicates.requiresAny ?? predicates.any ?? predicates.oneOf ?? null);
+    if (requiresAny.length) {
+        const present = rosterSet ? requiresAny.filter(name => rosterSet.has(name)) : [];
+        if (present.length === 0) {
+            return { ok: false, reason: "requires-any", missing: requiresAny };
+        }
+        reasons.push({ type: "requires-any", values: requiresAny, matched: present });
+    }
+
+    const excludes = normalizeAwarenessList(predicates.excludes ?? predicates.absent ?? predicates.none ?? predicates.forbid ?? null);
+    if (excludes.length && rosterSet) {
+        const conflicts = excludes.filter(name => rosterSet.has(name));
+        if (conflicts.length) {
+            return { ok: false, reason: "awareness-excludes", conflicts };
+        }
+        reasons.push({ type: "excludes", values: excludes });
+    }
+
+    return {
+        ok: true,
+        reason: reasons.length ? "awareness-match" : "no-awareness",
+        reasons,
+        rosterSize: rosterSet ? rosterSet.size : 0,
+    };
+}
+
+function buildOutfitMatchContext(options, normalizedName, profile) {
+    const context = { name: normalizedName };
+
+    if (options && typeof options.context === "object" && options.context !== null) {
+        Object.assign(context, options.context);
+    }
+
+    if (typeof options?.text === "string") {
+        context.text = options.text;
+    }
+
+    if (!context.matchKind && typeof options?.matchKind === "string") {
+        context.matchKind = options.matchKind;
+    }
+
+    if (!context.text && typeof options?.buffer === "string") {
+        context.text = options.buffer;
+    }
+
+    const bufKey = typeof options?.bufKey === "string" ? options.bufKey : state.currentGenerationKey;
+    let messageState = options?.messageState || null;
+    if (!messageState && bufKey && state.perMessageStates instanceof Map) {
+        messageState = state.perMessageStates.get(bufKey) || null;
+    }
+
+    if (!context.text && bufKey && state.perMessageBuffers instanceof Map) {
+        context.text = state.perMessageBuffers.get(bufKey) || "";
+    }
+
+    if (messageState) {
+        context.messageState = messageState;
+        if (!context.roster && messageState.sceneRoster instanceof Set) {
+            context.roster = messageState.sceneRoster;
+        }
+        if (messageState.outfitRoster instanceof Map) {
+            context.outfitRoster = messageState.outfitRoster;
+        }
+        if (!context.lastSubject && messageState.lastSubject) {
+            context.lastSubject = messageState.lastSubject;
+        }
+    }
+
+    if (!context.roster && profile?.enableSceneRoster && state.topSceneRanking instanceof Map) {
+        const latestRoster = state.topSceneRanking.get(state.currentGenerationKey || "") || [];
+        if (Array.isArray(latestRoster) && latestRoster.length) {
+            context.roster = new Set(latestRoster.map(entry => entry.normalized?.toLowerCase?.() || entry.toLowerCase?.() || entry));
+        }
+    }
+
+    context.rosterNormalized = buildLowercaseSet(context.roster);
+    context.text = String(context.text || "");
+
+    return context;
+}
+
+function resolveOutfitForMatch(rawName, options = {}) {
+    const profile = options?.profile || getActiveProfile();
+    const normalizedName = normalizeCostumeName(rawName);
+    const now = Number.isFinite(options?.now) ? options.now : Date.now();
+
+    if (!normalizedName || !profile) {
+        return {
+            folder: String(options?.fallbackFolder || normalizedName || "").trim(),
+            reason: profile ? "no-name" : "no-profile",
+            normalizedName,
+            resolvedAt: now,
+            variant: null,
+            trigger: null,
+            awareness: { ok: true, reason: "no-awareness", reasons: [] },
+            label: null,
+        };
+    }
+
+    const mapping = findMappingForName(profile, normalizedName);
+    const defaultFolder = String(options?.fallbackFolder || mapping?.defaultFolder || mapping?.folder || normalizedName).trim();
+    const baseResult = {
+        folder: defaultFolder || normalizedName,
+        reason: "default-folder",
+        normalizedName,
+        mapping,
+        variant: null,
+        trigger: null,
+        awareness: { ok: true, reason: "no-awareness", reasons: [] },
+        label: null,
+        resolvedAt: now,
+    };
+
+    if (!profile.enableOutfits || !mapping || !Array.isArray(mapping.outfits) || mapping.outfits.length === 0) {
+        return baseResult;
+    }
+
+    const context = buildOutfitMatchContext(options, normalizedName, profile);
+    const matchKind = typeof context.matchKind === "string" ? context.matchKind.trim().toLowerCase() : (typeof options?.matchKind === "string" ? options.matchKind.trim().toLowerCase() : "");
+
+    for (const variant of mapping.outfits) {
+        if (!variant) continue;
+        const folder = typeof variant.folder === "string" ? variant.folder.trim() : "";
+        if (!folder) continue;
+
+        const rawKinds = variant.matchKinds ?? variant.matchKind ?? variant.kinds ?? variant.kind ?? null;
+        const allowedKinds = Array.isArray(rawKinds) ? rawKinds : (rawKinds ? [rawKinds] : []);
+        if (allowedKinds.length) {
+            const loweredKinds = allowedKinds.map(value => String(value ?? "").trim().toLowerCase()).filter(Boolean);
+            if (!matchKind || (loweredKinds.length && !loweredKinds.includes(matchKind))) {
+                continue;
+            }
+        }
+
+        const triggerResult = evaluateOutfitTriggers(variant, context);
+        if (!triggerResult.matched) {
+            const hasTriggers = Array.isArray(variant.triggers) && variant.triggers.length > 0;
+            if (hasTriggers) {
+                continue;
+            }
+        }
+
+        const awarenessResult = evaluateAwarenessPredicates(variant.awareness, context);
+        if (!awarenessResult.ok) {
+            continue;
+        }
+
+        const label = typeof variant.label === "string" && variant.label.trim()
+            ? variant.label.trim()
+            : (typeof variant.slot === "string" && variant.slot.trim() ? variant.slot.trim() : null);
+
+        return {
+            folder,
+            reason: triggerResult.matched ? "trigger-match" : (awarenessResult.reason !== "no-awareness" ? "awareness-match" : "variant-default"),
+            normalizedName,
+            mapping,
+            variant,
+            trigger: triggerResult.matched ? {
+                pattern: triggerResult.trigger,
+                type: triggerResult.triggerType,
+                index: triggerResult.matchIndex,
+                snippet: triggerResult.snippet,
+            } : null,
+            awareness: awarenessResult,
+            label,
+            resolvedAt: now,
+        };
+    }
+
+    return baseResult;
+}
+
+function ensureCharacterOutfitCache(runtimeState) {
+    const target = runtimeState && typeof runtimeState === "object" ? runtimeState : state;
+    if (!(target.characterOutfits instanceof Map)) {
+        target.characterOutfits = new Map();
+    }
+    if (target !== state) {
+        return target.characterOutfits;
+    }
+    state.characterOutfits = target.characterOutfits;
+    return target.characterOutfits;
+}
+
+function updateMessageOutfitRoster(normalizedKey, outfitInfo, opts, profile) {
+    if (!normalizedKey) {
+        return;
+    }
+
+    const bufKey = typeof opts?.bufKey === "string" ? opts.bufKey : state.currentGenerationKey;
+    let msgState = opts?.messageState || null;
+    if (!msgState && bufKey && state.perMessageStates instanceof Map) {
+        msgState = state.perMessageStates.get(bufKey) || null;
+    }
+
+    if (!msgState) {
+        return;
+    }
+
+    if (!(msgState.outfitRoster instanceof Map)) {
+        msgState.outfitRoster = new Map();
+    }
+
+    if (!outfitInfo || !outfitInfo.folder) {
+        msgState.outfitRoster.delete(normalizedKey);
+        return;
+    }
+
+    msgState.outfitRoster.set(normalizedKey, {
+        folder: outfitInfo.folder,
+        label: outfitInfo.label || null,
+        reason: outfitInfo.reason || "default-folder",
+        trigger: outfitInfo.trigger?.pattern || null,
+        updatedAt: Number.isFinite(outfitInfo.resolvedAt) ? outfitInfo.resolvedAt : Date.now(),
+        awareness: outfitInfo.awareness?.reason || "no-awareness",
+    });
+
+    if (typeof msgState.outfitTTL === "number") {
+        msgState.outfitTTL = Number(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
+    }
+}
+
+function summarizeOutfitDecision(outfit, { separator = ' • ', includeLabel = true, includeFolder = false } = {}) {
+    if (!outfit || typeof outfit !== 'object') {
+        return '';
+    }
+
+    const parts = [];
+    if (includeFolder && outfit.folder) {
+        parts.push(`folder: ${outfit.folder}`);
+    }
+    if (includeLabel && outfit.label) {
+        parts.push(`label: ${outfit.label}`);
+    }
+    if (outfit.reason) {
+        parts.push(`reason: ${outfit.reason}`);
+    }
+    if (outfit.trigger && typeof outfit.trigger === 'object' && outfit.trigger.pattern) {
+        parts.push(`trigger: ${outfit.trigger.pattern}`);
+    }
+    const awareness = outfit.awareness;
+    if (awareness) {
+        if (typeof awareness === 'string') {
+            if (awareness && awareness !== 'no-awareness') {
+                parts.push(`awareness: ${awareness}`);
+            }
+        } else if (typeof awareness === 'object') {
+            const reason = awareness.reason || '';
+            const details = Array.isArray(awareness.reasons)
+                ? awareness.reasons.map(entry => entry?.type || '').filter(Boolean).join(', ')
+                : '';
+            if (reason && reason !== 'no-awareness') {
+                parts.push(`awareness: ${details ? `${reason} (${details})` : reason}`);
+            }
+        }
+    }
+    return parts.join(separator);
+}
+
 function evaluateSwitchDecision(rawName, opts = {}, contextState = null, nowOverride = null) {
     const profile = getActiveProfile();
     if (!profile) {
@@ -1106,21 +1491,71 @@ function evaluateSwitchDecision(rawName, opts = {}, contextState = null, nowOver
     const decision = { now };
 
     decision.name = normalizeCostumeName(rawName);
-    const currentName = normalizeCostumeName(runtimeState.lastIssuedCostume || "");
+    const normalizedKey = decision.name.toLowerCase();
 
-    if (!opts.isLock && currentName && currentName.toLowerCase() === decision.name.toLowerCase()) {
-        return { shouldSwitch: false, reason: 'already-active', name: decision.name, now };
-    }
-
-    if (!opts.isLock && profile.globalCooldownMs > 0 && (now - (runtimeState.lastSwitchTimestamp || 0) < profile.globalCooldownMs)) {
-        return { shouldSwitch: false, reason: 'global-cooldown', name: decision.name, now };
-    }
-
-    const lookupKey = decision.name.toLowerCase();
+    const lookupKey = normalizedKey;
     const mapped = state.mappingLookup instanceof Map ? state.mappingLookup.get(lookupKey) : null;
     let mappedFolder = String(mapped ?? decision.name).trim();
     if (!mappedFolder) {
         mappedFolder = decision.name;
+    }
+
+    if (profile.enableOutfits) {
+        const outfitResult = resolveOutfitForMatch(decision.name, {
+            profile,
+            matchKind: opts.matchKind,
+            bufKey: opts.bufKey,
+            messageState: opts.messageState,
+            context: opts.context,
+            now,
+            fallbackFolder: mappedFolder,
+        });
+        if (outfitResult && outfitResult.folder) {
+            mappedFolder = outfitResult.folder;
+        }
+        if (outfitResult) {
+            decision.outfit = outfitResult;
+        }
+    }
+
+    const currentName = normalizeCostumeName(runtimeState.lastIssuedCostume || "");
+    const lastIssuedFolder = typeof runtimeState.lastIssuedFolder === "string" ? runtimeState.lastIssuedFolder.trim() : "";
+
+    if (!opts.isLock && !profile.enableOutfits && currentName && currentName.toLowerCase() === decision.name.toLowerCase()) {
+        updateMessageOutfitRoster(normalizedKey, decision.outfit, opts, profile);
+        return { shouldSwitch: false, reason: 'already-active', name: decision.name, now };
+    }
+
+    if (!opts.isLock && profile.enableOutfits) {
+        const outfitCache = ensureCharacterOutfitCache(runtimeState);
+        const cached = outfitCache.get(normalizedKey);
+        const cachedFolder = typeof cached?.folder === "string" ? cached.folder.trim() : null;
+        const normalizedMapped = mappedFolder ? mappedFolder.trim() : "";
+        if (cachedFolder && normalizedMapped && cachedFolder.toLowerCase() === normalizedMapped.toLowerCase()) {
+            const outfitInfo = decision.outfit || { folder: mappedFolder, reason: 'outfit-unchanged', resolvedAt: now };
+            outfitInfo.folder = mappedFolder;
+            outfitInfo.reason = outfitInfo.reason || 'outfit-unchanged';
+            outfitInfo.resolvedAt = now;
+            decision.outfit = outfitInfo;
+            updateMessageOutfitRoster(normalizedKey, outfitInfo, opts, profile);
+            return {
+                shouldSwitch: false,
+                reason: 'outfit-unchanged',
+                name: decision.name,
+                folder: mappedFolder,
+                outfit: outfitInfo,
+                now,
+            };
+        }
+        if (lastIssuedFolder && normalizedMapped && lastIssuedFolder.toLowerCase() === normalizedMapped.toLowerCase()) {
+            updateMessageOutfitRoster(normalizedKey, decision.outfit, opts, profile);
+            return { shouldSwitch: false, reason: 'already-active', name: decision.name, folder: mappedFolder, now };
+        }
+    }
+
+    if (!opts.isLock && profile.globalCooldownMs > 0 && (now - (runtimeState.lastSwitchTimestamp || 0) < profile.globalCooldownMs)) {
+        updateMessageOutfitRoster(normalizedKey, decision.outfit, opts, profile);
+        return { shouldSwitch: false, reason: 'global-cooldown', name: decision.name, folder: mappedFolder, now };
     }
 
     const lastTriggerTimes = ensureMap(runtimeState.lastTriggerTimes);
@@ -1136,6 +1571,7 @@ function evaluateSwitchDecision(rawName, opts = {}, contextState = null, nowOver
     if (!opts.isLock && profile.perTriggerCooldownMs > 0) {
         const lastSuccess = lastTriggerTimes.get(mappedFolder) || 0;
         if (now - lastSuccess < profile.perTriggerCooldownMs) {
+            updateMessageOutfitRoster(normalizedKey, decision.outfit, opts, profile);
             return { shouldSwitch: false, reason: 'per-trigger-cooldown', name: decision.name, folder: mappedFolder, now };
         }
     }
@@ -1143,17 +1579,39 @@ function evaluateSwitchDecision(rawName, opts = {}, contextState = null, nowOver
     if (!opts.isLock && profile.failedTriggerCooldownMs > 0) {
         const lastFailed = failedTriggerTimes.get(mappedFolder) || 0;
         if (now - lastFailed < profile.failedTriggerCooldownMs) {
+            updateMessageOutfitRoster(normalizedKey, decision.outfit, opts, profile);
             return { shouldSwitch: false, reason: 'failed-trigger-cooldown', name: decision.name, folder: mappedFolder, now };
         }
     }
 
-    return { shouldSwitch: true, name: decision.name, folder: mappedFolder, now };
+    const outfitInfo = decision.outfit || {
+        folder: mappedFolder,
+        reason: profile.enableOutfits ? 'variant-default' : 'default-folder',
+        resolvedAt: now,
+    };
+    outfitInfo.folder = mappedFolder;
+    outfitInfo.resolvedAt = now;
+    decision.outfit = outfitInfo;
+    updateMessageOutfitRoster(normalizedKey, outfitInfo, opts, profile);
+
+    return { shouldSwitch: true, name: decision.name, folder: mappedFolder, outfit: outfitInfo, now };
 }
 
 async function issueCostumeForName(name, opts = {}) {
     const decision = evaluateSwitchDecision(name, opts);
+    const normalizedKey = decision?.name ? decision.name.toLowerCase() : null;
+
     if (!decision.shouldSwitch) {
         debugLog("Switch skipped for", name, "reason:", decision.reason || 'n/a');
+        if (decision.reason === 'outfit-unchanged' && decision.outfit?.folder && normalizedKey) {
+            const outfitCache = ensureCharacterOutfitCache(state);
+            outfitCache.set(normalizedKey, {
+                folder: decision.outfit.folder,
+                reason: decision.outfit.reason,
+                label: decision.outfit.label || null,
+                updatedAt: decision.now,
+            });
+        }
         return;
     }
 
@@ -1163,7 +1621,19 @@ async function issueCostumeForName(name, opts = {}) {
         await executeSlashCommandsOnChatInput(command);
         state.lastTriggerTimes.set(decision.folder, decision.now);
         state.lastIssuedCostume = decision.name;
+        state.lastIssuedFolder = decision.folder;
         state.lastSwitchTimestamp = decision.now;
+        const outfitCache = ensureCharacterOutfitCache(state);
+        if (normalizedKey) {
+            outfitCache.set(normalizedKey, {
+                folder: decision.folder,
+                reason: decision.outfit?.reason || 'manual',
+                label: decision.outfit?.label || null,
+                updatedAt: decision.now,
+            });
+        }
+        const profile = getActiveProfile();
+        updateMessageOutfitRoster(normalizedKey, decision.outfit, opts, profile);
         showStatus(`Switched -> <b>${escapeHtml(decision.folder)}</b>`, 'success');
     } catch (err) {
         state.failedTriggerTimes.set(decision.folder, decision.now);
@@ -2230,6 +2700,7 @@ function clearTesterTimers() {
 function describeSkipReason(code) {
     const messages = {
         'already-active': 'already the active costume',
+        'outfit-unchanged': 'already wearing the selected outfit',
         'global-cooldown': 'blocked by global cooldown',
         'per-trigger-cooldown': 'blocked by per-trigger cooldown',
         'failed-trigger-cooldown': 'waiting after a failed switch',
@@ -2649,13 +3120,17 @@ function formatTesterReport(report) {
                 const detail = event.matchKind ? ` via ${event.matchKind}` : '';
                 const score = Number.isFinite(event.score) ? `, score ${event.score}` : '';
                 const charPos = Number.isFinite(event.charIndex) ? event.charIndex + 1 : '?';
-                lines.push(`  ${idx + 1}. SWITCH → ${event.folder} (name: ${event.name}${detail}, char ${charPos}${score})`);
+                const outfitSummary = summarizeOutfitDecision(event.outfit, { separator: '; ', includeFolder: false });
+                const outfitNote = outfitSummary ? ` [${outfitSummary}]` : '';
+                lines.push(`  ${idx + 1}. SWITCH → ${event.folder} (name: ${event.name}${detail}, char ${charPos}${score})${outfitNote}`);
             } else if (event.type === 'veto') {
                 const charPos = Number.isFinite(event.charIndex) ? event.charIndex + 1 : '?';
                 lines.push(`  ${idx + 1}. VETO – matched "${event.match}" at char ${charPos}`);
             } else {
                 const reason = describeSkipReason(event.reason);
-                lines.push(`  ${idx + 1}. SKIP – ${event.name} (${event.matchKind}) because ${reason}`);
+                const outfitSummary = summarizeOutfitDecision(event.outfit, { separator: '; ', includeFolder: false });
+                const outfitNote = outfitSummary ? ` [${outfitSummary}]` : '';
+                lines.push(`  ${idx + 1}. SKIP – ${event.name} (${event.matchKind}) because ${reason}${outfitNote}`);
             }
         });
     } else {
@@ -2720,7 +3195,9 @@ function formatTesterReport(report) {
         const detail = last.matchKind ? ` via ${last.matchKind}` : '';
         const score = Number.isFinite(last.score) ? `, score ${last.score}` : '';
         const folderName = last.folder || last.name || '(unknown)';
-        lines.push(`  Last switch: ${folderName} (trigger: ${last.name}${detail}, char ${charPos}${score})`);
+        const outfitSummary = summarizeOutfitDecision(last.outfit, { separator: '; ', includeFolder: false });
+        const outfitNote = outfitSummary ? ` [${outfitSummary}]` : '';
+        lines.push(`  Last switch: ${folderName} (trigger: ${last.name}${detail}, char ${charPos}${score})${outfitNote}`);
     } else {
         lines.push('  Last switch: (none)');
     }
@@ -2730,7 +3207,9 @@ function formatTesterReport(report) {
             const charPos = Number.isFinite(event.charIndex) ? event.charIndex + 1 : '?';
             const detail = event.matchKind ? ` via ${event.matchKind}` : '';
             const folderName = event.folder || event.name || '(unknown)';
-            lines.push(`    ${idx + 1}. ${folderName} – ${event.score} (trigger: ${event.name}${detail}, char ${charPos})`);
+            const outfitSummary = summarizeOutfitDecision(event.outfit, { separator: '; ', includeFolder: false });
+            const outfitNote = outfitSummary ? ` [${outfitSummary}]` : '';
+            lines.push(`    ${idx + 1}. ${folderName} – ${event.score} (trigger: ${event.name}${detail}, char ${charPos})${outfitNote}`);
         });
     }
 
@@ -2757,6 +3236,16 @@ function formatTesterReport(report) {
         lines.push(`  Scene roster (${rosterNames.length}): ${rosterNames.length ? rosterNames.join(', ') : '(empty)'}`);
         lines.push(`  Last accepted name: ${report.finalState.lastAcceptedName || '(none)'}`);
         lines.push(`  Last subject: ${report.finalState.lastSubject || '(none)'}`);
+        if (Array.isArray(report.finalState.outfitRoster)) {
+            const outfits = report.finalState.outfitRoster.map(([name, info]) => {
+                const summary = summarizeOutfitDecision(info, { separator: '; ', includeFolder: false });
+                return summary ? `${name} [${summary}]` : name;
+            });
+            lines.push(`  Outfit roster (${outfits.length}): ${outfits.length ? outfits.join('; ') : '(empty)'}`);
+        }
+        if (Number.isFinite(report.finalState.outfitTTL)) {
+            lines.push(`  Outfit TTL: ${report.finalState.outfitTTL}`);
+        }
         if (Number.isFinite(report.finalState.processedLength)) {
             lines.push(`  Processed characters: ${report.finalState.processedLength}`);
         }
@@ -2864,6 +3353,8 @@ function createTesterMessageState(profile) {
         lastSubject: null,
         sceneRoster: new Set(),
         rosterTTL: profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL,
+        outfitRoster: new Map(),
+        outfitTTL: profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL,
         processedLength: 0,
     };
 }
@@ -2877,9 +3368,11 @@ function simulateTesterStream(combined, profile, bufKey) {
 
     const simulationState = {
         lastIssuedCostume: null,
+        lastIssuedFolder: null,
         lastSwitchTimestamp: 0,
         lastTriggerTimes: new Map(),
         failedTriggerTimes: new Map(),
+        characterOutfits: new Map(),
     };
 
     const threshold = Math.max(0, Number(profile.tokenProcessThreshold) || 0);
@@ -2919,6 +3412,7 @@ function simulateTesterStream(combined, profile, bufKey) {
                 rosterDisplayNames.set(normalized, bestMatch.name);
             }
             msgState.rosterTTL = rosterTTL;
+            msgState.outfitTTL = rosterTTL;
             rosterTimeline.push({
                 type: wasPresent ? 'refresh' : 'join',
                 name: bestMatch.name,
@@ -2943,25 +3437,52 @@ function simulateTesterStream(combined, profile, bufKey) {
         msgState.lastAcceptedName = bestMatch.name;
         msgState.lastAcceptedTs = virtualNow;
 
-        const decision = evaluateSwitchDecision(bestMatch.name, { matchKind: bestMatch.matchKind }, simulationState, virtualNow);
+        const decision = evaluateSwitchDecision(bestMatch.name, {
+            matchKind: bestMatch.matchKind,
+            bufKey,
+            messageState: msgState,
+            context: { text: buffer, matchKind: bestMatch.matchKind, roster: msgState.sceneRoster },
+        }, simulationState, virtualNow);
         if (decision.shouldSwitch) {
             events.push({
-        type: 'switch',
-        name: bestMatch.name,
-        folder: decision.folder,
-        matchKind: bestMatch.matchKind,
-        score: Math.round(bestMatch.score ?? 0),
-        charIndex: i,
-    });
+                type: 'switch',
+                name: bestMatch.name,
+                folder: decision.folder,
+                matchKind: bestMatch.matchKind,
+                score: Math.round(bestMatch.score ?? 0),
+                charIndex: i,
+                outfit: decision.outfit ? {
+                    folder: decision.outfit.folder,
+                    label: decision.outfit.label || null,
+                    reason: decision.outfit.reason || null,
+                    trigger: decision.outfit.trigger || null,
+                    awareness: decision.outfit.awareness || null,
+                } : null,
+            });
             simulationState.lastIssuedCostume = decision.name;
+            simulationState.lastIssuedFolder = decision.folder;
             simulationState.lastSwitchTimestamp = decision.now;
             simulationState.lastTriggerTimes.set(decision.folder, decision.now);
+            const cache = ensureCharacterOutfitCache(simulationState);
+            cache.set(decision.name.toLowerCase(), {
+                folder: decision.folder,
+                reason: decision.outfit?.reason || 'tester',
+                label: decision.outfit?.label || null,
+                updatedAt: decision.now,
+            });
         } else {
             events.push({
                 type: 'skipped',
                 name: bestMatch.name,
                 matchKind: bestMatch.matchKind,
                 reason: decision.reason || 'unknown',
+                outfit: decision.outfit ? {
+                    folder: decision.outfit.folder,
+                    label: decision.outfit.label || null,
+                    reason: decision.outfit.reason || null,
+                    trigger: decision.outfit.trigger || null,
+                    awareness: decision.outfit.awareness || null,
+                } : null,
                 charIndex: i,
             });
         }
@@ -2974,6 +3495,8 @@ function simulateTesterStream(combined, profile, bufKey) {
         processedLength: msgState.processedLength,
         sceneRoster: Array.from(msgState.sceneRoster || []),
         rosterTTL: msgState.rosterTTL,
+        outfitRoster: Array.from(msgState.outfitRoster || []),
+        outfitTTL: msgState.outfitTTL,
         vetoed: Boolean(msgState.vetoed),
         virtualDurationMs: combined.length > 0 ? Math.max(0, (combined.length - 1) * 50) : 0,
     };
@@ -3012,11 +3535,17 @@ function renderTesterStream(eventList, events) {
     events.forEach(event => {
         const item = $('<li>');
         if (event.type === 'switch') {
-            item.addClass('cs-tester-log-switch').html(`<b>Switch → ${event.folder}</b><small> (${event.name}${event.matchKind ? ' via ' + event.matchKind : ''}, char #${event.charIndex + 1}${Number.isFinite(event.score) ? ', score ' + event.score : ''})</small>`);
+            const details = `${event.name}${event.matchKind ? ' via ' + event.matchKind : ''}, char #${event.charIndex + 1}${Number.isFinite(event.score) ? ', score ' + event.score : ''}`;
+            const outfitInfo = summarizeOutfitDecision(event.outfit);
+            const extra = outfitInfo ? `<br><span class="cs-tester-outfit-detail">${escapeHtml(outfitInfo)}</span>` : '';
+            item.addClass('cs-tester-log-switch').html(`<b>Switch → ${escapeHtml(event.folder)}</b><small> (${escapeHtml(details)})${extra}</small>`);
         } else if (event.type === 'veto') {
             item.addClass('cs-tester-log-veto').html(`<b>Veto Triggered</b><small> (${event.match})</small>`);
         } else {
-            item.addClass('cs-tester-log-skip').html(`<span>${event.name}</span><small> (${event.matchKind}, ${describeSkipReason(event.reason)})</small>`);
+            const skipDetails = `${event.matchKind}, ${describeSkipReason(event.reason)}`;
+            const outfitInfo = summarizeOutfitDecision(event.outfit);
+            const extra = outfitInfo ? `<br><span class="cs-tester-outfit-detail">${escapeHtml(outfitInfo)}</span>` : '';
+            item.addClass('cs-tester-log-skip').html(`<span>${escapeHtml(event.name)}</span><small> (${escapeHtml(skipDetails)})${extra}</small>`);
         }
 
         const timer = setTimeout(() => {
@@ -3940,7 +4469,9 @@ function createMessageState(profile, bufKey) {
         vetoed: false,
         lastSubject: oldState?.lastSubject || null,
         sceneRoster: new Set(oldState?.sceneRoster || []),
+        outfitRoster: new Map(oldState?.outfitRoster || []),
         rosterTTL: profile.sceneRosterTTL,
+        outfitTTL: profile.sceneRosterTTL,
         processedLength: 0,
     };
 
@@ -3949,6 +4480,17 @@ function createMessageState(profile, bufKey) {
         if (newState.rosterTTL <= 0) {
             debugLog("Scene roster TTL expired, clearing roster.");
             newState.sceneRoster.clear();
+        }
+    }
+
+    if (newState.outfitRoster.size > 0) {
+        newState.outfitTTL--;
+        if (newState.outfitTTL <= 0) {
+            const expired = Array.from(newState.outfitRoster.keys());
+            debugLog("Outfit roster TTL expired, clearing tracked outfits:", expired.join(', '));
+            newState.outfitRoster.clear();
+            const cache = ensureCharacterOutfitCache(state);
+            expired.forEach(key => cache.delete(key));
         }
     }
 
@@ -4087,18 +4629,25 @@ const handleStream = (...args) => {
             if (profile.enableSceneRoster) {
                 msgState.sceneRoster.add(matchedName.toLowerCase());
                 msgState.rosterTTL = profile.sceneRosterTTL;
+                msgState.outfitTTL = profile.sceneRosterTTL;
             }
             if (matchKind !== 'pronoun') {
                 msgState.lastSubject = matchedName;
             }
-            
+
             if (msgState.lastAcceptedName?.toLowerCase() === matchedName.toLowerCase() && (now - msgState.lastAcceptedTs < suppressMs)) {
                 return;
             }
-            
+
             msgState.lastAcceptedName = matchedName;
             msgState.lastAcceptedTs = now;
-            issueCostumeForName(matchedName, { matchKind, bufKey });
+            issueCostumeForName(matchedName, {
+                matchKind,
+                bufKey,
+                messageState: msgState,
+                context: { text: combined, matchKind, roster: msgState.sceneRoster },
+                match: bestMatch,
+            });
         }
     } catch (err) { console.error(`${logPrefix} stream handler error:`, err); }
 };
@@ -4158,9 +4707,11 @@ const resetGlobalState = () => {
     updateTesterCopyButton();
     Object.assign(state, {
         lastIssuedCostume: null,
+        lastIssuedFolder: null,
         lastSwitchTimestamp: 0,
         lastTriggerTimes: new Map(),
         failedTriggerTimes: new Map(),
+        characterOutfits: new Map(),
         perMessageBuffers: new Map(),
         perMessageStates: new Map(),
         messageStats: new Map(),
@@ -4170,6 +4721,15 @@ const resetGlobalState = () => {
         messageKeyQueue: [],
     });
     clearSessionTopCharacters();
+};
+
+export {
+    resolveOutfitForMatch,
+    evaluateSwitchDecision,
+    rebuildMappingLookup,
+    summarizeOutfitDecision,
+    state,
+    extensionName,
 };
 
 function load() {
@@ -4251,29 +4811,31 @@ function getSettingsObj() {
     return { store: storeSource, save: ctx.saveSettingsDebounced, ctx };
 }
 
-jQuery(async () => {
-    try {
-        const { store } = getSettingsObj();
-        extension_settings[extensionName] = store[extensionName];
+if (typeof window !== "undefined" && typeof jQuery === "function") {
+    jQuery(async () => {
+        try {
+            const { store } = getSettingsObj();
+            extension_settings[extensionName] = store[extensionName];
 
-        const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
-        $("#extensions_settings").append(settingsHtml);
+            const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
+            $("#extensions_settings").append(settingsHtml);
 
-        const buildMeta = await fetchBuildMetadata();
-        renderBuildMetadata(buildMeta);
+            const buildMeta = await fetchBuildMetadata();
+            renderBuildMetadata(buildMeta);
 
-        populateProfileDropdown();
-        populatePresetDropdown();
-        populateScorePresetDropdown();
-        loadProfile(getSettings().activeProfile);
-        wireUI();
-        registerCommands();
-        load();
+            populateProfileDropdown();
+            populatePresetDropdown();
+            populateScorePresetDropdown();
+            loadProfile(getSettings().activeProfile);
+            wireUI();
+            registerCommands();
+            load();
 
-        window[`__${extensionName}_unload`] = unload;
-        console.log(`${logPrefix} ${buildMeta?.label || 'dev build'} loaded successfully.`);
-    } catch (error) {
-        console.error(`${logPrefix} failed to initialize:`, error);
-        alert(`Failed to initialize Costume Switcher. Check console (F12) for details.`);
-    }
-});
+            window[`__${extensionName}_unload`] = unload;
+            console.log(`${logPrefix} ${buildMeta?.label || 'dev build'} loaded successfully.`);
+        } catch (error) {
+            console.error(`${logPrefix} failed to initialize:`, error);
+            alert(`Failed to initialize Costume Switcher. Check console (F12) for details.`);
+        }
+    });
+}
