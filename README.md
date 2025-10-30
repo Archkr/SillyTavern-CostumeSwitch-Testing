@@ -1,6 +1,21 @@
 # Costume Switcher for SillyTavern
 
-Costume Switcher keeps the right avatar in focus while you write. It listens to the live stream coming from your model, scores every character mention it finds, and immediately swaps the displayed costume to match the active speaker. The extension ships with powerful tooling, scene awareness, and a fully redesigned configuration UI so you can understand *why* a switch happened and tune the behaviour to fit any story.
+Costume Switcher is the companion piece to Lenny’s **Character Expressions** extension—it uses the same foundations, but instead of changing facial expressions it swaps the entire costume or avatar folder the moment a new speaker takes the spotlight. Install both and SillyTavern keeps the correct character in focus *and* their emotions in sync, giving you a live stage crew that reacts faster than you can type.
+
+Under the hood the extension listens to streaming output from your model, scores every character mention it finds, and immediately updates the displayed costume to match the active speaker. It ships with powerful tooling, scene awareness, and a fully redesigned configuration UI so you can understand *why* a switch happened and tune the behaviour to fit any story.
+
+> **New to Costume Switcher?** Start here, then hop over to the Character Expressions README. Together they form a best-friends duo: Expressions handles nuanced emotions, Costume Switcher handles wardrobe changes.
+
+---
+
+## Why Pair It with Character Expressions?
+
+- **Shared DNA:** Costume Switcher inherits the same detection engine and pattern libraries as Character Expressions, so both extensions react to the exact same cues in your prose.
+- **Division of labour:** Let Character Expressions drive the emotions and lip-flaps while Costume Switcher handles outfit swaps, faction badges, or alternate art sets.
+- **Perfectly in sync:** Because both watch the live token stream, avatars, expressions, and costumes all shift in unison—no manual tweaks or slash commands required mid-scene.
+- **Config once, reuse twice:** Import the same profiles, mappings, and regex tricks you built for Character Expressions; every tweak pays dividends across the duo.
+
+Whether you’re juggling multi-character RP, group chats, or stream overlays, pairing the two extensions keeps your cast visually consistent and emotionally expressive with zero extra effort.
 
 ---
 
