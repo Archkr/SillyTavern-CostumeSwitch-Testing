@@ -1,10 +1,29 @@
 # Costume Switcher for SillyTavern
 
-Costume Switcher is the companion piece to Lenny’s **Character Expressions** extension—it uses the same foundations, but instead of changing facial expressions it swaps the entire costume or avatar folder the moment a new speaker takes the spotlight. Install both and SillyTavern keeps the correct character in focus *and* their emotions in sync, giving you a live stage crew that reacts faster than you can type.
+Costume Switcher is the wardrobe counterpart to Lenny’s beloved **Character Expressions** extension. Character Expressions keeps your cast’s emotions on beat; Costume Switcher makes sure they are dressed for the part. The moment a speaker takes the spotlight, the extension swaps the entire costume or avatar folder so the art on screen mirrors the dialogue, narration, or scene notes you just read.
 
-Under the hood the extension listens to streaming output from your model, scores every character mention it finds, and immediately updates the displayed costume to match the active speaker. It ships with powerful tooling, scene awareness, and a fully redesigned configuration UI so you can understand *why* a switch happened and tune the behaviour to fit any story.
+If you already understand how Character Expressions works, you’ll feel right at home—the two share the same sentiment-aware detection engine and even reuse profile data. Together they form a best-friends duo: Expressions handles nuanced emotions, Costume Switcher handles wardrobe changes, and your story stays visually coherent without manual slash commands.
 
-> **New to Costume Switcher?** Start here, then hop over to the Character Expressions README. Together they form a best-friends duo: Expressions handles nuanced emotions, Costume Switcher handles wardrobe changes.
+Under the hood, Costume Switcher listens to streaming tokens, scores every character mention, and immediately updates the displayed costume to match the active speaker. Scene awareness, in-depth tooling, and a redesigned configuration UI make it easy to diagnose *why* a switch happened and tweak the behaviour to fit any RP format, streaming overlay, or VN-style presentation.
+
+> **Tip:** Skim this README to set up costumes, then jump to the Character Expressions documentation to pair expressions with outfits for the full experience.
+
+---
+
+## Contents
+
+1. [Why Pair It with Character Expressions?](#why-pair-it-with-character-expressions)
+2. [Highlights at a Glance](#highlights-at-a-glance)
+3. [Requirements](#requirements)
+4. [Installation](#installation)
+5. [Getting Started in Five Minutes](#getting-started-in-five-minutes)
+6. [Tour of the Settings UI](#tour-of-the-settings-ui)
+7. [Understanding Live Tester Reports](#understanding-live-tester-reports)
+8. [Advanced Configuration Tips](#advanced-configuration-tips)
+9. [Slash Commands](#slash-commands)
+10. [Sharing Top Characters with Other Extensions](#sharing-top-characters-with-other-extensions)
+11. [Troubleshooting Checklist](#troubleshooting-checklist)
+12. [Support & Contributions](#support--contributions)
 
 ---
 
@@ -14,6 +33,7 @@ Under the hood the extension listens to streaming output from your model, scores
 - **Division of labour:** Let Character Expressions drive the emotions and lip-flaps while Costume Switcher handles outfit swaps, faction badges, or alternate art sets.
 - **Perfectly in sync:** Because both watch the live token stream, avatars, expressions, and costumes all shift in unison—no manual tweaks or slash commands required mid-scene.
 - **Config once, reuse twice:** Import the same profiles, mappings, and regex tricks you built for Character Expressions; every tweak pays dividends across the duo.
+- **Sprite set overrides:** Use Costume Switcher’s `/costume` command or sprite folder overrides to rotate outfits while Character Expressions continues to animate faces.
 
 Whether you’re juggling multi-character RP, group chats, or stream overlays, pairing the two extensions keeps your cast visually consistent and emotionally expressive with zero extra effort.
 
@@ -28,6 +48,19 @@ Whether you’re juggling multi-character RP, group chats, or stream overlays, p
 - **Live Pattern Tester** – Paste sample prose, inspect every detection, review switch decisions, and copy a rich report for debugging or support requests.
 - **Slash command helpers** – Add, ignore, or map characters on the fly without leaving the chat window, and log mention stats for the last message.
 - **Scene cast exports** – Surface the top detected characters as slash commands or prompt variables so other extensions can react instantly.
+
+---
+
+## Working in Tandem with Character Expressions
+
+Costume Switcher and Character Expressions draw costumes and facial sprites from the same SillyTavern character folders. When you install both extensions you can:
+
+- **Share sprite packs:** ZIP imports that you already curated for Character Expressions drop into the same `/data/<user-handle>/characters/(character_name)/` folders that Costume Switcher reads, so matching costumes and expressions stay paired without extra setup.
+- **Reuse overrides and slash commands:** The `/costume` override, folder suffixes such as `\tracksuit`, and default/fallback expression logic from Character Expressions all continue to work—Costume Switcher simply points the active art set at a different wardrobe folder when the scene changes.
+- **Mix automation sources:** Run Character Expressions in Local, Main API, WebLLM, or Extras classification modes while Costume Switcher tracks the speaker. The moment the classifier swaps to a new emotion, the wardrobe update follows the same name and folder conventions.
+- **Scale with custom expressions:** Any custom labels you define on the Character Expressions side still benefit from Costume Switcher’s detection. Even if a sentiment model only understands the default expression set, the wardrobe can change whenever the speaker changes.
+
+Together these behaviours let you keep expressions, sprites, and outfits synchronised, whether you are streaming live RP, playing VN-style scenarios, or juggling multiple characters in a single chat log.
 
 ---
 
