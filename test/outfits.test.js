@@ -220,3 +220,27 @@ test("per-trigger cooldown still applies with outfits", () => {
     assert.equal(second.shouldSwitch, false);
     assert.equal(second.reason, "per-trigger-cooldown");
 });
+
+test("evaluateSwitchDecision switches characters sharing the same outfit folder", () => {
+    setupProfile({
+        mappings: [
+            { name: "Hero", defaultFolder: "shared/outfit", outfits: [] },
+            { name: "Rival", defaultFolder: "shared/outfit", outfits: [] },
+        ],
+    });
+
+    const runtime = {
+        lastIssuedCostume: "Hero",
+        lastIssuedFolder: "shared/outfit",
+        lastSwitchTimestamp: 0,
+        lastTriggerTimes: new Map([["shared/outfit", 1000]]),
+        failedTriggerTimes: new Map(),
+        characterOutfits: new Map([["hero", { folder: "shared/outfit", updatedAt: 1000 }]]),
+    };
+
+    const decision = evaluateSwitchDecision("Rival", { matchKind: "action" }, runtime, 2000);
+
+    assert.equal(decision.shouldSwitch, true, decision.reason);
+    assert.equal(decision.name, "Rival");
+    assert.equal(decision.folder, "shared/outfit");
+});

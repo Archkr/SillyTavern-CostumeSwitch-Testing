@@ -1432,7 +1432,13 @@ function evaluateSwitchDecision(rawName, opts = {}, contextState = null, nowOver
                 now,
             };
         }
-        if (lastIssuedFolder && normalizedMapped && lastIssuedFolder.toLowerCase() === normalizedMapped.toLowerCase()) {
+        if (
+            lastIssuedFolder &&
+            normalizedMapped &&
+            lastIssuedFolder.toLowerCase() === normalizedMapped.toLowerCase() &&
+            currentName &&
+            currentName.toLowerCase() === decision.name.toLowerCase()
+        ) {
             updateMessageOutfitRoster(normalizedKey, decision.outfit, opts, profile);
             return { shouldSwitch: false, reason: 'already-active', name: decision.name, folder: mappedFolder, now };
         }
