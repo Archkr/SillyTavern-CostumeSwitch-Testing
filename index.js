@@ -2791,32 +2791,41 @@ function createOutfitCard(profile, mapping, idx) {
 
     card.append(body);
 
+    const ensureCollapseStore = () => {
+        if (!(state.outfitCardCollapse instanceof Map)) {
+            state.outfitCardCollapse = new Map();
+        }
+        return state.outfitCardCollapse;
+    };
+
     const setCollapsed = (collapsed) => {
-        if (collapsed) {
-            card.addClass('is-collapsed');
+        const isCollapsed = Boolean(collapsed);
+        card.toggleClass('is-collapsed', isCollapsed);
+        body.toggleClass('is-collapsed', isCollapsed);
+        if (isCollapsed) {
             body.attr('hidden', 'hidden');
+            body.attr('aria-hidden', 'true');
+            body.css('display', 'none');
             toggleButton.attr('aria-expanded', 'false');
             toggleButton.attr('title', 'Expand character slot');
             toggleButton.attr('aria-label', 'Expand character slot');
             toggleLabel.text('Expand');
-            if (state.outfitCardCollapse instanceof Map) {
-                state.outfitCardCollapse.set(cardId, true);
-            }
+            ensureCollapseStore().set(cardId, true);
         } else {
-            card.removeClass('is-collapsed');
             body.removeAttr('hidden');
+            body.attr('aria-hidden', 'false');
+            body.css('display', '');
             toggleButton.attr('aria-expanded', 'true');
             toggleButton.attr('title', 'Collapse character slot');
             toggleButton.attr('aria-label', 'Collapse character slot');
             toggleLabel.text('Collapse');
-            if (state.outfitCardCollapse instanceof Map) {
-                state.outfitCardCollapse.delete(cardId);
-            }
+            ensureCollapseStore().delete(cardId);
         }
     };
 
     toggleButton.on('click', () => {
-        setCollapsed(!card.hasClass('is-collapsed'));
+        const nextCollapsed = !card.hasClass('is-collapsed');
+        setCollapsed(nextCollapsed);
     });
 
     nameInput.on('input', () => {
