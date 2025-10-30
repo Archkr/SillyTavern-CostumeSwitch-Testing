@@ -24,6 +24,14 @@ import {
     EXTENDED_ATTRIBUTION_VERBS_PRESENT_PARTICIPLE,
     buildVerbSlices,
 } from "./verbs.js";
+import {
+    compileProfileRegexes,
+    collectDetections,
+} from "./src/detector-core.js";
+import {
+    mergeDetectionsForReport,
+    summarizeDetections,
+} from "./src/report-utils.js";
 import { loadProfiles, normalizeProfile, normalizeMappingEntry } from "./profile-utils.js";
 
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
@@ -227,48 +235,6 @@ const COVERAGE_TOKEN_REGEX = /[\p{L}\p{M}']+/gu;
 
 const UNICODE_WORD_PATTERN = '[\\p{L}\\p{M}\\p{N}_]';
 const WORD_CHAR_REGEX = /[\\p{L}\\p{M}\\p{N}]/u;
-
-const QUOTE_PAIRS = [
-    { open: '"', close: '"', symmetric: true },
-    { open: '＂', close: '＂', symmetric: true },
-    { open: '“', close: '”' },
-    { open: '„', close: '”' },
-    { open: '‟', close: '”' },
-    { open: '«', close: '»' },
-    { open: '‹', close: '›' },
-    { open: '「', close: '」' },
-    { open: '『', close: '』' },
-    { open: '｢', close: '｣' },
-    { open: '《', close: '》' },
-    { open: '〈', close: '〉' },
-    { open: '﹁', close: '﹂' },
-    { open: '﹃', close: '﹄' },
-    { open: '〝', close: '〞' },
-    { open: '‘', close: '’' },
-    { open: '‚', close: '’' },
-    { open: '‛', close: '’' },
-    { open: '\'', close: '\'', symmetric: true, apostropheSensitive: true },
-];
-
-const QUOTE_OPENERS = new Map();
-const QUOTE_CLOSERS = new Map();
-
-for (const pair of QUOTE_PAIRS) {
-    const info = {
-        close: pair.close,
-        symmetric: Boolean(pair.symmetric),
-        apostropheSensitive: Boolean(pair.apostropheSensitive),
-    };
-    QUOTE_OPENERS.set(pair.open, info);
-    if (info.symmetric) {
-        continue;
-    }
-    if (!QUOTE_CLOSERS.has(pair.close)) {
-        QUOTE_CLOSERS.set(pair.close, []);
-    }
-    QUOTE_CLOSERS.get(pair.close).push(pair.open);
-}
-
 
 // ======================================================================
 // DEFAULT SETTINGS
@@ -558,122 +524,6 @@ function pruneMessageCaches(limit = MAX_TRACKED_MESSAGES) {
 // ======================================================================
 // REGEX & DETECTION LOGIC
 // ======================================================================
-function escapeRegex(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-function parsePatternEntry(raw) {
-    const t = String(raw || '').trim();
-    if (!t) return null;
-    const m = t.match(/^\/((?:\\.|[^\/])+)\/([gimsuy]*)$/);
-    return m ? { body: m[1], flags: m[2] || '', raw: t } : { body: escapeRegex(t), flags: '', raw: t };
-}
-function computeFlags(entries, requireI = true) {
-    const flags = new Set(requireI ? ['i'] : []);
-    for (const e of entries) {
-        if (!e) continue;
-        for (const c of (e.flags || '')) flags.add(c);
-    }
-    return Array.from(flags).filter(c => 'gimsuy'.includes(c)).join('');
-}
-function buildRegex(patternList, template, options = {}) {
-    const entries = (patternList || []).map(parsePatternEntry).filter(Boolean);
-    if (!entries.length) return null;
-    const parts = entries.map(e => `(?:${e.body})`);
-    const combinedBody = parts.join('|');
-    const finalBody = template.replace('{{PATTERNS}}', combinedBody);
-    let finalFlags = computeFlags(entries, options.requireI !== false);
-    if (options.extraFlags) {
-        for (const flag of options.extraFlags) {
-            if (flag && !finalFlags.includes(flag)) {
-                finalFlags += flag;
-            }
-        }
-    }
-    try {
-        return new RegExp(finalBody, finalFlags);
-    } catch (e) {
-        console.warn(`${logPrefix} Regex compilation failed for template: ${template}`, e);
-        return null;
-    }
-}
-function buildGenericRegex(patternList) {
-    if (!patternList || patternList.length === 0) return null;
-    const body = `(?:${patternList.map(p => parsePatternEntry(p)?.body).filter(Boolean).join('|')})`;
-    return new RegExp(body, computeFlags(patternList.map(parsePatternEntry)));
-}
-
-function getQuoteRanges(s) {
-    if (!s) return [];
-    const ranges = [];
-    const stack = [];
-
-    const isLikelyApostrophe = (index) => {
-        if (index < 0 || index >= s.length) return false;
-        const prev = index > 0 ? s[index - 1] : '';
-        const next = index + 1 < s.length ? s[index + 1] : '';
-        return WORD_CHAR_REGEX.test(prev) && WORD_CHAR_REGEX.test(next);
-    };
-
-    for (let i = 0; i < s.length; i += 1) {
-        const ch = s[i];
-        const openerInfo = QUOTE_OPENERS.get(ch);
-        if (openerInfo) {
-            if (openerInfo.symmetric) {
-                if (openerInfo.apostropheSensitive && isLikelyApostrophe(i)) {
-                    continue;
-                }
-                const top = stack[stack.length - 1];
-                if (top && top.open === ch && top.symmetric) {
-                    stack.pop();
-                    ranges.push([top.index, i]);
-                } else {
-                    stack.push({ open: ch, close: openerInfo.close, index: i, symmetric: true, apostropheSensitive: openerInfo.apostropheSensitive });
-                }
-                continue;
-            }
-            stack.push({ open: ch, close: openerInfo.close, index: i, symmetric: false });
-            continue;
-        }
-
-        const closeCandidates = QUOTE_CLOSERS.get(ch);
-        if (closeCandidates && stack.length) {
-            for (let j = stack.length - 1; j >= 0; j -= 1) {
-                const candidate = stack[j];
-                if (!candidate.symmetric && candidate.close === ch && closeCandidates.includes(candidate.open)) {
-                    stack.splice(j, 1);
-                    ranges.push([candidate.index, i]);
-                    break;
-                }
-            }
-            continue;
-        }
-
-        const top = stack[stack.length - 1];
-        if (top && top.symmetric && ch === top.close) {
-            stack.pop();
-            ranges.push([top.index, i]);
-        }
-    }
-
-    return ranges.sort((a, b) => a[0] - b[0]);
-}
-function isIndexInsideQuotes(idx, quoteRanges) {
-    for (const [start, end] of quoteRanges) {
-        if (idx > start && idx < end) return true;
-    }
-    return false;
-}
-function findMatches(text, regex, quoteRanges, searchInsideQuotes = false) {
-    if (!text || !regex) return [];
-    const results = [];
-    const re = new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : regex.flags + 'g');
-    let match;
-    while ((match = re.exec(text)) !== null) {
-        if (searchInsideQuotes || !isIndexInsideQuotes(match.index, quoteRanges)) {
-            results.push({ match: match[0], groups: match.slice(1), index: match.index });
-        }
-    }
-    return results;
-}
-
 const PRIORITY_FIELD_MAP = {
     speaker: 'prioritySpeakerWeight',
     attribution: 'priorityAttributionWeight',
@@ -693,59 +543,24 @@ function getPriorityWeights(profile) {
 }
 
 function findAllMatches(combined) {
-    const allMatches = [];
     const profile = getActiveProfile();
     const { compiledRegexes } = state;
-    if (!profile || !combined) return allMatches;
+    if (!profile || !combined) {
+        return [];
+    }
 
-    const quoteRanges = getQuoteRanges(combined);
-    const priorities = getPriorityWeights(profile);
-
-    if (compiledRegexes.speakerRegex) {
-        findMatches(combined, compiledRegexes.speakerRegex, quoteRanges).forEach(m => {
-            const name = m.groups?.[0]?.trim();
-            if (name) allMatches.push({ name, matchKind: "speaker", matchIndex: m.index, priority: priorities.speaker });
-        });
-    }
-    if (profile.detectAttribution && compiledRegexes.attributionRegex) {
-        findMatches(combined, compiledRegexes.attributionRegex, quoteRanges).forEach(m => {
-            const name = m.groups?.find(g => g)?.trim();
-            if (name) allMatches.push({ name, matchKind: "attribution", matchIndex: m.index, priority: priorities.attribution });
-        });
-    }
-    if (profile.detectAction && compiledRegexes.actionRegex) {
-        findMatches(combined, compiledRegexes.actionRegex, quoteRanges).forEach(m => {
-            const name = m.groups?.find(g => g)?.trim();
-            if (name) allMatches.push({ name, matchKind: "action", matchIndex: m.index, priority: priorities.action });
-        });
-    }
+    let lastSubject = null;
     if (profile.detectPronoun && state.perMessageStates.size > 0) {
-        const msgState = Array.from(state.perMessageStates.values()).pop(); // Get latest state
-        if (msgState && msgState.lastSubject && compiledRegexes.pronounRegex) {
-            findMatches(combined, compiledRegexes.pronounRegex, quoteRanges).forEach(m => {
-                allMatches.push({ name: msgState.lastSubject, matchKind: "pronoun", matchIndex: m.index, priority: priorities.pronoun });
-            });
+        const msgState = Array.from(state.perMessageStates.values()).pop();
+        if (msgState && msgState.lastSubject) {
+            lastSubject = msgState.lastSubject;
         }
     }
-    if (profile.detectVocative && compiledRegexes.vocativeRegex) {
-        findMatches(combined, compiledRegexes.vocativeRegex, quoteRanges, true).forEach(m => {
-            const name = m.groups?.[0]?.trim();
-            if (name) allMatches.push({ name, matchKind: "vocative", matchIndex: m.index, priority: priorities.vocative });
-        });
-    }
-    if (profile.detectPossessive && compiledRegexes.possessiveRegex) {
-        findMatches(combined, compiledRegexes.possessiveRegex, quoteRanges).forEach(m => {
-            const name = m.groups?.[0]?.trim();
-            if (name) allMatches.push({ name, matchKind: "possessive", matchIndex: m.index, priority: priorities.possessive });
-        });
-    }
-    if (profile.detectGeneral && compiledRegexes.nameRegex) {
-        findMatches(combined, compiledRegexes.nameRegex, quoteRanges).forEach(m => {
-            const name = String(m.groups?.[0] || m.match).replace(/-(?:sama|san)$/i, "").trim();
-            if (name) allMatches.push({ name, matchKind: "name", matchIndex: m.index, priority: priorities.name });
-        });
-    }
-    return allMatches;
+
+    return collectDetections(combined, profile, compiledRegexes, {
+        priorityWeights: getPriorityWeights(profile),
+        lastSubject,
+    });
 }
 
 function findBestMatch(combined, precomputedMatches = null) {
@@ -1115,50 +930,13 @@ function recompileRegexes() {
     try {
         const profile = getActiveProfile();
         if (!profile) return;
-        const lowerIgnored = (profile.ignorePatterns || []).map(p => String(p).trim().toLowerCase());
-        const effectivePatterns = (profile.patterns || []).filter(p => !lowerIgnored.includes(String(p).trim().toLowerCase()));
 
-        const escapeVerbList = (list) => {
-            const seen = new Set();
-            return (list || [])
-                .map(entry => parsePatternEntry(entry))
-                .filter(Boolean)
-                .map(entry => entry.body)
-                .filter(body => {
-                    if (!body || seen.has(body)) return false;
-                    seen.add(body);
-                    return true;
-                })
-                .join('|');
-        };
-        const attributionVerbsPattern = escapeVerbList(profile.attributionVerbs);
-        const actionVerbsPattern = escapeVerbList(profile.actionVerbs);
-        const pronounVocabulary = Array.isArray(profile.pronounVocabulary) && profile.pronounVocabulary.length
-            ? profile.pronounVocabulary
-            : DEFAULT_PRONOUNS;
-        const pronounPattern = escapeVerbList(pronounVocabulary);
+        const compiled = compileProfileRegexes(profile, {
+            unicodeWordPattern: UNICODE_WORD_PATTERN,
+            defaultPronouns: DEFAULT_PRONOUNS,
+        });
 
-        const speakerTemplate = '(?:^|[\r\n]+|[>\]]\s*)({{PATTERNS}})\s*:';
-        const boundaryLookbehind = "(?<![A-Za-z0-9_'’])";
-        const attributionTemplate = attributionVerbsPattern
-            ? `${boundaryLookbehind}({{PATTERNS}})\\s+(?:${attributionVerbsPattern})`
-            : null;
-        const actionTemplate = actionVerbsPattern
-            ? `${boundaryLookbehind}({{PATTERNS}})(?:['’]s)?\\s+(?:${UNICODE_WORD_PATTERN}+\\s+){0,3}?(?:${actionVerbsPattern})`
-            : null;
-
-        state.compiledRegexes = {
-            speakerRegex: buildRegex(effectivePatterns, speakerTemplate),
-            attributionRegex: attributionTemplate ? buildRegex(effectivePatterns, attributionTemplate) : null,
-            actionRegex: actionTemplate ? buildRegex(effectivePatterns, actionTemplate, { extraFlags: 'u' }) : null,
-            pronounRegex: (actionVerbsPattern && pronounPattern)
-                ? new RegExp(`(?:^|[\r\n]+)\s*(?:${pronounPattern})(?:['’]s)?\s+(?:${UNICODE_WORD_PATTERN}+\\s+){0,3}?(?:${actionVerbsPattern})`, 'iu')
-                : null,
-            vocativeRegex: buildRegex(effectivePatterns, `["“'\\s]({{PATTERNS}})[,.!?]`),
-            possessiveRegex: buildRegex(effectivePatterns, `\\b({{PATTERNS}})['’]s\\b`),
-            nameRegex: buildRegex(effectivePatterns, `\\b({{PATTERNS}})\\b`),
-            vetoRegex: buildGenericRegex(profile.vetoPatterns),
-        };
+        state.compiledRegexes = compiled.regexes;
         rebuildMappingLookup(profile);
         $("#cs-error").prop('hidden', true).find('.cs-status-text').text('');
     } catch (e) {
@@ -3364,51 +3142,6 @@ function copyTextToClipboard(text) {
     }
 }
 
-function summarizeDetectionsForReport(matches = []) {
-    const summaries = new Map();
-    matches.forEach(match => {
-        const key = String(match.name || '').toLowerCase();
-        if (!key) return;
-        if (!summaries.has(key)) {
-            summaries.set(key, {
-                name: match.name || key,
-                total: 0,
-                highestPriority: -Infinity,
-                earliest: Infinity,
-                latest: -Infinity,
-                kinds: {},
-            });
-        }
-        const summary = summaries.get(key);
-        summary.total += 1;
-        const kind = match.matchKind || 'unknown';
-        summary.kinds[kind] = (summary.kinds[kind] || 0) + 1;
-        if (Number.isFinite(match.priority)) {
-            summary.highestPriority = Math.max(summary.highestPriority, match.priority);
-        }
-        if (Number.isFinite(match.matchIndex)) {
-            summary.earliest = Math.min(summary.earliest, match.matchIndex);
-            summary.latest = Math.max(summary.latest, match.matchIndex);
-        }
-    });
-
-    return Array.from(summaries.values()).map(summary => ({
-        ...summary,
-        highestPriority: summary.highestPriority === -Infinity ? null : summary.highestPriority,
-        earliest: summary.earliest === Infinity ? null : summary.earliest + 1,
-        latest: summary.latest === -Infinity ? null : summary.latest + 1,
-    })).sort((a, b) => {
-        if (b.total !== a.total) return b.total - a.total;
-        const bPriority = b.highestPriority ?? -Infinity;
-        const aPriority = a.highestPriority ?? -Infinity;
-        if (bPriority !== aPriority) return bPriority - aPriority;
-        const aEarliest = a.earliest ?? Infinity;
-        const bEarliest = b.earliest ?? Infinity;
-        if (aEarliest !== bEarliest) return aEarliest - bEarliest;
-        return a.name.localeCompare(b.name);
-    });
-}
-
 function summarizeSkipReasonsForReport(events = []) {
     const counts = new Map();
     events.forEach(event => {
@@ -3468,11 +3201,16 @@ function formatTesterReport(report) {
     lines.push(`Character Patterns: ${patternList.length ? patternList.join(', ') : '(none)'}`);
     lines.push('');
 
+    const mergedDetections = mergeDetectionsForReport(report);
+    const detectionLookup = new Map(
+        mergedDetections.map(entry => [String(entry.name || '').toLowerCase(), entry.name])
+    );
     lines.push('Detections:');
-    if (report.matches?.length) {
-        report.matches.forEach((m, idx) => {
+    if (mergedDetections.length) {
+        mergedDetections.forEach((m, idx) => {
             const charPos = Number.isFinite(m.matchIndex) ? m.matchIndex + 1 : '?';
-            lines.push(`  ${idx + 1}. ${m.name} – ${m.matchKind} @ char ${charPos} (priority ${m.priority})`);
+            const priorityLabel = Number.isFinite(m.priority) ? m.priority : 'n/a';
+            lines.push(`  ${idx + 1}. ${m.name} – ${m.matchKind || 'unknown'} @ char ${charPos} (priority ${priorityLabel})`);
         });
     } else {
         lines.push('  (none)');
@@ -3503,7 +3241,7 @@ function formatTesterReport(report) {
         lines.push('  (none)');
     }
 
-    const detectionSummary = summarizeDetectionsForReport(report.matches);
+    const detectionSummary = summarizeDetections(mergedDetections);
     lines.push('');
     lines.push('Detection Summary:');
     if (detectionSummary.length) {
@@ -3593,7 +3331,7 @@ function formatTesterReport(report) {
     if (report.finalState) {
         const rosterNames = Array.isArray(report.finalState.sceneRoster)
             ? report.finalState.sceneRoster.map(name => {
-                const original = report.matches?.find(m => m.name?.toLowerCase() === name)?.name;
+                const original = detectionLookup.get(String(name || '').toLowerCase());
                 return original || name;
             })
             : [];
