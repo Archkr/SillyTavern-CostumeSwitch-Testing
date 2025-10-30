@@ -1,5 +1,3 @@
-import { Inflectors } from "en-inflectors";
-
 const FORM_KEYS = [
     "base",
     "thirdPerson",
@@ -8,14 +6,89 @@ const FORM_KEYS = [
     "presentParticiple",
 ];
 
+function isConsonant(letter) {
+    return /[bcdfghjklmnpqrstvwxyz]/i.test(letter);
+}
+
+function isVowel(letter) {
+    return /[aeiou]/i.test(letter);
+}
+
+function toThirdPerson(lemma) {
+    if (lemma.endsWith("ie")) {
+        return `${lemma.slice(0, -2)}ies`;
+    }
+
+    if (/[^aeiou]y$/i.test(lemma)) {
+        return `${lemma.slice(0, -1)}ies`;
+    }
+
+    if (/(?:s|sh|ch|x|z|o)$/i.test(lemma)) {
+        return `${lemma}es`;
+    }
+
+    return `${lemma}s`;
+}
+
+function shouldDoubleFinalConsonant(lemma) {
+    if (lemma.length < 3) {
+        return false;
+    }
+
+    const last = lemma.slice(-1);
+    const secondLast = lemma.slice(-2, -1);
+    const thirdLast = lemma.slice(-3, -2);
+    return (
+        isConsonant(last)
+        && !/[wxy]/i.test(last)
+        && isVowel(secondLast)
+        && isConsonant(thirdLast)
+    );
+}
+
+function toPastTense(lemma) {
+    if (lemma.endsWith("e")) {
+        return `${lemma}d`;
+    }
+
+    if (/[^aeiou]y$/i.test(lemma)) {
+        return `${lemma.slice(0, -1)}ied`;
+    }
+
+    if (shouldDoubleFinalConsonant(lemma)) {
+        return `${lemma}${lemma.slice(-1)}ed`;
+    }
+
+    return `${lemma}ed`;
+}
+
+function toPresentParticiple(lemma) {
+    if (lemma.endsWith("ie")) {
+        return `${lemma.slice(0, -2)}ying`;
+    }
+
+    if (lemma.endsWith("ee") || lemma.endsWith("oe") || lemma.endsWith("ye")) {
+        return `${lemma}ing`;
+    }
+
+    if (lemma.endsWith("e")) {
+        return `${lemma.slice(0, -1)}ing`;
+    }
+
+    if (shouldDoubleFinalConsonant(lemma)) {
+        return `${lemma}${lemma.slice(-1)}ing`;
+    }
+
+    return `${lemma}ing`;
+}
+
 function buildInflections(lemma) {
-    const inflector = new Inflectors(lemma);
     return {
         base: lemma,
-        thirdPerson: inflector.toPresentS(),
-        past: inflector.toPast(),
-        pastParticiple: inflector.toPastParticiple(),
-        presentParticiple: inflector.toGerund(),
+        thirdPerson: toThirdPerson(lemma),
+        past: toPastTense(lemma),
+        pastParticiple: toPastTense(lemma),
+        presentParticiple: toPresentParticiple(lemma),
     };
 }
 
