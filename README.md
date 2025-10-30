@@ -65,14 +65,16 @@ To update, return to the Extension Manager and click **Update all** or reinstall
 
 ## Architecture Overview
 
-Costume Switcher combines a lightweight UI layer with a purpose-built streaming analysis pipeline so that avatar changes arrive in perfect sync with the narrative.
+Costume Switcher combines a lightweight UI layer with a purpose-built streaming analysis pipeline so that avatar changes arrive in perfect sync with the narrative. Here is the life of a single message:
 
-- **Streaming bridge** – The extension taps into SillyTavern’s token stream and normalises messages into an incremental buffer that can be rescored every few characters without stalling the UI.
-- **Profile-driven configuration** – Every slider, toggle, and text field in the settings drawer writes to a structured profile object. The profile is compiled into runtime detectors, cooldown rules, and costume mappings that can be swapped on the fly when you change stories.
-- **Detection orchestration** – When new text appears, the orchestrator fans out the analysis work across multiple detectors, merges the results into a weighted scorecard, and then applies cooldowns, veto phrases, and roster context to determine which character should take the spotlight.
-- **Rendering layer** – Once a winner is chosen, the renderer resolves the final costume folder, handles manual focus overrides, and dispatches the change to SillyTavern’s avatar manager without blocking the rest of the extension.
+1. **Stream listener** – The extension hooks into SillyTavern’s streaming events and keeps a rolling buffer per message. Each incoming token is cleaned up (punctuation, fancy quotes, zero-width characters) and appended without ever blocking the UI.
+2. **Profile compiler** – Your active profile is turned into a ready-to-run bundle of regex detectors, verb lists, cooldown rules, roster preferences, and outfit mappings. Switching profiles simply swaps this bundle out.
+3. **Detection pass** – The main engine sweeps the buffer with detectors for speaker tags, attribution verbs, action verbs, vocatives, possessives, pronouns, and optional “general name” matches. It also honours veto phrases and skips ignored characters before any scoring happens.
+4. **Scoring & context** – Every hit is scored using weighted priorities, distance from the end of the message, and the current scene roster. Bias settings and per-detector weights let you favour explicit dialogue tags or lean toward the freshest mention.
+5. **Decision gate** – Cooldowns, repeat suppression, and manual focus locks are enforced in one place. If the candidate passes, the outfit resolver determines the correct folder (including outfit variants) and issues the `/costume` command.
+6. **Telemetry** – The engine records matches, scores, roster membership, and skip reasons. The Live Pattern Tester, slash commands, and exported session data all pull from this shared telemetry, so you see exactly what the engine saw.
 
-The entire stack was designed in tandem so that authors can iterate quickly, experiment with edge cases in the Live Pattern Tester, and ship polished character experiences without juggling ad-hoc scripts.
+Because each stage is isolated, you can tweak detector settings without relearning the UI, and you can reason about switch decisions by following the same order the engine uses internally.
 
 ---
 
@@ -82,24 +84,29 @@ Costume Switcher does not rely on third-party libraries for detection. Every mat
 
 ### Main Detection Engine (v3)
 
-Version 3 of the primary detection engine powers all speaker attribution. It represents the third full rewrite of the pipeline and ships with the following pillars:
+Version 3 of the primary detection engine powers all speaker attribution. It represents the third full rewrite of the pipeline and focuses on clarity for end users:
 
-- **Adaptive mention parsing** – Custom lexers interpret narrative dialogue markers, action beats, and pronoun references in real time to deliver confident matches even when prose gets experimental.
-- **Contextual weighting** – Scene roster intelligence, recency decay, and per-detector weights are blended to promote the most believable speaker rather than the most frequent name.
-- **Cooldown governance** – Global, per-trigger, and failure-specific cooldowns are enforced centrally so that rapid-fire switches stay smooth instead of jittery.
-- **Explainer-first telemetry** – Every detection is logged with type, score, and rationale, powering the Live Pattern Tester’s switch timeline and exported reports for transparent debugging.
+- **Detectors you can toggle** – Speaker tags, attribution verbs, action verbs, vocatives, possessives, pronouns, and general-name sweeps are all first-party detectors. Turn them on and off from the settings panel to mirror the way your story is written.
+- **Smart pronoun linking** – The engine remembers the last confirmed subject so that pronoun hits can keep the same character in focus, even when a paragraph swaps from “Alice” to “she.”
+- **Scene roster awareness** – Characters who were recently detected stay in a per-message roster with a configurable TTL. When the next decision comes up, roster members receive bonus weight so ensemble scenes stay stable.
+- **Weighted scoring** – Every detector reports a priority. Those priorities are combined with distance-from-end penalties, your detection bias slider, and per-detector weight controls. The result is a transparent scorecard you can inspect in the Live Pattern Tester.
+- **Cooldown & veto safety nets** – A single decision gate enforces the global cooldown, per-trigger cooldowns, repeat suppression, and veto phrases. Switches are skipped gracefully when a rule applies, and the skip reason is logged for review.
+- **Explainer-first telemetry** – Matches, scores, roster membership, and skip reasons are stored alongside the final decision. Slash commands such as `/cs-stats` and `/cs-top` surface this telemetry directly in chat.
 
-The v3 engine is the culmination of extensive field feedback. It prioritises deterministic behaviour, approachable tuning, and maintainability so new detectors can slot in without destabilising existing stories.
+The v3 engine is deterministic by design: given the same buffer and settings it will make the same call every time. That makes testing simple and gives you confidence that profile tweaks translate directly to the behaviour you expect.
 
 ### Outfit Detection Engine (v1)
 
-Costume changes deserve their own specialised logic. The outfit detection engine (currently version 1) translates the winning speaker into a wardrobe action using a mapping table, fallback defaults, and optional manual focus locks.
+The outfit resolver is treated as its own detection engine because it layers additional rules on top of the main decision:
 
-- **Folder resolution graph** – Character aliases, regex entries, and manual overrides converge into a single resolved costume path so you can align multiple avatars with one identity.
-- **Bias-aware switching** – The engine respects the same cooldown and veto logic as the primary detector, ensuring costume swaps mirror narrative intent without visual whiplash.
-- **State recovery** – Manual resets and default costume fallbacks keep the experience resilient; even if the roster changes mid-session the engine gracefully lands on a sensible wardrobe.
+- **Mapping-first resolution** – Character names (and aliases) map to base costume folders. Each mapping can include one or more outfit variants with custom labels.
+- **Trigger-driven variants** – Variants declare literal phrases or regex triggers. When a detection lands, the resolver evaluates those triggers against the full message buffer so outfits can react to mood, locations, or key phrases.
+- **Match-kind filtering** – Variants can opt into specific match kinds (e.g., only on “action” detections). This keeps reaction outfits from firing on stray name drops.
+- **Scene awareness predicates** – Variants can require certain characters to be present, require at least one of a set, or forbid specific characters. The engine reuses the scene roster from the main detector so outfits respond to who is actually in the conversation.
+- **Cooldown-friendly caching** – Once a character ends up in a specific outfit, that choice is cached. Repeated detections of the same outfit are skipped until something actually changes, preventing needless `/costume` spam.
+- **Readable decisions** – The Live Pattern Tester and status banner show why a variant was selected (trigger hit, awareness rule, fallback, etc.), so you can iterate on rules without guessing.
 
-Future updates will iterate on version 1 by layering in richer wardrobe states and shared presets while preserving the confidence-first ethos of the current build.
+Outfit Detection Engine v1 is already powerful enough for mood-based wardrobe changes, yet it stays predictable by reusing the same telemetry and cooldown gates as the main engine.
 
 ---
 
