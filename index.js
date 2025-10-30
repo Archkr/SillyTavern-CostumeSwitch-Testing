@@ -2,18 +2,26 @@ import { extension_settings, getContext } from "../../../extensions.js";
 import { saveSettingsDebounced, event_types, eventSource } from "../../../../script.js";
 import { executeSlashCommandsOnChatInput, registerSlashCommand } from "../../../slash-commands.js";
 import {
-    DEFAULT_ACTION_VERBS,
     DEFAULT_ACTION_VERBS_PRESENT,
     DEFAULT_ACTION_VERBS_THIRD_PERSON,
-    DEFAULT_ATTRIBUTION_VERBS,
+    DEFAULT_ACTION_VERBS_PAST,
+    DEFAULT_ACTION_VERBS_PAST_PARTICIPLE,
+    DEFAULT_ACTION_VERBS_PRESENT_PARTICIPLE,
     DEFAULT_ATTRIBUTION_VERBS_PRESENT,
     DEFAULT_ATTRIBUTION_VERBS_THIRD_PERSON,
-    EXTENDED_ACTION_VERBS,
+    DEFAULT_ATTRIBUTION_VERBS_PAST,
+    DEFAULT_ATTRIBUTION_VERBS_PAST_PARTICIPLE,
+    DEFAULT_ATTRIBUTION_VERBS_PRESENT_PARTICIPLE,
     EXTENDED_ACTION_VERBS_PRESENT,
     EXTENDED_ACTION_VERBS_THIRD_PERSON,
-    EXTENDED_ATTRIBUTION_VERBS,
+    EXTENDED_ACTION_VERBS_PAST,
+    EXTENDED_ACTION_VERBS_PAST_PARTICIPLE,
+    EXTENDED_ACTION_VERBS_PRESENT_PARTICIPLE,
     EXTENDED_ATTRIBUTION_VERBS_PRESENT,
     EXTENDED_ATTRIBUTION_VERBS_THIRD_PERSON,
+    EXTENDED_ATTRIBUTION_VERBS_PAST,
+    EXTENDED_ATTRIBUTION_VERBS_PAST_PARTICIPLE,
+    EXTENDED_ATTRIBUTION_VERBS_PRESENT_PARTICIPLE,
     buildVerbSlices,
 } from "./verbs.js";
 import { loadProfiles, normalizeProfile, normalizeMappingEntry } from "./profile-utils.js";
@@ -21,6 +29,42 @@ import { loadProfiles, normalizeProfile, normalizeMappingEntry } from "./profile
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const logPrefix = "[CostumeSwitch]";
+
+function buildVerbList(...lists) {
+    return Array.from(new Set(lists.flat().filter(Boolean)));
+}
+
+const DEFAULT_ATTRIBUTION_VERB_FORMS = buildVerbList(
+    DEFAULT_ATTRIBUTION_VERBS_PRESENT,
+    DEFAULT_ATTRIBUTION_VERBS_THIRD_PERSON,
+    DEFAULT_ATTRIBUTION_VERBS_PAST,
+    DEFAULT_ATTRIBUTION_VERBS_PAST_PARTICIPLE,
+    DEFAULT_ATTRIBUTION_VERBS_PRESENT_PARTICIPLE,
+);
+
+const EXTENDED_ATTRIBUTION_VERB_FORMS = buildVerbList(
+    EXTENDED_ATTRIBUTION_VERBS_PRESENT,
+    EXTENDED_ATTRIBUTION_VERBS_THIRD_PERSON,
+    EXTENDED_ATTRIBUTION_VERBS_PAST,
+    EXTENDED_ATTRIBUTION_VERBS_PAST_PARTICIPLE,
+    EXTENDED_ATTRIBUTION_VERBS_PRESENT_PARTICIPLE,
+);
+
+const DEFAULT_ACTION_VERB_FORMS = buildVerbList(
+    DEFAULT_ACTION_VERBS_PRESENT,
+    DEFAULT_ACTION_VERBS_THIRD_PERSON,
+    DEFAULT_ACTION_VERBS_PAST,
+    DEFAULT_ACTION_VERBS_PAST_PARTICIPLE,
+    DEFAULT_ACTION_VERBS_PRESENT_PARTICIPLE,
+);
+
+const EXTENDED_ACTION_VERB_FORMS = buildVerbList(
+    EXTENDED_ACTION_VERBS_PRESENT,
+    EXTENDED_ACTION_VERBS_THIRD_PERSON,
+    EXTENDED_ACTION_VERBS_PAST,
+    EXTENDED_ACTION_VERBS_PAST_PARTICIPLE,
+    EXTENDED_ACTION_VERBS_PRESENT_PARTICIPLE,
+);
 
 // ======================================================================
 // PRESET PROFILES
@@ -250,8 +294,8 @@ const PROFILE_DEFAULTS = {
     detectPronoun: true,
     detectGeneral: false,
     pronounVocabulary: [...DEFAULT_PRONOUNS],
-    attributionVerbs: [...DEFAULT_ATTRIBUTION_VERBS],
-    actionVerbs: [...DEFAULT_ACTION_VERBS],
+    attributionVerbs: [...DEFAULT_ATTRIBUTION_VERB_FORMS],
+    actionVerbs: [...DEFAULT_ACTION_VERB_FORMS],
     detectionBias: 0,
     enableSceneRoster: true,
     sceneRosterTTL: 5,
@@ -274,21 +318,13 @@ const KNOWN_PRONOUNS = new Set([
 ].map(value => String(value).toLowerCase()));
 
 const KNOWN_ATTRIBUTION_VERBS = new Set([
-    ...PROFILE_DEFAULTS.attributionVerbs,
-    ...DEFAULT_ATTRIBUTION_VERBS_PRESENT,
-    ...DEFAULT_ATTRIBUTION_VERBS_THIRD_PERSON,
-    ...EXTENDED_ATTRIBUTION_VERBS,
-    ...EXTENDED_ATTRIBUTION_VERBS_PRESENT,
-    ...EXTENDED_ATTRIBUTION_VERBS_THIRD_PERSON,
+    ...DEFAULT_ATTRIBUTION_VERB_FORMS,
+    ...EXTENDED_ATTRIBUTION_VERB_FORMS,
 ].map(value => String(value).toLowerCase()));
 
 const KNOWN_ACTION_VERBS = new Set([
-    ...PROFILE_DEFAULTS.actionVerbs,
-    ...DEFAULT_ACTION_VERBS_PRESENT,
-    ...DEFAULT_ACTION_VERBS_THIRD_PERSON,
-    ...EXTENDED_ACTION_VERBS,
-    ...EXTENDED_ACTION_VERBS_PRESENT,
-    ...EXTENDED_ACTION_VERBS_THIRD_PERSON,
+    ...DEFAULT_ACTION_VERB_FORMS,
+    ...EXTENDED_ACTION_VERB_FORMS,
 ].map(value => String(value).toLowerCase()));
 
 function getVerbInflections(category = "attribution", edition = "default") {
