@@ -1,7 +1,4 @@
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
-const verbCatalog = require("./verbCatalog.json");
+import verbCatalog from "./verbCatalogData.js";
 
 const CATEGORY_KEYS = new Set(["attribution", "action"]);
 const EDITION_KEYS = new Set(["default", "extended"]);
