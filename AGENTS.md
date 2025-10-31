@@ -8,9 +8,3 @@
 - Keep experimental or in-progress features clearly gated behind their feature flags.
 - Update or add tests in the `test/` directory when you change profile persistence or detection logic.
 - Document noteworthy UI affordances or feature flags in the settings copy so users understand experimental scope.
-
-# v3.2.0 directory
-
-- Do not make any changes to anything within the `v3.2.0/` directory
-- v3.2.0 is what is currently released to the public
-- Use v3.2.0 for reference since it is a stable build due to it being a public release
