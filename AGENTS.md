@@ -1,3 +1,6 @@
+# Heads up
+- This repository is my testing grounds for new updates for my extension in it's main repository. The public release of the extension is on v3.2.0, and this repository will become v3.3.0
+
 # SillyTavern Costume Switch contributor notes
 
 - Use four spaces for indentation in JavaScript, HTML, and CSS files.
