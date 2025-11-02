@@ -179,7 +179,7 @@ Fine-tune responsiveness and tie-breaking behaviour:
 Map any detected name or alias to a specific costume folder. Use **Add Mapping** to append rows, then fill in the character and destination folder names.
 
 ### Outfit Lab
-The Outfit Lab is an experimental workspace for staging wardrobe variants without destabilising your live mappings. Variants saved here run in the detection engine as soon as **Enable Experimental Outfits** is toggled on for the active profile.
+The Outfit Lab is the home for outfit-aware automation. Variants saved here run in the detection engine as soon as **Enable Outfit Automation** is toggled on for the active profile.
 
 #### 1. Prepare your character folders
 Keep your prototypes in an `Outfit Lab` subdirectory under the character’s main folder. Each outfit variant receives its own subfolder, and every variant should reuse the same expression filenames as the parent directory so expression lookups remain valid.
@@ -206,7 +206,7 @@ SillyTavern/data/default-user/characters/Mythic Frontier/
 - Store shared assets (e.g., accessories or props) alongside the variant art if you reference them directly. SillyTavern only serves files that live inside the selected outfit directory.
 
 #### 2. Enable the lab in settings
-Open **Settings → Extensions → Costume Switcher → Outfits (Preview)**. The editor stays read-only until you flip **Enable Experimental Outfits** on. Once enabled you can add, edit, or remove variants; turning it back off preserves the data but keeps the profile on its default folders.
+Open **Settings → Extensions → Costume Switcher → Outfits**. The editor stays read-only until you flip **Enable Outfit Automation** on. Once enabled you can add, edit, or remove variants; turning it back off preserves the data but keeps the profile on its default folders.
 
 #### 3. Add characters and defaults
 Use **Add Character Slot** to create a card per character you want to experiment with. Fill in:
@@ -217,15 +217,16 @@ Use **Add Character Slot** to create a card per character you want to experiment
 These values sync with the main **Costume Mappings** table, so characters you configure in the lab are also available to the standard mapping workflow.
 
 #### 4. Build outfit variations
-Inside each card, click **Add Outfit Variation** to define experimental looks:
+Inside each card, click **Add Outfit Variation** to define automated looks:
 
 - **Label (optional)** – Friendly display name for the Live Tester and debug logs.
 - **Folder** – Path to the prototype outfit. Use the directory picker or paste the relative path shown in your SillyTavern character tree.
 - **Triggers** – One literal or `/regex/` pattern per line. Variants with no triggers act as always-on fallbacks after earlier variants fail.
 - **Match Types** – Limit the variant to specific detection sources. Options include `Speaker`, `Attribution`, `Action`, `Pronoun`, `Vocative`, `Possessive`, and `General Name`. Leave all unchecked to accept every match.
 - **Scene Awareness** – Require or exclude characters from the active scene roster. Fill in **Requires all of…**, **Requires any of…**, or **Exclude when present** (one name per line). The roster is case-insensitive and only populated when the **Scene Roster** detector is enabled in **Detection Strategy**.
+- **Priority** – Higher numbers take precedence when more than one variant qualifies. Ties resolve in favour of variants that matched triggers, then variants with more awareness rules, then variants limited to specific match types, and finally by creation order.
 
-Variants evaluate in order from top to bottom. The first entry whose folder exists, whose match type (if any) aligns with the detection event, whose triggers match the streaming text, and whose scene-awareness rules pass becomes the active outfit. Everything else falls back to the card’s default folder.
+Variants evaluate using priority before folder order. The engine selects the highest-priority variant that matches, breaking ties using trigger matches, awareness specificity, match-type filters, and finally the order the variants were created. If nothing qualifies the character falls back to the card’s default folder.
 
 #### 5. Test and iterate safely
 - Use the **Live Pattern Tester** with the lab enabled to verify which variant would win given sample prose. Trigger matches and awareness reasons appear in the report.
@@ -233,10 +234,10 @@ Variants evaluate in order from top to bottom. The first entry whose folder exis
 - Profiles store their lab configuration alongside mappings. Exporting a profile JSON carries the variants with it for backups or sharing.
 
 #### Troubleshooting the Outfit Lab
-- **Variant never fires** – Confirm the variant folder path is relative to your `characters/` directory and spelled exactly like the filesystem entry. Remember variants run sequentially; drag the card handles to reorder if a broader variant is catching the trigger first.
+- **Variant never fires** – Confirm the variant folder path is relative to your `characters/` directory and spelled exactly like the filesystem entry. Use the new **Priority** field to make the desired variant win when multiple entries match the same context.
 - **Scene rules never pass** – Enable **Scene Roster** under **Detection Strategy** and keep the TTL high enough for characters to remain “active.” Names are normalised to lowercase; match the roster spelling (e.g., `captain ardan`).
 - **Missing expressions** – Copy the full expression set into each variant directory. Because the manifest is shared, only files that physically exist in the selected folder can render.
-- **Editor looks disabled** – The lab requires **Enable Experimental Outfits** to be on. When off, the UI intentionally locks to prevent accidental edits during live sessions.
+- **Editor looks disabled** – Turn on **Enable Outfit Automation**. When off, the UI intentionally locks to prevent accidental edits during live sessions.
 - **Profile reset lost variants** – Variants live inside the active profile. Save the profile after edits and export periodic backups via the Profiles card.
 
 #### Organizing multi-character cards

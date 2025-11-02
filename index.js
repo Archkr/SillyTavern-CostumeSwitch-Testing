@@ -294,7 +294,7 @@ const PROFILE_DEFAULTS = {
     repeatSuppressMs: 800,
     tokenProcessThreshold: 60,
     mappings: [],
-    enableOutfits: false,
+    enableOutfits: true,
     detectAttribution: true,
     detectAction: true,
     detectVocative: true,
@@ -1273,17 +1273,24 @@ function resolveOutfitForMatch(rawName, options = {}) {
     const context = buildOutfitMatchContext(options, normalizedName, profile);
     const matchKind = typeof context.matchKind === "string" ? context.matchKind.trim().toLowerCase() : (typeof options?.matchKind === "string" ? options.matchKind.trim().toLowerCase() : "");
 
-    for (const variant of mapping.outfits) {
-        if (!variant) continue;
+    const matches = [];
+    mapping.outfits.forEach((variant, index) => {
+        if (!variant) {
+            return;
+        }
         const folder = typeof variant.folder === "string" ? variant.folder.trim() : "";
-        if (!folder) continue;
+        if (!folder) {
+            return;
+        }
 
         const rawKinds = variant.matchKinds ?? variant.matchKind ?? variant.kinds ?? variant.kind ?? null;
         const allowedKinds = Array.isArray(rawKinds) ? rawKinds : (rawKinds ? [rawKinds] : []);
-        if (allowedKinds.length) {
-            const loweredKinds = allowedKinds.map(value => String(value ?? "").trim().toLowerCase()).filter(Boolean);
-            if (!matchKind || (loweredKinds.length && !loweredKinds.includes(matchKind))) {
-                continue;
+        const loweredKinds = allowedKinds
+            .map(value => String(value ?? "").trim().toLowerCase())
+            .filter(Boolean);
+        if (loweredKinds.length) {
+            if (!matchKind || !loweredKinds.includes(matchKind)) {
+                return;
             }
         }
 
@@ -1291,20 +1298,33 @@ function resolveOutfitForMatch(rawName, options = {}) {
         if (!triggerResult.matched) {
             const hasTriggers = Array.isArray(variant.triggers) && variant.triggers.length > 0;
             if (hasTriggers) {
-                continue;
+                return;
             }
         }
 
         const awarenessResult = evaluateAwarenessPredicates(variant.awareness, context);
         if (!awarenessResult.ok) {
-            continue;
+            return;
         }
 
         const label = typeof variant.label === "string" && variant.label.trim()
             ? variant.label.trim()
             : (typeof variant.slot === "string" && variant.slot.trim() ? variant.slot.trim() : null);
 
-        return {
+        const triggerCount = Array.isArray(variant.triggers) ? variant.triggers.length : 0;
+        const triggerWeight = triggerResult.matched && triggerCount > 0 ? Math.max(triggerCount, 1) : 0;
+
+        const awarenessConfig = variant.awareness && typeof variant.awareness === "object" ? variant.awareness : {};
+        const awarenessWeight = [
+            Array.isArray(awarenessConfig.requires) ? awarenessConfig.requires.length : 0,
+            Array.isArray(awarenessConfig.requiresAny) ? awarenessConfig.requiresAny.length : 0,
+            Array.isArray(awarenessConfig.excludes) ? awarenessConfig.excludes.length : 0,
+        ].reduce((total, value) => total + value, 0);
+
+        const priorityValue = Number(variant.priority);
+        const priority = Number.isFinite(priorityValue) ? priorityValue : 0;
+
+        const result = {
             folder,
             reason: triggerResult.matched ? "trigger-match" : (awarenessResult.reason !== "no-awareness" ? "awareness-match" : "variant-default"),
             normalizedName,
@@ -1320,9 +1340,38 @@ function resolveOutfitForMatch(rawName, options = {}) {
             label,
             resolvedAt: now,
         };
+
+        matches.push({
+            priority,
+            triggerWeight,
+            awarenessWeight,
+            matchKindWeight: loweredKinds.length,
+            index,
+            result,
+        });
+    });
+
+    if (!matches.length) {
+        return baseResult;
     }
 
-    return baseResult;
+    matches.sort((a, b) => {
+        if (b.priority !== a.priority) {
+            return b.priority - a.priority;
+        }
+        if (b.triggerWeight !== a.triggerWeight) {
+            return b.triggerWeight - a.triggerWeight;
+        }
+        if (b.awarenessWeight !== a.awarenessWeight) {
+            return b.awarenessWeight - a.awarenessWeight;
+        }
+        if (b.matchKindWeight !== a.matchKindWeight) {
+            return b.matchKindWeight - a.matchKindWeight;
+        }
+        return a.index - b.index;
+    });
+
+    return matches[0].result;
 }
 
 function ensureCharacterOutfitCache(runtimeState) {
@@ -2489,6 +2538,12 @@ function normalizeOutfitVariant(rawVariant = {}) {
     delete normalized.none;
     delete normalized.forbid;
 
+    const prioritySource = normalized.priority ?? normalized.order ?? normalized.weight ?? 0;
+    const priority = Number(prioritySource);
+    normalized.priority = Number.isFinite(priority) ? priority : 0;
+    delete normalized.order;
+    delete normalized.weight;
+
     return normalized;
 }
 
@@ -2652,7 +2707,20 @@ function createOutfitVariantElement(profile, mapping, mappingIdx, variant, varia
     folderRow.append(folderInput, folderButton, folderPicker);
     folderField.append(folderRow);
 
-    grid.append(labelField, folderField);
+    const priorityId = `cs-outfit-variant-priority-${mappingIdx}-${variantIndex}`;
+    const priorityField = $('<div>').addClass('cs-field')
+        .append($('<label>', { for: priorityId, text: 'Priority' }));
+    const priorityValue = Number.isFinite(Number(normalized.priority)) ? Number(normalized.priority) : 0;
+    const priorityInput = $('<input>', {
+        id: priorityId,
+        type: 'number',
+        step: '1',
+    }).addClass('text_pole cs-outfit-variant-priority')
+        .val(priorityValue);
+    priorityField.append(priorityInput);
+    priorityField.append($('<small>').text('Higher numbers take precedence when multiple variants match.'));
+
+    grid.append(labelField, folderField, priorityField);
     variantEl.append(grid);
 
     const triggerId = `cs-outfit-variant-triggers-${mappingIdx}-${variantIndex}`;
@@ -2794,6 +2862,18 @@ function createOutfitVariantElement(profile, mapping, mappingIdx, variant, varia
         normalized.folder = folderInput.val().trim();
         syncMappingRowOutfits(mappingIdx, mapping.outfits);
         markVariantDirty(folderInput[0]);
+    });
+
+    priorityInput.on('input', () => {
+        const raw = priorityInput.val();
+        const value = Number(raw);
+        if (Number.isFinite(value)) {
+            normalized.priority = value;
+        } else {
+            normalized.priority = 0;
+        }
+        syncMappingRowOutfits(mappingIdx, mapping.outfits);
+        markVariantDirty(priorityInput[0]);
     });
 
     triggerTextarea.on('input', () => {

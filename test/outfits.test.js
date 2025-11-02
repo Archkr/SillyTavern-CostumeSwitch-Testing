@@ -129,6 +129,74 @@ test("resolveOutfitForMatch respects awareness requirements", () => {
     assert.equal(fallback.folder, "bob/solo");
 });
 
+test("resolveOutfitForMatch prioritizes higher-priority variants", () => {
+    const profile = setupProfile({
+        mappings: [
+            {
+                name: "Eve",
+                defaultFolder: "eve/base",
+                outfits: [
+                    { folder: "eve/low", triggers: ["duel"], priority: 1 },
+                    { folder: "eve/high", triggers: ["duel"], priority: 5 },
+                ],
+            },
+        ],
+    });
+
+    const result = resolveOutfitForMatch("Eve", {
+        profile,
+        context: { text: "Eve prepares for the duel." },
+    });
+
+    assert.equal(result.folder, "eve/high");
+    assert.equal(result.reason, "trigger-match");
+});
+
+test("resolveOutfitForMatch prefers triggered variants over passive matches", () => {
+    const profile = setupProfile({
+        mappings: [
+            {
+                name: "Finn",
+                defaultFolder: "finn/base",
+                outfits: [
+                    { folder: "finn/default", priority: 0 },
+                    { folder: "finn/triggered", triggers: ["signal"], priority: 0 },
+                ],
+            },
+        ],
+    });
+
+    const result = resolveOutfitForMatch("Finn", {
+        profile,
+        context: { text: "A signal flare bursts overhead." },
+    });
+
+    assert.equal(result.folder, "finn/triggered");
+});
+
+test("resolveOutfitForMatch breaks ties using awareness specificity", () => {
+    const profile = setupProfile({
+        mappings: [
+            {
+                name: "Gale",
+                defaultFolder: "gale/base",
+                outfits: [
+                    { folder: "gale/general", triggers: ["signal"], priority: 2 },
+                    { folder: "gale/aware", triggers: ["signal"], priority: 2, awareness: { requires: ["Nora"] } },
+                ],
+            },
+        ],
+    });
+
+    const roster = new Set(["nora"]);
+    const result = resolveOutfitForMatch("Gale", {
+        profile,
+        context: { text: "Another signal is sent.", roster },
+    });
+
+    assert.equal(result.folder, "gale/aware");
+});
+
 test("evaluateSwitchDecision caches outfit selections", () => {
     const profile = setupProfile({
         perTriggerCooldownMs: 0,
