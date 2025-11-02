@@ -2134,19 +2134,20 @@ function saveCurrentProfileData() {
         }
         profileData[key] = value;
     }
-    profileData.mappings = [];
-    $("#cs-mappings-tbody tr").each(function () {
-        const name = $(this).find(".map-name").val().trim();
-        const folder = $(this).find(".map-folder").val().trim();
-        const outfitsData = $(this).data('outfits');
-        const outfits = Array.isArray(outfitsData)
-            ? (typeof structuredClone === 'function' ? structuredClone(outfitsData) : outfitsData.slice())
-            : [];
-        const mapping = normalizeMappingEntry({ name, defaultFolder: folder, outfits });
-        if (mapping.name && mapping.defaultFolder) {
-            profileData.mappings.push(mapping);
-        }
-    });
+    const activeProfile = getActiveProfile();
+    const mappingSource = Array.isArray(activeProfile?.mappings) ? activeProfile.mappings : [];
+    profileData.mappings = mappingSource
+        .map((entry) => {
+            const normalized = normalizeMappingEntry(entry);
+            if (!normalized.name || !normalized.defaultFolder) {
+                return null;
+            }
+            if (Array.isArray(normalized.outfits)) {
+                normalized.outfits = cloneOutfitList(normalized.outfits);
+            }
+            return normalized;
+        })
+        .filter(Boolean);
     return profileData;
 }
 
@@ -2221,22 +2222,6 @@ function resetAutoSaveState() {
     auto.requiresRecompile = false;
     auto.requiresMappingRebuild = false;
     auto.requiresFocusLockRefresh = false;
-}
-
-function syncMappingRowsWithProfile(profile) {
-    const rows = $("#cs-mappings-tbody tr");
-    if (!rows.length) {
-        return;
-    }
-    rows.each(function(index) {
-        const mapping = Array.isArray(profile?.mappings) ? profile.mappings[index] : null;
-        if (!mapping) {
-            $(this).data('outfits', []);
-            return;
-        }
-        const outfits = cloneOutfitList(mapping.outfits);
-        $(this).data('outfits', outfits);
-    });
 }
 
 function formatAutoSaveReason(key) {
@@ -2356,7 +2341,6 @@ function commitProfileChanges({
     mappings.forEach(ensureMappingCardId);
     Object.assign(profile, normalized);
     profile.mappings = mappings;
-    syncMappingRowsWithProfile(profile);
     if (recompile) {
         recompileRegexes();
         refreshCoverageFromLastReport();
@@ -2590,30 +2574,6 @@ function buildVariantFolderPath(characterName, folderPath) {
     return `${normalizedName}/${normalizedFolder}`;
 }
 
-function getMappingRow(idx) {
-    const rows = $("#cs-mappings-tbody tr");
-    const row = rows.eq(idx);
-    return row.length ? row : $();
-}
-
-function syncMappingRowName(idx, name) {
-    const row = getMappingRow(idx);
-    if (!row.length) return;
-    row.find('.map-name').val(name);
-}
-
-function syncMappingRowFolder(idx, folder) {
-    const row = getMappingRow(idx);
-    if (!row.length) return;
-    row.find('.map-folder').val(folder);
-}
-
-function syncMappingRowOutfits(idx, outfits) {
-    const row = getMappingRow(idx);
-    if (!row.length) return;
-    row.data('outfits', cloneOutfitList(outfits));
-}
-
 function updateOutfitLabEnabledState(enabled) {
     const editor = $('#cs-outfit-editor');
     const notice = $('#cs-outfit-disabled-notice');
@@ -2758,7 +2718,6 @@ function createOutfitVariantElement(profile, mapping, mappingIdx, variant, varia
             } else {
                 delete normalized.matchKinds;
             }
-            syncMappingRowOutfits(mappingIdx, mapping.outfits);
             markVariantDirty(checkbox[0]);
         });
     });
@@ -2835,7 +2794,6 @@ function createOutfitVariantElement(profile, mapping, mappingIdx, variant, varia
         } else {
             delete normalized.awareness;
         }
-        syncMappingRowOutfits(mappingIdx, mapping.outfits);
     };
 
     const handleAwarenessInput = function() {
@@ -2854,13 +2812,11 @@ function createOutfitVariantElement(profile, mapping, mappingIdx, variant, varia
         } else {
             delete normalized.label;
         }
-        syncMappingRowOutfits(mappingIdx, mapping.outfits);
         markVariantDirty(labelInput[0]);
     });
 
     folderInput.on('input', () => {
         normalized.folder = folderInput.val().trim();
-        syncMappingRowOutfits(mappingIdx, mapping.outfits);
         markVariantDirty(folderInput[0]);
     });
 
@@ -2872,7 +2828,6 @@ function createOutfitVariantElement(profile, mapping, mappingIdx, variant, varia
         } else {
             normalized.priority = 0;
         }
-        syncMappingRowOutfits(mappingIdx, mapping.outfits);
         markVariantDirty(priorityInput[0]);
     });
 
@@ -2882,7 +2837,6 @@ function createOutfitVariantElement(profile, mapping, mappingIdx, variant, varia
             .map(value => value.trim())
             .filter(Boolean);
         normalized.triggers = triggers;
-        syncMappingRowOutfits(mappingIdx, mapping.outfits);
         markVariantDirty(triggerTextarea[0]);
     });
 
@@ -2893,7 +2847,6 @@ function createOutfitVariantElement(profile, mapping, mappingIdx, variant, varia
             return;
         }
         activeProfile.mappings[mappingIdx].outfits.splice(variantIndex, 1);
-        syncMappingRowOutfits(mappingIdx, activeProfile.mappings[mappingIdx].outfits);
         variantEl.remove();
         const card = $(`.cs-outfit-card[data-idx="${mappingIdx}"]`);
         const variantContainer = card.find('.cs-outfit-variants');
@@ -3033,7 +2986,6 @@ function createOutfitCard(profile, mapping, idx) {
             variantsContainer.find('.cs-outfit-empty-variants').remove();
             const variantEl = createOutfitVariantElement(profile, mapping, idx, newVariant, variantIndex);
             variantsContainer.append(variantEl);
-            syncMappingRowOutfits(idx, mapping.outfits);
             setCollapsed(false);
             variantEl.find('.cs-outfit-variant-folder').trigger('focus');
             scheduleProfileAutoSave({
@@ -3085,7 +3037,6 @@ function createOutfitCard(profile, mapping, idx) {
 
     nameInput.on('input', () => {
         mapping.name = nameInput.val().trim();
-        syncMappingRowName(idx, nameInput.val());
         scheduleProfileAutoSave({
             reason: 'character mappings',
             element: nameInput[0],
@@ -3105,7 +3056,6 @@ function createOutfitCard(profile, mapping, idx) {
         const value = defaultInput.val().trim();
         mapping.defaultFolder = value;
         mapping.folder = value;
-        syncMappingRowFolder(idx, defaultInput.val());
         scheduleProfileAutoSave({
             reason: 'character mappings',
             element: defaultInput[0],
@@ -3134,7 +3084,6 @@ function createOutfitCard(profile, mapping, idx) {
             mapping.__startCollapsed = undefined;
         }
     }
-    syncMappingRowOutfits(idx, mapping.outfits);
 
     return card;
 }
@@ -3169,21 +3118,17 @@ function renderOutfitLab(profile) {
 }
 
 function renderMappings(profile) {
-    const tbody = $("#cs-mappings-tbody");
-    tbody.empty();
-    (profile.mappings || []).forEach((m, idx) => {
-        const normalized = normalizeMappingEntry(m);
-        profile.mappings[idx] = normalized;
-        const row = $("<tr>").attr("data-idx", idx);
-        const outfits = Array.isArray(normalized.outfits)
-            ? (typeof structuredClone === 'function' ? structuredClone(normalized.outfits) : normalized.outfits.slice())
-            : [];
-        row.data('outfits', outfits);
-        row.append($("<td>").append($("<input>").addClass("map-name text_pole").val(normalized.name || "")));
-        row.append($("<td>").append($("<input>").addClass("map-folder text_pole").val(normalized.defaultFolder || normalized.folder || "")));
-        row.append($("<td>").append($("<button>").addClass("map-remove menu_button interactable").html('<i class="fa-solid fa-trash-can"></i>')));
-        tbody.append(row);
-    });
+    if (!profile || typeof profile !== 'object') {
+        renderOutfitLab({ mappings: [] });
+        return;
+    }
+
+    if (!Array.isArray(profile.mappings)) {
+        profile.mappings = [];
+    } else {
+        profile.mappings = profile.mappings.map((entry) => normalizeMappingEntry(entry));
+    }
+
     renderOutfitLab(profile);
 }
 
@@ -4680,36 +4625,6 @@ function wireUI() {
     });
     $(document).on('input', '#cs-detection-bias', function() { $("#cs-detection-bias-value").text($(this).val()); });
     $(document).on('click', '#cs-reset', manualReset);
-    $(document).on('click', '#cs-mapping-add', () => {
-        const profile = getActiveProfile();
-        if (profile) {
-            const button = document.getElementById('cs-mapping-add');
-            if (button) {
-                announceAutoSaveIntent(button, null, button.dataset.changeNotice, 'cs-mapping-add');
-            }
-            profile.mappings.push(markMappingForInitialCollapse(normalizeMappingEntry({ name: "", defaultFolder: "", outfits: [] })));
-            renderMappings(profile);
-            rebuildMappingLookup(profile);
-        }
-    });
-    $(document).on('click', '#cs-mappings-tbody .map-remove', function() {
-        const idx = parseInt($(this).closest('tr').attr('data-idx'), 10);
-        const profile = getActiveProfile();
-        if (profile && !isNaN(idx)) {
-            const mapping = profile.mappings?.[idx];
-            if (mapping && Object.prototype.hasOwnProperty.call(mapping, '__cardId')) {
-                state.outfitCardCollapse?.delete(mapping.__cardId);
-            }
-            profile.mappings.splice(idx, 1);
-            renderMappings(profile); // Re-render to update indices
-            rebuildMappingLookup(profile);
-            scheduleProfileAutoSave({
-                reason: 'character mappings',
-                element: this,
-                requiresMappingRebuild: true,
-            });
-        }
-    });
     $(document).on('change', '#cs-outfits-enable', function() {
         const profile = getActiveProfile();
         const enabled = $(this).prop('checked');
@@ -4742,63 +4657,6 @@ function wireUI() {
         scheduleProfileAutoSave({
             reason: 'character mappings',
             element: button || null,
-            requiresMappingRebuild: true,
-        });
-    });
-    $(document).on('input', '#cs-mappings-tbody .map-name', function() {
-        const idx = parseInt($(this).closest('tr').attr('data-idx'), 10);
-        if (Number.isNaN(idx)) {
-            return;
-        }
-        const value = String($(this).val() ?? '');
-        const profile = getActiveProfile();
-        if (profile?.mappings?.[idx]) {
-            profile.mappings[idx].name = value.trim();
-        }
-        $(`.cs-outfit-card[data-idx="${idx}"]`).find('.cs-outfit-character-name').val(value);
-        scheduleProfileAutoSave({
-            reason: 'character mappings',
-            element: this,
-            requiresMappingRebuild: true,
-        });
-    });
-    $(document).on('change', '#cs-mappings-tbody .map-name', function() {
-        const profile = getActiveProfile();
-        if (profile) {
-            rebuildMappingLookup(profile);
-        }
-        scheduleProfileAutoSave({
-            reason: 'character mappings',
-            element: this,
-            requiresMappingRebuild: true,
-        });
-    });
-    $(document).on('input', '#cs-mappings-tbody .map-folder', function() {
-        const idx = parseInt($(this).closest('tr').attr('data-idx'), 10);
-        if (Number.isNaN(idx)) {
-            return;
-        }
-        const value = String($(this).val() ?? '');
-        const profile = getActiveProfile();
-        if (profile?.mappings?.[idx]) {
-            profile.mappings[idx].defaultFolder = value.trim();
-            profile.mappings[idx].folder = value.trim();
-        }
-        $(`.cs-outfit-card[data-idx="${idx}"]`).find('.cs-outfit-default-folder').val(value);
-        scheduleProfileAutoSave({
-            reason: 'character mappings',
-            element: this,
-            requiresMappingRebuild: true,
-        });
-    });
-    $(document).on('change', '#cs-mappings-tbody .map-folder', function() {
-        const profile = getActiveProfile();
-        if (profile) {
-            rebuildMappingLookup(profile);
-        }
-        scheduleProfileAutoSave({
-            reason: 'character mappings',
-            element: this,
             requiresMappingRebuild: true,
         });
     });

@@ -25,8 +25,7 @@ Under the hood the extension listens to streaming output from your model, scores
     4. [Presets & Focus](#presets--focus)
     5. [Detection Strategy](#detection-strategy)
     6. [Performance & Bias](#performance--bias)
-    7. [Costume Mappings](#costume-mappings)
-    8. [Outfit Lab](#outfit-lab)
+    7. [Outfit Lab](#outfit-lab)
         1. [Prepare your character folders](#1-prepare-your-character-folders)
         2. [Enable the lab in settings](#2-enable-the-lab-in-settings)
         3. [Add characters and defaults](#3-add-characters-and-defaults)
@@ -34,8 +33,8 @@ Under the hood the extension listens to streaming output from your model, scores
         5. [Test and iterate safely](#5-test-and-iterate-safely)
         6. [Troubleshooting the Outfit Lab](#troubleshooting-the-outfit-lab)
         7. [Organizing multi-character cards](#organizing-multi-character-cards)
-    9. [Live Pattern Tester](#live-pattern-tester)
-    10. [Footer Controls](#footer-controls)
+    8. [Live Pattern Tester](#live-pattern-tester)
+    9. [Footer Controls](#footer-controls)
 8. [Understanding Live Tester Reports](#understanding-live-tester-reports)
 9. [Advanced Configuration Tips](#advanced-configuration-tips)
 10. [Slash Commands](#slash-commands)
@@ -175,9 +174,6 @@ Fine-tune responsiveness and tie-breaking behaviour:
 - **Token Process Threshold (chars)** – Number of characters that must arrive before the buffer is rescored.
 - **Detection Bias** – Slider balancing match priority versus recency; positive numbers favour dialogue/action tags, negative values favour the latest mention.
 
-### Costume Mappings
-Map any detected name or alias to a specific costume folder. Use **Add Mapping** to append rows, then fill in the character and destination folder names.
-
 ### Outfit Lab
 The Outfit Lab is the home for outfit-aware automation. Variants saved here run in the detection engine as soon as **Enable Outfit Automation** is toggled on for the active profile.
 
@@ -214,7 +210,7 @@ Use **Add Character Slot** to create a card per character you want to experiment
 - **Character Name** – the detected name or alias that should trigger the outfit.
 - **Default Folder** – the production-ready costume directory. Variants fall back here when no triggers match.
 
-These values sync with the main **Costume Mappings** table, so characters you configure in the lab are also available to the standard mapping workflow.
+These values feed directly into the live detector, so characters you configure in the lab participate in automation without an extra mapping table.
 
 #### 4. Build outfit variations
 Inside each card, click **Add Outfit Variation** to define automated looks:
