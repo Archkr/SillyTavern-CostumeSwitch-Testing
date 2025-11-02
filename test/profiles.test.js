@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadProfiles, normalizeProfile } from '../profile-utils.js';
+import { loadProfiles, normalizeProfile, mappingHasIdentity } from '../profile-utils.js';
 
 const PROFILE_DEFAULTS = {
     mappings: [],
@@ -91,4 +91,13 @@ test('normalizeProfile preserves non-enumerable mapping identifiers', () => {
     const descriptor = Object.getOwnPropertyDescriptor(normalized.mappings[0], '__cardId');
     assert.equal(normalized.mappings[0].__cardId, 'card-123', 'card identifier should persist through normalization');
     assert.ok(descriptor && descriptor.enumerable === false, 'card identifier should remain non-enumerable');
+});
+
+test('mappingHasIdentity accepts partially configured character slots', () => {
+    assert.equal(mappingHasIdentity({}), false, 'empty mapping should not persist');
+    assert.equal(mappingHasIdentity({ name: 'Draft Character' }), true, 'name-only mapping should persist');
+    assert.equal(mappingHasIdentity({ defaultFolder: 'draft/base' }), true, 'default folder should mark mapping as persistent');
+    assert.equal(mappingHasIdentity({ folder: 'legacy/folder' }), true, 'legacy folder field should mark mapping as persistent');
+    const normalized = normalizeProfile({ mappings: [{ name: 'Temp' }] }, PROFILE_DEFAULTS).mappings[0];
+    assert.equal(mappingHasIdentity(normalized, { normalized: true }), true, 'normalized mapping identity should be detected');
 });

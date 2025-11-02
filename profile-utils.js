@@ -150,3 +150,20 @@ export function loadProfiles(rawProfiles = {}, defaults = {}) {
 
     return normalized;
 }
+
+export function mappingHasIdentity(entry = {}, { normalized = false } = {}) {
+    if (!entry || typeof entry !== 'object') {
+        return false;
+    }
+
+    const source = normalized ? entry : normalizeMappingEntry(entry);
+    if (!source || typeof source !== 'object') {
+        return false;
+    }
+
+    const name = typeof source.name === 'string' ? source.name.trim() : '';
+    const defaultFolder = typeof source.defaultFolder === 'string' ? source.defaultFolder.trim() : '';
+    const folder = typeof source.folder === 'string' ? source.folder.trim() : '';
+
+    return Boolean(name || defaultFolder || folder);
+}

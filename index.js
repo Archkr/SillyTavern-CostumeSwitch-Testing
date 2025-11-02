@@ -32,7 +32,7 @@ import {
     mergeDetectionsForReport,
     summarizeDetections,
 } from "./src/report-utils.js";
-import { loadProfiles, normalizeProfile, normalizeMappingEntry } from "./profile-utils.js";
+import { loadProfiles, normalizeProfile, normalizeMappingEntry, mappingHasIdentity } from "./profile-utils.js";
 
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
@@ -2138,7 +2138,7 @@ function saveCurrentProfileData() {
     profileData.mappings = mappingSource
         .map((entry) => {
             const normalized = normalizeMappingEntry(entry);
-            if (!normalized.name || !normalized.defaultFolder) {
+            if (!mappingHasIdentity(normalized, { normalized: true })) {
                 return null;
             }
             if (Array.isArray(normalized.outfits)) {
