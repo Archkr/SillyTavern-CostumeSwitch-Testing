@@ -3784,19 +3784,21 @@ function adjustWindowForTrim(msgState, trimmedChars, combinedLength) {
         return;
     }
 
+    if (!Number.isFinite(msgState.bufferOffset)) {
+        msgState.bufferOffset = 0;
+    }
+
     if (!Number.isFinite(msgState.processedLength)) {
         msgState.processedLength = 0;
     }
 
     if (Number.isFinite(trimmedChars) && trimmedChars > 0) {
-        if (Number.isFinite(msgState.lastAcceptedIndex) && msgState.lastAcceptedIndex >= 0) {
-            msgState.lastAcceptedIndex = Math.max(-1, msgState.lastAcceptedIndex - trimmedChars);
-        }
-        msgState.processedLength = Math.max(0, msgState.processedLength - trimmedChars);
+        msgState.bufferOffset += trimmedChars;
     }
 
-    if (Number.isFinite(combinedLength)) {
-        msgState.processedLength = Math.min(msgState.processedLength, combinedLength);
+    if (Number.isFinite(combinedLength) && combinedLength >= 0) {
+        const absoluteTail = msgState.bufferOffset + combinedLength;
+        msgState.processedLength = Math.max(msgState.processedLength, absoluteTail);
     }
 }
 
@@ -3811,6 +3813,8 @@ function createTesterMessageState(profile) {
         outfitRoster: new Map(),
         outfitTTL: profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL,
         processedLength: 0,
+        lastAcceptedIndex: -1,
+        bufferOffset: 0,
     };
 }
 
@@ -3830,7 +3834,6 @@ function simulateTesterStream(combined, profile, bufKey) {
         characterOutfits: new Map(),
     };
 
-    const threshold = Math.max(0, Number(profile.tokenProcessThreshold) || 0);
     const maxBuffer = resolveMaxBufferChars(profile);
     const rosterTTL = profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL;
     const repeatSuppress = Number(profile.repeatSuppressMs) || 0;
@@ -3845,22 +3848,42 @@ function simulateTesterStream(combined, profile, bufKey) {
         adjustWindowForTrim(msgState, trimmedChars, buffer.length);
         state.perMessageBuffers.set(bufKey, buffer);
 
+        const bufferOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
+        const newestAbsoluteIndex = buffer.length > 0 ? bufferOffset + buffer.length - 1 : bufferOffset;
+        const lastProcessedIndex = Number.isFinite(msgState.lastAcceptedIndex) ? msgState.lastAcceptedIndex : -1;
+
+        if (newestAbsoluteIndex <= lastProcessedIndex) {
+            continue;
+        }
+
         if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(buffer)) {
             const vetoMatch = buffer.match(state.compiledRegexes.vetoRegex)?.[0];
             if (vetoMatch) {
-                events.push({ type: 'veto', match: vetoMatch, charIndex: i });
+                events.push({ type: 'veto', match: vetoMatch, charIndex: newestAbsoluteIndex });
             }
             msgState.vetoed = true;
             break;
         }
 
-        if (buffer.length < msgState.processedLength + threshold) {
-            continue;
+        let minIndexRelative = null;
+        if (lastProcessedIndex >= bufferOffset) {
+            minIndexRelative = lastProcessedIndex - bufferOffset;
         }
 
-        msgState.processedLength = buffer.length;
-        const bestMatch = findBestMatch(buffer);
+        const matchOptions = {};
+        if (Number.isFinite(minIndexRelative) && minIndexRelative >= 0) {
+            matchOptions.minIndex = minIndexRelative;
+        }
+
+        const bestMatch = findBestMatch(buffer, null, matchOptions);
         if (!bestMatch) continue;
+
+        const absoluteIndex = Number.isFinite(bestMatch.matchIndex)
+            ? bufferOffset + bestMatch.matchIndex
+            : newestAbsoluteIndex;
+
+        msgState.lastAcceptedIndex = absoluteIndex;
+        msgState.processedLength = Math.max(msgState.processedLength || 0, absoluteIndex + 1);
 
         if (profile.enableSceneRoster) {
             const normalized = String(bestMatch.name || '').toLowerCase();
@@ -3875,8 +3898,8 @@ function simulateTesterStream(combined, profile, bufKey) {
                 type: wasPresent ? 'refresh' : 'join',
                 name: bestMatch.name,
                 matchKind: bestMatch.matchKind,
-                charIndex: i,
-                timestamp: i * 50,
+                charIndex: absoluteIndex,
+                timestamp: absoluteIndex * 50,
                 rosterSize: msgState.sceneRoster.size,
             });
         }
@@ -3885,10 +3908,10 @@ function simulateTesterStream(combined, profile, bufKey) {
             msgState.lastSubject = bestMatch.name;
         }
 
-        const virtualNow = i * 50;
+        const virtualNow = absoluteIndex * 50;
         if (msgState.lastAcceptedName?.toLowerCase() === bestMatch.name.toLowerCase() &&
             (virtualNow - msgState.lastAcceptedTs < repeatSuppress)) {
-            events.push({ type: 'skipped', name: bestMatch.name, matchKind: bestMatch.matchKind, reason: 'repeat-suppression', charIndex: i });
+            events.push({ type: 'skipped', name: bestMatch.name, matchKind: bestMatch.matchKind, reason: 'repeat-suppression', charIndex: absoluteIndex });
             continue;
         }
 
@@ -3908,7 +3931,7 @@ function simulateTesterStream(combined, profile, bufKey) {
                 folder: decision.folder,
                 matchKind: bestMatch.matchKind,
                 score: Math.round(bestMatch.score ?? 0),
-                charIndex: i,
+                charIndex: absoluteIndex,
                 outfit: decision.outfit ? {
                     folder: decision.outfit.folder,
                     label: decision.outfit.label || null,
@@ -3941,7 +3964,7 @@ function simulateTesterStream(combined, profile, bufKey) {
                     trigger: decision.outfit.trigger || null,
                     awareness: decision.outfit.awareness || null,
                 } : null,
-                charIndex: i,
+                charIndex: absoluteIndex,
             });
         }
     }
@@ -3956,7 +3979,7 @@ function simulateTesterStream(combined, profile, bufKey) {
         outfitRoster: Array.from(msgState.outfitRoster || []),
         outfitTTL: msgState.outfitTTL,
         vetoed: Boolean(msgState.vetoed),
-        virtualDurationMs: combined.length > 0 ? Math.max(0, (combined.length - 1) * 50) : 0,
+        virtualDurationMs: msgState.processedLength > 0 ? Math.max(0, (msgState.processedLength - 1) * 50) : 0,
     };
 
     if (profile.enableSceneRoster && msgState.sceneRoster.size > 0) {
@@ -5007,6 +5030,7 @@ function createMessageState(profile, bufKey) {
         outfitTTL: profile.sceneRosterTTL,
         processedLength: 0,
         lastAcceptedIndex: -1,
+        bufferOffset: 0,
     };
 
     if (newState.sceneRoster.size > 0) {
@@ -5143,15 +5167,28 @@ const handleStream = (...args) => {
         adjustWindowForTrim(msgState, trimmedChars, combined.length);
         state.perMessageBuffers.set(bufKey, combined);
 
-        const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : null;
-        const analytics = updateMessageAnalytics(bufKey, combined, { rosterSet, assumeNormalized: true });
+        const bufferOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
+        const newestAbsoluteIndex = combined.length > 0 ? bufferOffset + combined.length - 1 : bufferOffset;
+        const lastProcessedIndex = Number.isFinite(msgState.lastAcceptedIndex) ? msgState.lastAcceptedIndex : -1;
 
-        if (combined.length < msgState.processedLength + profile.tokenProcessThreshold) {
+        if (newestAbsoluteIndex <= lastProcessedIndex) {
             return;
         }
 
-        msgState.processedLength = combined.length;
-        const bestMatch = findBestMatch(combined, analytics?.matches, { minIndex: msgState.lastAcceptedIndex });
+        const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : null;
+        const analytics = updateMessageAnalytics(bufKey, combined, { rosterSet, assumeNormalized: true });
+
+        let minIndexRelative = null;
+        if (lastProcessedIndex >= bufferOffset) {
+            minIndexRelative = lastProcessedIndex - bufferOffset;
+        }
+
+        const matchOptions = {};
+        if (Number.isFinite(minIndexRelative) && minIndexRelative >= 0) {
+            matchOptions.minIndex = minIndexRelative;
+        }
+
+        const bestMatch = findBestMatch(combined, analytics?.matches, matchOptions);
         debugLog(`[STREAM] Buffer len: ${combined.length}. Match:`, bestMatch ? `${bestMatch.name} (${bestMatch.matchKind})` : 'None');
 
         if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(combined)) {
@@ -5163,6 +5200,12 @@ const handleStream = (...args) => {
             const { name: matchedName, matchKind } = bestMatch;
             const now = Date.now();
             const suppressMs = profile.repeatSuppressMs;
+
+            const absoluteIndex = Number.isFinite(bestMatch.matchIndex)
+                ? bufferOffset + bestMatch.matchIndex
+                : newestAbsoluteIndex;
+            msgState.lastAcceptedIndex = absoluteIndex;
+            msgState.processedLength = Math.max(msgState.processedLength || 0, absoluteIndex + 1);
 
             if (profile.enableSceneRoster) {
                 msgState.sceneRoster.add(matchedName.toLowerCase());
@@ -5179,9 +5222,6 @@ const handleStream = (...args) => {
 
             msgState.lastAcceptedName = matchedName;
             msgState.lastAcceptedTs = now;
-            if (Number.isFinite(bestMatch.matchIndex)) {
-                msgState.lastAcceptedIndex = bestMatch.matchIndex;
-            }
             issueCostumeForName(matchedName, {
                 matchKind,
                 bufKey,
@@ -5276,6 +5316,7 @@ export {
     getWinner,
     findBestMatch,
     adjustWindowForTrim,
+    simulateTesterStream,
     buildVariantFolderPath,
 };
 

@@ -41,23 +41,24 @@ test("getWinner respects minimum index when roster bias is present", () => {
     assert.equal(filtered?.name, "Shido");
 });
 
-test("adjustWindowForTrim re-bases processed state when the buffer trims", () => {
-    const msgState = { processedLength: 6000, lastAcceptedIndex: 5800 };
-    adjustWindowForTrim(msgState, 120, 6000);
-    assert.equal(msgState.processedLength, 5880);
-    assert.equal(msgState.lastAcceptedIndex, 5680);
+test("adjustWindowForTrim tracks buffer offset and preserves prior indices", () => {
+    const msgState = { processedLength: 0, lastAcceptedIndex: 42, bufferOffset: 0 };
+    adjustWindowForTrim(msgState, 60, 120);
+    assert.equal(msgState.bufferOffset, 60);
+    assert.equal(msgState.processedLength, 180);
+    assert.equal(msgState.lastAcceptedIndex, 42);
 });
 
-test("adjustWindowForTrim clears stale indices when trimming surpasses them", () => {
-    const msgState = { processedLength: 50, lastAcceptedIndex: 20 };
-    adjustWindowForTrim(msgState, 100, 3000);
-    assert.equal(msgState.processedLength, 0);
-    assert.equal(msgState.lastAcceptedIndex, -1);
+test("adjustWindowForTrim never shrinks processed length", () => {
+    const msgState = { processedLength: 400, lastAcceptedIndex: 10, bufferOffset: 50 };
+    adjustWindowForTrim(msgState, 30, 80);
+    assert.equal(msgState.bufferOffset, 80);
+    assert.equal(msgState.processedLength, 400);
 });
 
-test("adjustWindowForTrim clamps processed length to the combined window", () => {
-    const msgState = { processedLength: 200, lastAcceptedIndex: 10 };
+test("adjustWindowForTrim grows processed length with new characters", () => {
+    const msgState = { processedLength: 100, lastAcceptedIndex: -1, bufferOffset: 0 };
     adjustWindowForTrim(msgState, 0, 150);
+    assert.equal(msgState.bufferOffset, 0);
     assert.equal(msgState.processedLength, 150);
-    assert.equal(msgState.lastAcceptedIndex, 10);
 });
