@@ -603,7 +603,7 @@ function findAllMatches(combined) {
     let lastSubject = null;
     if (profile.detectPronoun && state.perMessageStates.size > 0) {
         const msgState = Array.from(state.perMessageStates.values()).pop();
-        if (msgState && msgState.lastSubject) {
+        if (msgState && msgState.lastSubject && msgState.lastSubjectNormalized) {
             lastSubject = msgState.lastSubject;
         }
     }
@@ -3808,6 +3808,9 @@ function createTesterMessageState(profile) {
         lastAcceptedTs: 0,
         vetoed: false,
         lastSubject: null,
+        lastSubjectNormalized: null,
+        pendingSubject: null,
+        pendingSubjectNormalized: null,
         sceneRoster: new Set(),
         rosterTTL: profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL,
         outfitRoster: new Map(),
@@ -3905,7 +3908,7 @@ function simulateTesterStream(combined, profile, bufKey) {
         }
 
         if (bestMatch.matchKind !== 'pronoun') {
-            msgState.lastSubject = bestMatch.name;
+            confirmMessageSubject(msgState, bestMatch.name);
         }
 
         const virtualNow = absoluteIndex * 50;
@@ -5014,16 +5017,74 @@ function registerCommands() {
 // EVENT HANDLERS
 // ======================================================================
 
+function normalizeSubjectForComparison(name) {
+    if (!name && name !== "") {
+        return null;
+    }
+    const trimmed = String(name ?? "").trim();
+    if (!trimmed) {
+        return null;
+    }
+    const normalized = normalizeCostumeName(trimmed) || trimmed;
+    const lowered = String(normalized).trim().toLowerCase();
+    return lowered || null;
+}
+
+function confirmMessageSubject(msgState, matchedName) {
+    if (!msgState) {
+        return;
+    }
+
+    const trimmed = String(matchedName ?? "").trim();
+    const normalized = normalizeSubjectForComparison(trimmed);
+
+    if (!normalized) {
+        msgState.lastSubject = null;
+        msgState.lastSubjectNormalized = null;
+        msgState.pendingSubject = null;
+        msgState.pendingSubjectNormalized = null;
+        return;
+    }
+
+    const pendingNormalized = msgState.pendingSubjectNormalized || null;
+    if (pendingNormalized && normalized === pendingNormalized) {
+        const pendingTrimmed = typeof msgState.pendingSubject === "string"
+            ? msgState.pendingSubject.trim()
+            : "";
+        msgState.lastSubject = pendingTrimmed || trimmed;
+    } else {
+        msgState.lastSubject = trimmed;
+    }
+
+    msgState.lastSubjectNormalized = normalized;
+    msgState.pendingSubject = null;
+    msgState.pendingSubjectNormalized = null;
+}
+
 function createMessageState(profile, bufKey) {
     if (!profile || !bufKey) return null;
 
     const oldState = state.perMessageStates.size > 0 ? Array.from(state.perMessageStates.values()).pop() : null;
 
+    let pendingSubject = null;
+    let pendingSubjectNormalized = null;
+    if (oldState?.lastSubject) {
+        const inherited = String(oldState.lastSubject).trim();
+        const normalized = normalizeSubjectForComparison(inherited);
+        if (normalized) {
+            pendingSubject = inherited;
+            pendingSubjectNormalized = normalized;
+        }
+    }
+
     const newState = {
         lastAcceptedName: null,
         lastAcceptedTs: 0,
         vetoed: false,
-        lastSubject: oldState?.lastSubject || null,
+        lastSubject: null,
+        lastSubjectNormalized: null,
+        pendingSubject,
+        pendingSubjectNormalized,
         sceneRoster: new Set(oldState?.sceneRoster || []),
         outfitRoster: new Map(oldState?.outfitRoster || []),
         rosterTTL: profile.sceneRosterTTL,
@@ -5213,7 +5274,7 @@ const handleStream = (...args) => {
                 msgState.outfitTTL = profile.sceneRosterTTL;
             }
             if (matchKind !== 'pronoun') {
-                msgState.lastSubject = matchedName;
+                confirmMessageSubject(msgState, matchedName);
             }
 
             if (msgState.lastAcceptedName?.toLowerCase() === matchedName.toLowerCase() && (now - msgState.lastAcceptedTs < suppressMs)) {

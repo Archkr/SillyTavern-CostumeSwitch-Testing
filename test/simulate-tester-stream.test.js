@@ -76,6 +76,9 @@ function createMessageState(profile) {
         lastAcceptedTs: 0,
         vetoed: false,
         lastSubject: null,
+        lastSubjectNormalized: null,
+        pendingSubject: null,
+        pendingSubjectNormalized: null,
         sceneRoster: new Set(),
         rosterTTL: profile.sceneRosterTTL,
         outfitRoster: new Map(),
@@ -106,4 +109,21 @@ test("simulateTesterStream advances indices without redundant skips", () => {
     const skipped = events.filter(event => event.type === "skipped");
     const uniqueSkipIndices = new Set(skipped.map(event => event.charIndex));
     assert.equal(uniqueSkipIndices.size, skipped.length, "skip events should not repeat the same index");
+});
+
+test("pronoun detections are ignored until the subject is confirmed in the new message", () => {
+    const profile = setupProfile({ detectPronoun: true, detectAction: true });
+    const bufKey = "tester-pronoun";
+    const msgState = createMessageState(profile);
+    msgState.pendingSubject = "Kotori";
+    msgState.pendingSubjectNormalized = msgState.pendingSubject.toLowerCase();
+    state.perMessageStates = new Map([[bufKey, msgState]]);
+    state.perMessageBuffers = new Map([[bufKey, ""]]);
+
+    const text = "She moved quickly across the stage.";
+    const result = simulateTesterStream(text, profile, bufKey);
+
+    const switchEvents = result.events.filter(event => event.type === "switch");
+    assert.equal(switchEvents.length, 0, "should not switch on an unconfirmed pronoun subject");
+    assert.equal(msgState.lastSubject, null, "subject should remain unset until confirmed by a non-pronoun match");
 });

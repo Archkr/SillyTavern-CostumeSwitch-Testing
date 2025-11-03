@@ -338,9 +338,13 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         });
     }
 
-    if (profile.detectPronoun && regexes.pronounRegex && options.lastSubject) {
+    const validatedSubject = typeof options.lastSubject === "string"
+        ? options.lastSubject.trim()
+        : "";
+
+    if (profile.detectPronoun && regexes.pronounRegex && validatedSubject) {
         findMatches(text, regexes.pronounRegex, quoteRanges).forEach(match => {
-            addMatch(options.lastSubject, "pronoun", match.index, priorityWeights.pronoun);
+            addMatch(validatedSubject, "pronoun", match.index, priorityWeights.pronoun);
         });
     }
 
