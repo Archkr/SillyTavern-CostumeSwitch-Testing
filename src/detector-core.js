@@ -216,6 +216,35 @@ export function compileProfileRegexes(profile = {}, options = {}) {
         ? options.defaultPronouns
         : ["he", "she", "they"];
 
+    const honorificParticles = [
+        "san",
+        "sama",
+        "chan",
+        "kun",
+        "dono",
+        "sensei",
+        "senpai",
+        "shi",
+        "씨",
+        "さま",
+        "さん",
+        "くん",
+        "ちゃん",
+        "様",
+        "殿",
+        "先輩",
+    ];
+    const honorificAlternation = honorificParticles.map(particle => escapeRegex(particle)).join("|");
+    const honorificPattern = honorificAlternation
+        ? `(?:\\s*[-‐‑–—―~]?\\s*(?:${honorificAlternation}))?`
+        : "";
+    const punctuationSegment = "(?:\\s*[，,、‧·\\u2013\\u2014\\u2026]+\\s*)";
+    const punctuationSpacer = `(?:${punctuationSegment})*`;
+    const compoundTokenPattern = `(?:(?:\\s+|[-‐‑–—―]\\s*)(?=[\\p{Lu}\\p{Lt}\\p{Lo}])(?:${unicodeWordPattern}+))`;
+    const compoundBridge = `(?:${punctuationSpacer}${compoundTokenPattern})?`;
+    const separatorPattern = `(?:${punctuationSegment}|\\s+)+`;
+    const nameTailPattern = `${honorificPattern}(?:['’]s)?${compoundBridge}${separatorPattern}`;
+
     const ignored = (profile.ignorePatterns || []).map(value => String(value ?? "").trim().toLowerCase()).filter(Boolean);
     const effectivePatterns = (profile.patterns || [])
         .map(value => String(value ?? "").trim())
@@ -230,15 +259,15 @@ export function compileProfileRegexes(profile = {}, options = {}) {
 
     const speakerTemplate = "(?:^|[\\r\\n]+|[>\\]]\\s*)({{PATTERNS}})\\s*:";
     const attributionTemplate = attributionVerbsPattern
-        ? `${boundaryLookbehind}({{PATTERNS}})\\s+(?:${attributionVerbsPattern})`
+        ? `${boundaryLookbehind}({{PATTERNS}})${nameTailPattern}(?:${attributionVerbsPattern})`
         : null;
     const actionTemplate = actionVerbsPattern
-        ? `${boundaryLookbehind}({{PATTERNS}})(?:['’]s)?\\s+(?:${unicodeWordPattern}+\\s+){0,3}?(?:${actionVerbsPattern})`
+        ? `${boundaryLookbehind}({{PATTERNS}})${nameTailPattern}(?:${unicodeWordPattern}+\\s+){0,3}?(?:${actionVerbsPattern})`
         : null;
 
     const regexes = {
         speakerRegex: buildRegex(effectivePatterns, speakerTemplate),
-        attributionRegex: attributionTemplate ? buildRegex(effectivePatterns, attributionTemplate) : null,
+        attributionRegex: attributionTemplate ? buildRegex(effectivePatterns, attributionTemplate, { extraFlags: "u" }) : null,
         actionRegex: actionTemplate ? buildRegex(effectivePatterns, actionTemplate, { extraFlags: "u" }) : null,
         pronounRegex: (actionVerbsPattern && pronounPattern)
             ? new RegExp(

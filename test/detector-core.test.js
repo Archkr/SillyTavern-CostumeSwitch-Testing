@@ -77,3 +77,42 @@ test('collectDetections identifies action matches for narrative cues', () => {
     assert.ok(actionMatches.includes('Tohka'), 'expected Tohka action detection');
     assert.ok(attributionMatches.includes('Yuzuru'), 'expected Yuzuru attribution detection');
 });
+
+test("collectDetections tolerates punctuation and honorifics near verbs", () => {
+    const profile = {
+        patterns: ["Kotori", "Li", "Anne"],
+        ignorePatterns: [],
+        attributionVerbs: [...DEFAULT_ATTRIBUTION_VERB_FORMS, "said"],
+        actionVerbs: DEFAULT_ACTION_VERB_FORMS,
+        pronounVocabulary: ["he", "she", "they"],
+        detectAttribution: true,
+        detectAction: true,
+        detectVocative: false,
+        detectPossessive: false,
+        detectPronoun: false,
+        detectGeneral: false,
+    };
+
+    const { regexes } = compileProfileRegexes(profile, {
+        unicodeWordPattern: "[\\p{L}\\p{M}\\p{N}_]",
+        defaultPronouns: ["he", "she", "they"],
+    });
+
+    const sample = "\"Focus,\" Kotori-san, said the commander. "
+        + "Li Wei — moved toward the hangar while Anne-Marie … moved toward the exit.";
+
+    const matches = collectDetections(sample, profile, regexes, {
+        priorityWeights: {
+            speaker: 5,
+            attribution: 4,
+            action: 3,
+        },
+    });
+
+    const attributionMatches = matches.filter(match => match.matchKind === "attribution").map(match => match.name);
+    const actionMatches = matches.filter(match => match.matchKind === "action").map(match => match.name);
+
+    assert.ok(attributionMatches.includes("Kotori"), "expected Kotori attribution detection with honorific punctuation");
+    assert.ok(actionMatches.includes("Li"), "expected Li action detection for compound name with dash");
+    assert.ok(actionMatches.includes("Anne"), "expected Anne action detection for hyphenated surname and ellipsis");
+});
