@@ -38,6 +38,11 @@ const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const logPrefix = "[CostumeSwitch]";
 const NO_EFFECTIVE_PATTERNS_MESSAGE = "All detection patterns were filtered out by ignored names. No detectors can run until you restore at least one allowed pattern.";
+const FOCUS_LOCK_NOTICE_INTERVAL = 2500;
+
+function createFocusLockNotice() {
+    return { at: 0, character: null, displayName: null, message: null, event: null };
+}
 
 function buildVerbList(...lists) {
     return Array.from(new Set(lists.flat().filter(Boolean)));
@@ -390,6 +395,7 @@ const state = {
         lastNoticeAt: new Map(),
     },
     draftMappingIds: new Set(),
+    focusLockNotice: createFocusLockNotice(),
 };
 
 let nextOutfitCardId = 1;
@@ -952,6 +958,10 @@ function getLastTopCharacters(count = 4) {
 // UTILITY & HELPER FUNCTIONS
 // ======================================================================
 function escapeHtml(str) {
+    if (typeof document === "undefined" || typeof document.createElement !== "function") {
+        const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
+        return String(str ?? "").replace(/[&<>"']/g, (ch) => map[ch] || ch);
+    }
     const p = document.createElement("p");
     p.textContent = str;
     return p.innerHTML;
@@ -991,6 +1001,64 @@ function showStatus(message, type = 'info', duration = 3000) {
         });
         state.statusTimer = null;
     }, Math.max(duration, 1000));
+}
+
+function buildFocusLockSkipEvent(name) {
+    const displayName = String(name ?? "").trim() || "(focus lock)";
+    return {
+        type: "skipped",
+        name: displayName,
+        matchKind: "focus-lock",
+        reason: "focus-lock",
+        charIndex: null,
+        outfit: null,
+    };
+}
+
+function notifyFocusLockActive(name) {
+    const trimmedName = String(name ?? "").trim();
+    const normalized = trimmedName.toLowerCase();
+    const previous = state.focusLockNotice || createFocusLockNotice();
+    const event = buildFocusLockSkipEvent(trimmedName);
+    const now = Date.now();
+    const shouldAnnounce = !previous.character
+        || previous.character !== normalized
+        || (now - (previous.at || 0) > FOCUS_LOCK_NOTICE_INTERVAL);
+
+    if (shouldAnnounce) {
+        const debugParts = ["Focus lock active; skipping stream processing."];
+        if (trimmedName) {
+            debugParts.push(`Locked to ${trimmedName}.`);
+        }
+        debugLog(...debugParts);
+
+        const message = trimmedName
+            ? `Focus lock active for <b>${escapeHtml(trimmedName)}</b>. Detection paused.`
+            : "Focus lock active. Detection paused.";
+
+        try {
+            showStatus(message, "info", 2500);
+        } catch (err) {
+            // Ignore DOM rendering errors in non-browser environments.
+        }
+
+        state.focusLockNotice = {
+            at: now,
+            character: normalized || null,
+            displayName: event.name,
+            message,
+            event,
+        };
+    } else {
+        state.focusLockNotice = {
+            ...previous,
+            character: normalized || null,
+            displayName: event.name,
+            event,
+        };
+    }
+
+    return event;
 }
 
 // ======================================================================
@@ -3196,6 +3264,7 @@ function describeSkipReason(code) {
         'repeat-suppression': 'suppressed as a rapid repeat',
         'no-profile': 'profile unavailable',
         'no-name': 'no name detected',
+        'focus-lock': 'focus lock active',
     };
     return messages[code] || 'not eligible to switch yet';
 }
@@ -3836,11 +3905,54 @@ function createTesterMessageState(profile) {
     };
 }
 
+function buildSimulationFinalState(msgState) {
+    if (!msgState || typeof msgState !== "object") {
+        return {
+            lastAcceptedName: null,
+            lastAcceptedTimestamp: 0,
+            lastSubject: null,
+            processedLength: 0,
+            sceneRoster: [],
+            rosterTTL: null,
+            outfitRoster: [],
+            outfitTTL: null,
+            vetoed: false,
+            virtualDurationMs: 0,
+        };
+    }
+
+    return {
+        lastAcceptedName: msgState.lastAcceptedName,
+        lastAcceptedTimestamp: msgState.lastAcceptedTs,
+        lastSubject: msgState.lastSubject,
+        processedLength: msgState.processedLength,
+        sceneRoster: Array.from(msgState.sceneRoster || []),
+        rosterTTL: msgState.rosterTTL,
+        outfitRoster: Array.from(msgState.outfitRoster || []),
+        outfitTTL: msgState.outfitTTL,
+        vetoed: Boolean(msgState.vetoed),
+        virtualDurationMs: msgState.processedLength > 0 ? Math.max(0, (msgState.processedLength - 1) * 50) : 0,
+    };
+}
+
 function simulateTesterStream(combined, profile, bufKey) {
     const events = [];
     const msgState = state.perMessageStates.get(bufKey);
     if (!msgState) {
         return { events, finalState: null, rosterTimeline: [], rosterWarnings: [] };
+    }
+
+    const settings = getSettings();
+    const lockedName = String(settings?.focusLock?.character ?? "").trim();
+    if (lockedName) {
+        const event = buildFocusLockSkipEvent(lockedName);
+        events.push(event);
+        return {
+            events,
+            finalState: buildSimulationFinalState(msgState),
+            rosterTimeline: [],
+            rosterWarnings: [],
+        };
     }
 
     const effectivePatterns = Array.isArray(state.compiledRegexes?.effectivePatterns)
@@ -3999,18 +4111,7 @@ function simulateTesterStream(combined, profile, bufKey) {
         }
     }
 
-    const finalState = {
-        lastAcceptedName: msgState.lastAcceptedName,
-        lastAcceptedTimestamp: msgState.lastAcceptedTs,
-        lastSubject: msgState.lastSubject,
-        processedLength: msgState.processedLength,
-        sceneRoster: Array.from(msgState.sceneRoster || []),
-        rosterTTL: msgState.rosterTTL,
-        outfitRoster: Array.from(msgState.outfitRoster || []),
-        outfitTTL: msgState.outfitTTL,
-        vetoed: Boolean(msgState.vetoed),
-        virtualDurationMs: msgState.processedLength > 0 ? Math.max(0, (msgState.processedLength - 1) * 50) : 0,
-    };
+    const finalState = buildSimulationFinalState(msgState);
 
     if (profile.enableSceneRoster && msgState.sceneRoster.size > 0) {
         const turnsRemaining = (msgState.rosterTTL ?? rosterTTL) - 1;
@@ -5210,6 +5311,7 @@ const handleGenerationStart = (...args) => {
 
     state.currentGenerationKey = bufKey;
     debugLog(`Generation started for ${bufKey}, resetting state.`);
+    state.focusLockNotice = createFocusLockNotice();
 
     const profile = getActiveProfile();
     if (profile) {
@@ -5223,7 +5325,23 @@ const handleGenerationStart = (...args) => {
 const handleStream = (...args) => {
     try {
         const settings = getSettings();
-        if (!settings.enabled || settings.focusLock.character) return;
+        if (!settings?.enabled) {
+            if (state.focusLockNotice?.character || state.focusLockNotice?.message) {
+                state.focusLockNotice = createFocusLockNotice();
+            }
+            return;
+        }
+
+        const focusLockedName = String(settings?.focusLock?.character ?? "").trim();
+        if (!focusLockedName && (state.focusLockNotice?.character || state.focusLockNotice?.message)) {
+            state.focusLockNotice = createFocusLockNotice();
+        }
+
+        if (focusLockedName) {
+            notifyFocusLockActive(focusLockedName);
+            return;
+        }
+
         const profile = getActiveProfile();
         if (!profile) return;
 
@@ -5387,6 +5505,7 @@ const resetGlobalState = () => {
         currentGenerationKey: null,
         messageKeyQueue: [],
         draftMappingIds: new Set(),
+        focusLockNotice: createFocusLockNotice(),
     });
     clearSessionTopCharacters();
 };
@@ -5404,6 +5523,7 @@ export {
     adjustWindowForTrim,
     simulateTesterStream,
     buildVariantFolderPath,
+    handleStream,
 };
 
 function load() {
