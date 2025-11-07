@@ -10,4 +10,4 @@
 - Document noteworthy UI affordances or feature flags in the settings copy so users understand experimental scope.
 
 # CostumeSwitch-v3.4.0
-- `CostumeSwitch-v3.4.0/` is what is currently released to the public. Do not edit anything in this directory.
+- `CostumeSwitch-v3.4.0/` is what is currently released to the public. Do not edit anything in this directory. When asked to make a changelog, this is where you'll compare what we currently have to the older version, to make the changelog.
