@@ -31,6 +31,7 @@ import {
 import {
     mergeDetectionsForReport,
     summarizeDetections,
+    summarizeSkipReasonsForReport,
 } from "./src/report-utils.js";
 import { loadProfiles, normalizeProfile, normalizeMappingEntry, mappingHasIdentity, prepareMappingsForSave } from "./profile-utils.js";
 
@@ -377,6 +378,8 @@ const state = {
     statusTimer: null,
     testerTimers: [],
     lastTesterReport: null,
+    recentDecisionEvents: [],
+    lastVetoMatch: null,
     buildMeta: null,
     topSceneRanking: new Map(),
     latestTopRanking: { bufKey: null, ranking: [], fullRanking: [], updatedAt: 0 },
@@ -1673,9 +1676,29 @@ function evaluateSwitchDecision(rawName, opts = {}, contextState = null, nowOver
 async function issueCostumeForName(name, opts = {}) {
     const decision = evaluateSwitchDecision(name, opts);
     const normalizedKey = decision?.name ? decision.name.toLowerCase() : null;
+    const charIndex = Number.isFinite(opts?.messageState?.lastAcceptedIndex)
+        ? opts.messageState.lastAcceptedIndex
+        : Number.isFinite(opts?.match?.matchIndex)
+            ? opts.match.matchIndex
+            : null;
 
     if (!decision.shouldSwitch) {
         debugLog("Switch skipped for", name, "reason:", decision.reason || 'n/a');
+        recordDecisionEvent({
+            type: 'skipped',
+            name: decision.name || name,
+            matchKind: opts.matchKind || null,
+            reason: decision.reason || 'unknown',
+            charIndex,
+            timestamp: decision.now,
+            outfit: decision.outfit ? {
+                folder: decision.outfit.folder,
+                label: decision.outfit.label || null,
+                reason: decision.outfit.reason || null,
+                trigger: decision.outfit.trigger || null,
+                awareness: decision.outfit.awareness || null,
+            } : null,
+        });
         if (decision.reason === 'outfit-unchanged' && decision.outfit?.folder && normalizedKey) {
             const outfitCache = ensureCharacterOutfitCache(state);
             outfitCache.set(normalizedKey, {
@@ -1707,9 +1730,39 @@ async function issueCostumeForName(name, opts = {}) {
         }
         const profile = getActiveProfile();
         updateMessageOutfitRoster(normalizedKey, decision.outfit, opts, profile);
+        recordDecisionEvent({
+            type: 'switch',
+            name: decision.name,
+            folder: decision.folder,
+            matchKind: opts.matchKind || null,
+            charIndex,
+            timestamp: decision.now,
+            outfit: decision.outfit ? {
+                folder: decision.outfit.folder,
+                label: decision.outfit.label || null,
+                reason: decision.outfit.reason || null,
+                trigger: decision.outfit.trigger || null,
+                awareness: decision.outfit.awareness || null,
+            } : null,
+        });
         showStatus(`Switched -> <b>${escapeHtml(decision.folder)}</b>`, 'success');
     } catch (err) {
         state.failedTriggerTimes.set(decision.folder, decision.now);
+        recordDecisionEvent({
+            type: 'skipped',
+            name: decision.name,
+            matchKind: opts.matchKind || null,
+            reason: 'failed-trigger',
+            charIndex,
+            timestamp: decision.now,
+            outfit: decision.outfit ? {
+                folder: decision.outfit.folder,
+                label: decision.outfit.label || null,
+                reason: decision.outfit.reason || null,
+                trigger: decision.outfit.trigger || null,
+                awareness: decision.outfit.awareness || null,
+            } : null,
+        });
         showStatus(`Failed to switch to costume "<b>${escapeHtml(decision.folder)}</b>". Check console (F12).`, 'error');
         console.error(`${logPrefix} Failed to execute /costume command for "${decision.folder}".`, err);
     }
@@ -3269,6 +3322,100 @@ function describeSkipReason(code) {
     return messages[code] || 'not eligible to switch yet';
 }
 
+const RELEVANT_SKIP_CODES = new Set([
+    'repeat-suppression',
+    'global-cooldown',
+    'per-trigger-cooldown',
+    'failed-trigger-cooldown',
+]);
+
+function recordLastVetoMatch(match, { source = 'live', persist = true } = {}) {
+    const phrase = String(match ?? '').trim() || '(unknown veto phrase)';
+    const entry = { phrase, source, at: Date.now() };
+    state.lastVetoMatch = entry;
+    if (persist) {
+        const session = ensureSessionData();
+        if (session) {
+            session.lastVetoMatch = entry;
+        }
+    }
+    return entry;
+}
+
+function getSkipSummaryEvents(eventsOverride = null) {
+    if (Array.isArray(eventsOverride)) {
+        return eventsOverride;
+    }
+    if (Array.isArray(state.lastTesterReport?.events) && state.lastTesterReport.events.length) {
+        return state.lastTesterReport.events;
+    }
+    if (Array.isArray(state.recentDecisionEvents) && state.recentDecisionEvents.length) {
+        return state.recentDecisionEvents;
+    }
+    const session = ensureSessionData();
+    if (session && Array.isArray(session.recentDecisionEvents) && session.recentDecisionEvents.length) {
+        return session.recentDecisionEvents;
+    }
+    return [];
+}
+
+function updateSkipReasonSummaryDisplay(eventsOverride = null) {
+    if (typeof document === 'undefined') {
+        return;
+    }
+    const el = document.getElementById('cs-test-skip-reasons');
+    if (!el) {
+        return;
+    }
+    const events = getSkipSummaryEvents(eventsOverride);
+    const summary = summarizeSkipReasonsForReport(events);
+    const relevant = summary.filter(item => RELEVANT_SKIP_CODES.has(item.code));
+    if (!relevant.length) {
+        const hasEvents = Array.isArray(events) && events.length > 0;
+        el.textContent = hasEvents ? 'No cooldown skips recorded' : 'None recorded';
+        el.classList.add('cs-tester-list-placeholder');
+        el.removeAttribute('title');
+        return;
+    }
+
+    const parts = relevant.slice(0, 3).map(item => `${describeSkipReason(item.code)} (${item.count})`);
+    el.textContent = parts.join(', ');
+    el.classList.remove('cs-tester-list-placeholder');
+    const tooltip = relevant.map(item => `${describeSkipReason(item.code)} (${item.code}): ${item.count}`).join('\n');
+    el.setAttribute('title', tooltip);
+}
+
+function recordDecisionEvent(event) {
+    if (!event || typeof event !== 'object') {
+        return;
+    }
+    const entry = {
+        ...event,
+        timestamp: Number.isFinite(event.timestamp) ? event.timestamp : Date.now(),
+    };
+    const maxEntries = 25;
+    if (!Array.isArray(state.recentDecisionEvents)) {
+        state.recentDecisionEvents = [];
+    }
+    state.recentDecisionEvents.push(entry);
+    if (state.recentDecisionEvents.length > maxEntries) {
+        state.recentDecisionEvents.splice(0, state.recentDecisionEvents.length - maxEntries);
+    }
+
+    const session = ensureSessionData();
+    if (session) {
+        if (!Array.isArray(session.recentDecisionEvents)) {
+            session.recentDecisionEvents = [];
+        }
+        session.recentDecisionEvents.push(entry);
+        if (session.recentDecisionEvents.length > maxEntries) {
+            session.recentDecisionEvents.splice(0, session.recentDecisionEvents.length - maxEntries);
+        }
+    }
+
+    updateSkipReasonSummaryDisplay();
+}
+
 function updateTesterCopyButton() {
     const button = $("#cs-regex-test-copy");
     if (!button.length) return;
@@ -3554,20 +3701,6 @@ function copyTextToClipboard(text) {
             }
         });
     }
-}
-
-function summarizeSkipReasonsForReport(events = []) {
-    const counts = new Map();
-    events.forEach(event => {
-        if (event?.type === 'skipped') {
-            const key = event.reason || 'unknown';
-            counts.set(key, (counts.get(key) || 0) + 1);
-        }
-    });
-    return Array.from(counts.entries()).map(([code, count]) => ({ code, count })).sort((a, b) => {
-        if (b.count !== a.count) return b.count - a.count;
-        return a.code.localeCompare(b.code);
-    });
 }
 
 function summarizeSwitchesForReport(events = []) {
@@ -4000,6 +4133,10 @@ function simulateTesterStream(combined, profile, bufKey) {
 
         if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(buffer)) {
             const vetoMatch = buffer.match(state.compiledRegexes.vetoRegex)?.[0];
+            const recordedVeto = recordLastVetoMatch(vetoMatch, { source: 'tester', persist: false });
+            if (typeof globalThis.$ === 'function') {
+                showStatus(`Detection halted. Veto phrase <b>${escapeHtml(recordedVeto.phrase)}</b> matched in tester.`, 'error', 5000);
+            }
             if (vetoMatch) {
                 events.push({ type: 'veto', match: vetoMatch, charIndex: newestAbsoluteIndex });
             }
@@ -4187,6 +4324,7 @@ function testRegexPattern() {
     if (!text) {
         $("#cs-test-all-detections, #cs-test-winner-list").html('<li class="cs-tester-list-placeholder">Enter text to test.</li>');
         updateTesterTopCharactersDisplay(null);
+        updateSkipReasonSummaryDisplay([]);
         return;
     }
 
@@ -4229,14 +4367,18 @@ function testRegexPattern() {
 
     if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(combined)) {
         const vetoMatch = combined.match(state.compiledRegexes.vetoRegex)?.[0] || 'unknown veto phrase';
+        const recordedVeto = recordLastVetoMatch(vetoMatch, { source: 'tester', persist: false });
+        showStatus(`Detection halted. Veto phrase <b>${escapeHtml(recordedVeto.phrase)}</b> matched in tester.`, 'error', 5000);
         $("#cs-test-veto-result").html(`Vetoed by: <b style="color: var(--red);">${vetoMatch}</b>`);
         allDetectionsList.html('<li class="cs-tester-list-placeholder">Message vetoed.</li>');
         const vetoEvents = [{ type: 'veto', match: vetoMatch, charIndex: combined.length - 1 }];
         renderTesterStream(streamList, vetoEvents);
+        updateSkipReasonSummaryDisplay(vetoEvents);
         renderTesterScoreBreakdown([]);
         renderTesterRosterTimeline([], []);
         renderCoverageDiagnostics(coverage);
-        state.lastTesterReport = { ...reportBase, vetoed: true, vetoMatch, events: vetoEvents, matches: [], topCharacters: [], rosterTimeline: [], rosterWarnings: [], scoreDetails: [], coverage };
+        const skipSummary = summarizeSkipReasonsForReport(vetoEvents);
+        state.lastTesterReport = { ...reportBase, vetoed: true, vetoMatch, events: vetoEvents, matches: [], topCharacters: [], rosterTimeline: [], rosterWarnings: [], scoreDetails: [], coverage, skipSummary };
         updateTesterTopCharactersDisplay([]);
         updateTesterCopyButton();
     } else {
@@ -4257,6 +4399,7 @@ function testRegexPattern() {
         const simulationResult = simulateTesterStream(combined, tempProfile, bufKey);
         const events = Array.isArray(simulationResult?.events) ? simulationResult.events : [];
         renderTesterStream(streamList, events);
+        updateSkipReasonSummaryDisplay(events);
         const testerRoster = simulationResult?.finalState?.sceneRoster || [];
         const topCharacters = rankSceneCharacters(allMatches, {
             rosterSet: testerRoster,
@@ -4283,6 +4426,7 @@ function testRegexPattern() {
             vetoMatch: null,
             matches: allMatches.map(m => ({ ...m })),
             events: events.map(e => ({ ...e })),
+            skipSummary: summarizeSkipReasonsForReport(events),
             finalState: simulationResult?.finalState
                 ? {
                     ...simulationResult.finalState,
@@ -5397,6 +5541,15 @@ const handleStream = (...args) => {
 
         if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(combined)) {
             debugLog("Veto phrase matched. Halting detection for this message.");
+            const vetoMatch = combined.match(state.compiledRegexes.vetoRegex)?.[0] || 'unknown veto phrase';
+            const recordedVeto = recordLastVetoMatch(vetoMatch, { source: 'live', persist: true });
+            recordDecisionEvent({
+                type: 'veto',
+                match: recordedVeto.phrase,
+                charIndex: newestAbsoluteIndex,
+                timestamp: Date.now(),
+            });
+            showStatus(`Detection halted. Veto phrase <b>${escapeHtml(recordedVeto.phrase)}</b> matched.`, 'error', 5000);
             msgState.vetoed = true; return;
         }
 
@@ -5421,6 +5574,14 @@ const handleStream = (...args) => {
             }
 
             if (msgState.lastAcceptedName?.toLowerCase() === matchedName.toLowerCase() && (now - msgState.lastAcceptedTs < suppressMs)) {
+                recordDecisionEvent({
+                    type: 'skipped',
+                    name: matchedName,
+                    matchKind,
+                    reason: 'repeat-suppression',
+                    charIndex: absoluteIndex,
+                    timestamp: now,
+                });
                 return;
             }
 
@@ -5490,6 +5651,9 @@ const resetGlobalState = () => {
     }
     state.lastTesterReport = null;
     updateTesterCopyButton();
+    state.recentDecisionEvents = [];
+    state.lastVetoMatch = null;
+    updateSkipReasonSummaryDisplay([]);
     Object.assign(state, {
         lastIssuedCostume: null,
         lastIssuedFolder: null,
