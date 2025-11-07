@@ -66,7 +66,7 @@ function setupProfile(overrides = {}) {
         unicodeWordPattern: "[\\\\p{L}\\\\p{M}\\\\p{N}_]",
         defaultPronouns: profile.pronounVocabulary,
     });
-    state.compiledRegexes = compiled.regexes;
+    state.compiledRegexes = { ...compiled.regexes, effectivePatterns: compiled.effectivePatterns };
     return profile;
 }
 

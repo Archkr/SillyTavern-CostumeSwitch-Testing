@@ -214,3 +214,42 @@ test("collectDetections links mid-sentence pronouns to the last subject", () => 
         );
     }
 });
+
+test("compileProfileRegexes signals when all patterns are filtered out", () => {
+    const profile = {
+        patterns: ["Kotori", "Reine"],
+        ignorePatterns: ["kotori", "reine"],
+        attributionVerbs: DEFAULT_ATTRIBUTION_VERB_FORMS,
+        actionVerbs: DEFAULT_ACTION_VERB_FORMS,
+        pronounVocabulary: ["he", "she", "they"],
+        detectAttribution: true,
+        detectAction: true,
+        detectVocative: false,
+        detectPossessive: false,
+        detectPronoun: false,
+        detectGeneral: false,
+    };
+
+    const compilation = compileProfileRegexes(profile, {
+        unicodeWordPattern: "[\\p{L}\\p{M}\\p{N}_]",
+        defaultPronouns: ["he", "she", "they"],
+    });
+
+    assert.equal(compilation.effectivePatterns.length, 0, "expected no effective patterns after filtering");
+    assert.equal(compilation.regexes.speakerRegex, null, "expected speaker detector to be disabled");
+
+    const sample = "Kotori turned toward the console while Reine watched silently.";
+    const matches = collectDetections(sample, profile, compilation.regexes, {
+        priorityWeights: {
+            speaker: 5,
+            attribution: 4,
+            action: 3,
+            pronoun: 2,
+            vocative: 2,
+            possessive: 1,
+            name: 0,
+        },
+    });
+
+    assert.equal(matches.length, 0, "expected no detections when all patterns are filtered out");
+});

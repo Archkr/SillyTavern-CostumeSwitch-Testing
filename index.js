@@ -37,6 +37,7 @@ import { loadProfiles, normalizeProfile, normalizeMappingEntry, mappingHasIdenti
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const logPrefix = "[CostumeSwitch]";
+const NO_EFFECTIVE_PATTERNS_MESSAGE = "All detection patterns were filtered out by ignored names. No detectors can run until you restore at least one allowed pattern.";
 
 function buildVerbList(...lists) {
     return Array.from(new Set(lists.flat().filter(Boolean)));
@@ -999,12 +1000,19 @@ function recompileRegexes() {
             defaultPronouns: DEFAULT_PRONOUNS,
         });
 
-        state.compiledRegexes = compiled.regexes;
+        state.compiledRegexes = { ...compiled.regexes, effectivePatterns: compiled.effectivePatterns };
         rebuildMappingLookup(profile);
-        $("#cs-error").prop('hidden', true).find('.cs-status-text').text('');
+
+        if (!Array.isArray(compiled.effectivePatterns) || compiled.effectivePatterns.length === 0) {
+            const message = NO_EFFECTIVE_PATTERNS_MESSAGE;
+            $("#cs-error").prop("hidden", false).find(".cs-status-text").text(message);
+            showStatus(message, "error", 5000);
+        } else {
+            $("#cs-error").prop("hidden", true).find(".cs-status-text").text("");
+        }
     } catch (e) {
-        $("#cs-error").prop('hidden', false).find('.cs-status-text').text(`Pattern compile error: ${String(e)}`);
-        showStatus(`Pattern compile error: ${String(e)}`, 'error', 5000);
+        $("#cs-error").prop("hidden", false).find(".cs-status-text").text(`Pattern compile error: ${String(e)}`);
+        showStatus(`Pattern compile error: ${String(e)}`, "error", 5000);
     }
 }
 
@@ -3826,6 +3834,18 @@ function simulateTesterStream(combined, profile, bufKey) {
     const msgState = state.perMessageStates.get(bufKey);
     if (!msgState) {
         return { events, finalState: null, rosterTimeline: [], rosterWarnings: [] };
+    }
+
+    const effectivePatterns = Array.isArray(state.compiledRegexes?.effectivePatterns)
+        ? state.compiledRegexes.effectivePatterns
+        : [];
+    if (!effectivePatterns.length) {
+        return {
+            events,
+            finalState: null,
+            rosterTimeline: [],
+            rosterWarnings: [{ type: "no-patterns", message: NO_EFFECTIVE_PATTERNS_MESSAGE }],
+        };
     }
 
     const simulationState = {
