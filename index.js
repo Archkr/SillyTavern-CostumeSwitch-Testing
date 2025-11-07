@@ -410,6 +410,7 @@ const state = {
     draftMappingIds: new Set(),
     draftPatternIds: new Set(),
     focusLockNotice: createFocusLockNotice(),
+    patternSearchQuery: "",
 };
 
 let nextOutfitCardId = 1;
@@ -490,6 +491,39 @@ function gatherSlotPatternList(slot) {
         values.push(...normalized.patterns);
     }
     return values.map((value) => String(value ?? "").trim()).filter(Boolean);
+}
+
+function doesPatternSlotMatchQuery(slot, query) {
+    if (!slot || !query) {
+        return true;
+    }
+
+    const normalizedQuery = String(query ?? "").toLowerCase();
+    if (!normalizedQuery) {
+        return true;
+    }
+
+    const values = [];
+    const addValue = (value) => {
+        if (value == null) {
+            return;
+        }
+        const text = String(value).trim().toLowerCase();
+        if (text) {
+            values.push(text);
+        }
+    };
+
+    addValue(slot.name);
+    if (Array.isArray(slot.aliases)) {
+        slot.aliases.forEach(addValue);
+    }
+    if (Array.isArray(slot.patterns)) {
+        slot.patterns.forEach(addValue);
+    }
+    addValue(slot.folder);
+
+    return values.some((value) => value.includes(normalizedQuery));
 }
 
 function updateProfilePatternCache(profile) {
@@ -2296,6 +2330,11 @@ function loadProfile(profileName) {
     }
     settings.activeProfile = profileName;
     const profile = getActiveProfile();
+    state.patternSearchQuery = "";
+    const searchField = $("#cs-pattern-search");
+    if (searchField.length) {
+        searchField.val("");
+    }
     $("#cs-profile-name").val('').attr('placeholder', `Enter a name... (current: ${profileName})`);
     $("#cs-enable").prop('checked', !!settings.enabled);
     for (const key in uiMapping) {
@@ -2988,6 +3027,12 @@ function renderPatternEditor(profile) {
     editor.attr('aria-busy', 'true');
     const list = editor.find('#cs-pattern-slot-list');
     const addButton = editor.find('#cs-pattern-add-slot');
+    const searchInput = $("#cs-pattern-search");
+    const searchQuery = typeof state.patternSearchQuery === "string" ? state.patternSearchQuery : "";
+    if (searchInput.length && searchInput.val() !== searchQuery) {
+        searchInput.val(searchQuery);
+    }
+    const filterQuery = searchQuery.trim().toLowerCase();
 
     const isEditable = profile && typeof profile === 'object';
     const workingProfile = isEditable && profile ? profile : { patternSlots: [] };
@@ -3012,11 +3057,18 @@ function renderPatternEditor(profile) {
     updateProfilePatternCache(isEditable ? profile : workingProfile);
 
     list.empty();
-    if (slots.length === 0) {
-        const emptyText = list.data('emptyText') || list.attr('data-empty-text') || 'No characters configured yet.';
+    const slotEntries = slots.map((slot, idx) => ({ slot, idx }));
+    const visibleSlots = filterQuery
+        ? slotEntries.filter(({ slot }) => doesPatternSlotMatchQuery(slot, filterQuery))
+        : slotEntries;
+
+    if (visibleSlots.length === 0) {
+        const emptyText = filterQuery
+            ? "No character slots match your search."
+            : list.data('emptyText') || list.attr('data-empty-text') || "No characters configured yet.";
         list.append($('<div>').addClass('cs-pattern-empty').text(emptyText));
     } else {
-        slots.forEach((slot, idx) => {
+        visibleSlots.forEach(({ slot, idx }) => {
             list.append(createPatternSlotCard(profile, slot, idx));
         });
     }
@@ -4842,6 +4894,22 @@ function wireUI() {
             return;
         }
         announceAutoSaveIntent(this, null, this.dataset.changeNotice, this.dataset.changeNoticeKey);
+    });
+
+    $(document).on('input', '#cs-pattern-search', function() {
+        state.patternSearchQuery = String($(this).val() ?? "");
+        const profile = getActiveProfile();
+        renderPatternEditor(profile);
+    });
+
+    $(document).on('keydown', '#cs-pattern-search', function(event) {
+        if (event.key === "Escape" && $(this).val()) {
+            event.preventDefault();
+            $(this).val("");
+            state.patternSearchQuery = "";
+            const profile = getActiveProfile();
+            renderPatternEditor(profile);
+        }
     });
 
     $(document).on('change', '#cs-enable', function() {
