@@ -605,8 +605,12 @@ function findAllMatches(combined) {
     let lastSubject = null;
     if (profile.detectPronoun && state.perMessageStates.size > 0) {
         const msgState = Array.from(state.perMessageStates.values()).pop();
-        if (msgState && msgState.lastSubject && msgState.lastSubjectNormalized) {
-            lastSubject = msgState.lastSubject;
+        if (msgState) {
+            if (msgState.lastSubject && msgState.lastSubjectNormalized) {
+                lastSubject = msgState.lastSubject;
+            } else if (msgState.pendingSubject && msgState.pendingSubjectNormalized) {
+                lastSubject = msgState.pendingSubject;
+            }
         }
     }
 
@@ -5064,8 +5068,6 @@ function confirmMessageSubject(msgState, matchedName) {
     if (!normalized) {
         msgState.lastSubject = null;
         msgState.lastSubjectNormalized = null;
-        msgState.pendingSubject = null;
-        msgState.pendingSubjectNormalized = null;
         return;
     }
 

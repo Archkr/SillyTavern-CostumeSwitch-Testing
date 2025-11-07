@@ -127,3 +127,21 @@ test("pronoun detections are ignored until the subject is confirmed in the new m
     assert.equal(switchEvents.length, 0, "should not switch on an unconfirmed pronoun subject");
     assert.equal(msgState.lastSubject, null, "subject should remain unset until confirmed by a non-pronoun match");
 });
+
+test("first-token pronoun yields a detection when falling back to the pending subject", () => {
+    const profile = setupProfile({ detectPronoun: true, detectAction: true });
+    const bufKey = "tester-pronoun-leading";
+    const msgState = createMessageState(profile);
+    msgState.pendingSubject = "Kotori";
+    msgState.pendingSubjectNormalized = msgState.pendingSubject.toLowerCase();
+    state.perMessageStates = new Map([[bufKey, msgState]]);
+    state.perMessageBuffers = new Map([[bufKey, ""]]);
+
+    const text = "She moved swiftly to intercept the attack.";
+    const result = simulateTesterStream(text, profile, bufKey);
+
+    const pronounEvents = result.events.filter(event => event.matchKind === "pronoun");
+    assert.ok(pronounEvents.length > 0, "expected a pronoun detection for the leading token");
+    assert.equal(pronounEvents[0].charIndex, 0, "pronoun detection should align with the first token");
+    assert.equal(msgState.pendingSubject, "Kotori", "pending subject should persist until a non-pronoun confirmation occurs");
+});
