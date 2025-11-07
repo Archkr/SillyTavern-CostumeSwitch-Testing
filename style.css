@@ -419,7 +419,7 @@
 }
 
 #costume-switcher-settings.cs-theme .cs-pattern-slot-scroll {
-    max-height: 420px;
+    max-height:360px;
     overflow-y: auto;
     padding-right: 6px;
     margin-right: -6px;
