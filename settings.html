@@ -156,7 +156,9 @@
                   <label for="cs-patterns">Active Characters</label>
                   <div id="cs-patterns" class="cs-pattern-editor" aria-live="polite" aria-busy="false">
                     <p class="cs-helper-text">Create character slots with primary names, alternate detection patterns, and optional folder overrides.</p>
-                    <div id="cs-pattern-slot-list" class="cs-pattern-slot-list" data-empty-text="No characters have been added yet."></div>
+                    <div class="cs-pattern-slot-scroll">
+                      <div id="cs-pattern-slot-list" class="cs-pattern-slot-list" data-empty-text="No characters have been added yet."></div>
+                    </div>
                     <button id="cs-pattern-add-slot" class="menu_button interactable cs-pattern-add-button" type="button" data-change-notice="Adds a new character slot and auto-saves your patterns.">
                       <i class="fa-solid fa-user-plus"></i>
                       <span>Add Character Slot</span>

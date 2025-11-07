@@ -418,6 +418,13 @@
     gap: 16px;
 }
 
+#costume-switcher-settings.cs-theme .cs-pattern-slot-scroll {
+    max-height: 360px;
+    overflow-y: auto;
+    padding-right: 6px;
+    margin-right: -6px;
+}
+
 #costume-switcher-settings.cs-theme .cs-pattern-editor .cs-helper-text {
     color: var(--text-color-soft);
     font-size: 0.95rem;
