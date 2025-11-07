@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
     mergeDetectionsForReport,
     summarizeDetections,
+    summarizeSkipReasonsForReport,
 } from '../src/report-utils.js';
 
 test('mergeDetectionsForReport combines matches, score details, and events', () => {
@@ -47,4 +48,25 @@ test('summarizeDetections tallies counts and priority ranges', () => {
     assert.ok(reineSummary);
     assert.equal(reineSummary.total, 1);
     assert.equal(reineSummary.highestPriority, 4);
+});
+
+test('summarizeSkipReasonsForReport aggregates skip codes', () => {
+    const events = [
+        { type: 'switch', name: 'Kotori', matchKind: 'action' },
+        { type: 'skipped', name: 'Kotori', matchKind: 'action', reason: 'repeat-suppression' },
+        { type: 'skipped', name: 'Shido', matchKind: 'action', reason: 'repeat-suppression' },
+        { type: 'skipped', name: 'Reine', matchKind: 'attribution', reason: 'global-cooldown' },
+        { type: 'skipped', name: 'Shido', matchKind: 'action', reason: 'repeat-suppression' },
+        { type: 'skipped', name: 'Kotori', matchKind: 'action', reason: 'per-trigger-cooldown' },
+    ];
+
+    const summary = summarizeSkipReasonsForReport(events);
+    assert.deepEqual(
+        summary,
+        [
+            { code: 'repeat-suppression', count: 3 },
+            { code: 'global-cooldown', count: 1 },
+            { code: 'per-trigger-cooldown', count: 1 },
+        ],
+    );
 });
