@@ -1,5 +1,5 @@
 # Heads up
-- This repository is my testing grounds for new updates for my extension in it's main repository. The public release of the extension is on v3.4.0, and this repository will become v3.5.0
+- This repository is my testing grounds for new updates for my extension in it's main repository. The public release of the extension is on v3.5.0, and this repository will become v3.6.0
 
 # SillyTavern Costume Switch contributor notes
 
