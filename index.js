@@ -38,6 +38,9 @@ import {
     resetSceneState,
     replaceLiveTesterOutputs,
     clearLiveTesterOutputs,
+    getCurrentSceneSnapshot,
+    getRosterMembershipSnapshot,
+    getLiveTesterOutputsSnapshot,
 } from "./src/core/state.js";
 import {
     loadProfiles,
@@ -58,7 +61,13 @@ import {
     setSceneActiveCards,
     setSceneLiveLog,
     setSceneFooterButton,
+    getScenePanelContainer,
+    getSceneCollapseToggle,
+    getSceneRosterList,
+    getSceneActiveCards,
+    getSceneLiveLog,
 } from "./src/ui/scenePanelState.js";
+import { renderScenePanel } from "./src/ui/render/panel.js";
 
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionTemplateNamespace = `third-party/${extensionName}`;
@@ -1106,6 +1115,226 @@ function getLastTopCharacters(count = 4) {
         }
     }
     return [];
+}
+
+// ======================================================================
+// SCENE PANEL RENDERING
+// ======================================================================
+const SCENE_PANEL_RENDER_DEBOUNCE_MS = 80;
+let scenePanelRenderTimer = null;
+let scenePanelRenderPending = false;
+let scenePanelUiWired = false;
+
+function isScenePanelCollapsed() {
+    const container = getScenePanelContainer?.();
+    if (!container) {
+        return false;
+    }
+    if (typeof container.attr === "function") {
+        const attr = container.attr("data-cs-collapsed");
+        return attr === "true";
+    }
+    if (container?.[0]) {
+        const attr = container[0].getAttribute("data-cs-collapsed");
+        return attr === "true";
+    }
+    return false;
+}
+
+function setScenePanelCollapsed(collapsed) {
+    const container = getScenePanelContainer?.();
+    if (container && typeof container.attr === "function") {
+        container.attr("data-cs-collapsed", collapsed ? "true" : "false");
+    } else if (container?.[0]) {
+        container[0].setAttribute("data-cs-collapsed", collapsed ? "true" : "false");
+    }
+    const toggle = getSceneCollapseToggle?.();
+    if (toggle && typeof toggle.attr === "function") {
+        toggle.attr("aria-expanded", collapsed ? "false" : "true");
+        toggle.attr("title", collapsed ? "Expand scene roster" : "Collapse scene roster");
+    } else if (toggle?.[0]) {
+        toggle[0].setAttribute("aria-expanded", collapsed ? "false" : "true");
+        toggle[0].setAttribute("title", collapsed ? "Expand scene roster" : "Collapse scene roster");
+    }
+    requestScenePanelRender("collapse", { immediate: true });
+}
+
+function toggleScenePanelCollapsed() {
+    setScenePanelCollapsed(!isScenePanelCollapsed());
+}
+
+function buildDisplayNameMap(scene, membership, testers) {
+    const map = new Map();
+    const register = (normalized, name) => {
+        if (!normalized || !name) {
+            return;
+        }
+        const key = normalized.toLowerCase();
+        if (!map.has(key)) {
+            map.set(key, name);
+        }
+    };
+    if (scene && Array.isArray(scene.roster)) {
+        scene.roster.forEach((entry) => {
+            if (!entry) {
+                return;
+            }
+            if (typeof entry.normalized === "string") {
+                register(entry.normalized, entry.name || entry.normalized);
+            }
+        });
+    }
+    if (membership && Array.isArray(membership.members)) {
+        membership.members.forEach((member) => {
+            if (!member) {
+                return;
+            }
+            if (typeof member.normalized === "string") {
+                register(member.normalized, member.name || member.normalized);
+            }
+        });
+    }
+    if (testers && Array.isArray(testers.entries)) {
+        testers.entries.forEach((entry) => {
+            if (!entry) {
+                return;
+            }
+            if (typeof entry.normalized === "string") {
+                register(entry.normalized, entry.name || entry.normalized);
+            }
+        });
+    }
+    return map;
+}
+
+function collectScenePanelState() {
+    const now = Date.now();
+    const settings = getSettings?.();
+    const panelSettings = ensureScenePanelSettings(settings || {});
+    const scene = getCurrentSceneSnapshot();
+    const membership = getRosterMembershipSnapshot();
+    const testers = getLiveTesterOutputsSnapshot();
+    const displayNames = buildDisplayNameMap(scene, membership, testers);
+    const ranking = getLastTopCharacters(4);
+
+    const activeKey = state.currentGenerationKey
+        ? normalizeMessageKey(state.currentGenerationKey)
+        : getLastStatsMessageKey();
+
+    let buffer = "";
+    if (activeKey && state.perMessageBuffers instanceof Map && state.perMessageBuffers.has(activeKey)) {
+        buffer = state.perMessageBuffers.get(activeKey) || "";
+    }
+
+    const stats = activeKey && state.messageStats instanceof Map
+        ? state.messageStats.get(activeKey) || null
+        : null;
+    const rankingForMessage = activeKey && state.topSceneRanking instanceof Map
+        ? state.topSceneRanking.get(activeKey) || []
+        : [];
+
+    const events = Array.isArray(state.recentDecisionEvents)
+        ? state.recentDecisionEvents.filter((event) => {
+            if (!event) {
+                return false;
+            }
+            if (!event.messageKey) {
+                return true;
+            }
+            if (!activeKey) {
+                return true;
+            }
+            return event.messageKey === activeKey;
+        })
+        : [];
+
+    return {
+        scene,
+        membership,
+        testers,
+        settings: panelSettings,
+        ranking: ranking.length ? ranking : rankingForMessage.slice(0, 4),
+        displayNames,
+        analytics: {
+            messageKey: activeKey,
+            buffer,
+            stats,
+            ranking: rankingForMessage,
+            events,
+            updatedAt: now,
+        },
+        now,
+        isStreaming: Boolean(state.currentGenerationKey),
+        collapsed: isScenePanelCollapsed(),
+    };
+}
+
+function performScenePanelRender() {
+    if (typeof document === "undefined") {
+        return;
+    }
+    const container = getScenePanelContainer?.();
+    if (!container || (typeof container.length === "number" && container.length === 0)) {
+        return;
+    }
+    const panelState = collectScenePanelState();
+    renderScenePanel(panelState);
+}
+
+function requestScenePanelRender(reason = "update", { immediate = false } = {}) {
+    if (typeof document === "undefined") {
+        return;
+    }
+    const container = getScenePanelContainer?.();
+    if (!container || (typeof container.length === "number" && container.length === 0)) {
+        return;
+    }
+    const shouldImmediate = immediate || reason === "mount" || reason === "collapse";
+    if (shouldImmediate) {
+        if (scenePanelRenderTimer) {
+            clearTimeout(scenePanelRenderTimer);
+            scenePanelRenderTimer = null;
+        }
+        scenePanelRenderPending = false;
+        performScenePanelRender();
+        return;
+    }
+    if (scenePanelRenderTimer) {
+        scenePanelRenderPending = true;
+        return;
+    }
+    scenePanelRenderPending = false;
+    scenePanelRenderTimer = setTimeout(() => {
+        scenePanelRenderTimer = null;
+        performScenePanelRender();
+        if (scenePanelRenderPending) {
+            scenePanelRenderPending = false;
+            requestScenePanelRender("follow-up");
+        }
+    }, SCENE_PANEL_RENDER_DEBOUNCE_MS);
+}
+
+function initializeScenePanelUI() {
+    if (scenePanelUiWired) {
+        return;
+    }
+    const toggle = getSceneCollapseToggle?.();
+    if (toggle && typeof toggle.on === "function") {
+        toggle.on("click", () => toggleScenePanelCollapsed());
+    } else if (toggle?.[0]) {
+        toggle[0].addEventListener("click", toggleScenePanelCollapsed);
+    }
+    const container = getScenePanelContainer?.();
+    if (container) {
+        if (typeof container.attr === "function") {
+            if (container.attr("data-cs-collapsed") == null) {
+                container.attr("data-cs-collapsed", "false");
+            }
+        } else if (container?.[0] && !container[0].hasAttribute("data-cs-collapsed")) {
+            container[0].setAttribute("data-cs-collapsed", "false");
+        }
+    }
+    scenePanelUiWired = true;
 }
 
 
@@ -3846,6 +4075,13 @@ function recordDecisionEvent(event) {
         ...event,
         timestamp: Number.isFinite(event.timestamp) ? event.timestamp : Date.now(),
     };
+    if (!entry.messageKey) {
+        if (typeof event.messageKey === "string" && event.messageKey.trim()) {
+            entry.messageKey = normalizeMessageKey(event.messageKey);
+        } else if (state.currentGenerationKey) {
+            entry.messageKey = normalizeMessageKey(state.currentGenerationKey);
+        }
+    }
     const maxEntries = 25;
     if (!Array.isArray(state.recentDecisionEvents)) {
         state.recentDecisionEvents = [];
@@ -3867,6 +4103,7 @@ function recordDecisionEvent(event) {
     }
 
     updateSkipReasonSummaryDisplay();
+    requestScenePanelRender("decision-event");
 }
 
 function updateTesterCopyButton() {
@@ -4526,6 +4763,7 @@ function simulateTesterStream(combined, profile, bufKey) {
     const msgState = state.perMessageStates.get(bufKey);
     if (!msgState) {
         replaceLiveTesterOutputs([], { roster: [] });
+        requestScenePanelRender("tester-reset");
         return { events, finalState: null, rosterTimeline: [], rosterWarnings: [] };
     }
 
@@ -4539,6 +4777,7 @@ function simulateTesterStream(combined, profile, bufKey) {
             roster: rosterSnapshot,
             displayNames: rosterDisplayNames,
         });
+        requestScenePanelRender("tester-stream");
         return result;
     };
 
@@ -4732,6 +4971,7 @@ function simulateTesterStream(combined, profile, bufKey) {
                 },
                 updatedAt: now,
             });
+            requestScenePanelRender("stream-roster");
         }
     }
 
@@ -4808,6 +5048,7 @@ function testRegexPattern() {
     renderTesterRosterTimeline(null, null);
     renderCoverageDiagnostics(null);
     clearLiveTesterOutputs();
+    requestScenePanelRender("tester-reset", { immediate: true });
     const text = $("#cs-regex-test-input").val();
     if (!text) {
         $("#cs-test-all-detections, #cs-test-winner-list").html('<li class="cs-tester-list-placeholder">Enter text to test.</li>');
@@ -4866,6 +5107,7 @@ function testRegexPattern() {
         renderTesterRosterTimeline([], []);
         renderCoverageDiagnostics(coverage);
         replaceLiveTesterOutputs(vetoEvents, { roster: [] });
+        requestScenePanelRender("tester-veto");
         const skipSummary = summarizeSkipReasonsForReport(vetoEvents);
         state.lastTesterReport = { ...reportBase, vetoed: true, vetoMatch, events: vetoEvents, matches: [], topCharacters: [], rosterTimeline: [], rosterWarnings: [], scoreDetails: [], coverage, skipSummary };
         updateTesterTopCharactersDisplay([]);
@@ -5007,6 +5249,7 @@ function wireUI() {
         announceAutoSaveIntent(this, null, notice, 'cs-scene-show-avatars');
         const scenePanelSettings = ensureScenePanelSettings(settings);
         scenePanelSettings.showRosterAvatars = showAvatars;
+        requestScenePanelRender("avatar-toggle", { immediate: true });
         persistSettings(showAvatars ? 'Roster avatars enabled.' : 'Roster avatars hidden.', 'info');
     });
     $(document).on('click', '#cs-save', () => {
@@ -5670,6 +5913,7 @@ function updateMessageAnalytics(bufKey, text, { rosterSet, updateSession = true,
         updateSessionTopCharacters(bufKey, ranking);
     }
 
+    requestScenePanelRender("analytics-update");
     return { stats, ranking, matches };
 }
 
@@ -5709,6 +5953,7 @@ function calculateFinalMessageStats(reference) {
     updateMessageAnalytics(bufKey, fullText, { rosterSet, assumeNormalized: true });
 
     debugLog("Final stats calculated for", bufKey, state.messageStats.get(bufKey));
+    requestScenePanelRender("final-stats", { immediate: true });
 }
 
 
@@ -5924,6 +6169,7 @@ function createMessageState(profile, bufKey) {
             roster: Array.from(newState.sceneRoster || []),
             updatedAt: Date.now(),
         });
+        requestScenePanelRender("roster-prime");
     }
 
     return newState;
@@ -6003,6 +6249,7 @@ const handleGenerationStart = (...args) => {
         state.perMessageStates.delete(bufKey);
         state.perMessageBuffers.set(bufKey, '');
     }
+    requestScenePanelRender("generation-start", { immediate: true });
 };
 
 const handleStream = (...args) => {
@@ -6177,11 +6424,13 @@ const handleMessageRendered = (...args) => {
     calculateFinalMessageStats({ key: finalKey, messageId: resolvedId });
     pruneMessageCaches();
     state.currentGenerationKey = null;
+    requestScenePanelRender("message-rendered", { immediate: true });
 };
 
 const resetGlobalState = () => {
     resetSceneState();
     clearLiveTesterOutputs();
+    requestScenePanelRender("global-reset", { immediate: true });
     if (state.statusTimer) {
         clearTimeout(state.statusTimer);
         state.statusTimer = null;
@@ -6244,6 +6493,8 @@ async function mountScenePanelTemplate() {
             setSceneActiveCards($existingPanel.find('[data-scene-panel="active-cards"]'));
             setSceneLiveLog($existingPanel.find('[data-scene-panel="log-viewport"]'));
             setSceneFooterButton($existingPanel.find('[data-scene-panel="open-settings"]'));
+            initializeScenePanelUI();
+            requestScenePanelRender("mount", { immediate: true });
             return;
         }
 
@@ -6311,6 +6562,8 @@ async function mountScenePanelTemplate() {
         setSceneActiveCards($panel.find('[data-scene-panel="active-cards"]'));
         setSceneLiveLog($panel.find('[data-scene-panel="log-viewport"]'));
         setSceneFooterButton($panel.find('[data-scene-panel="open-settings"]'));
+        initializeScenePanelUI();
+        requestScenePanelRender("mount", { immediate: true });
     } catch (error) {
         console.warn(`${logPrefix} Failed to mount scene panel:`, error);
     }
