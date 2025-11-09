@@ -15,7 +15,7 @@ export async function load(url, context, defaultLoad) {
     if (url === "node:mock/extensions") {
         return {
             format: "module",
-            source: `const store = globalThis.__extensionSettingsStore || (globalThis.__extensionSettingsStore = {});\nexport const extension_settings = store;\nexport function getContext() {\n    return { extensionSettings: store, saveSettingsDebounced: () => {} };\n}`,
+            source: `const store = globalThis.__extensionSettingsStore || (globalThis.__extensionSettingsStore = {});\nexport const extension_settings = store;\nexport function getContext() {\n    return { extensionSettings: store, saveSettingsDebounced: () => {} };\n}\nexport async function renderExtensionTemplateAsync() {\n    return '<div id="cs-scene-panel"></div>';\n}`,
             shortCircuit: true,
         };
     }
