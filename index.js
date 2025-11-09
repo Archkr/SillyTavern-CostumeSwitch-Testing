@@ -1,5 +1,5 @@
 import { extension_settings, getContext, renderExtensionTemplateAsync } from "../../../extensions.js";
-import { saveSettingsDebounced, event_types, eventSource } from "../../../../script.js";
+import { saveSettingsDebounced, saveChatDebounced, event_types, eventSource } from "../../../../script.js";
 import { executeSlashCommandsOnChatInput, registerSlashCommand } from "../../../slash-commands.js";
 import {
     DEFAULT_ACTION_VERBS_PRESENT,
@@ -42,6 +42,7 @@ import {
     getRosterMembershipSnapshot,
     getLiveTesterOutputsSnapshot,
 } from "./src/core/state.js";
+import { registerSillyTavernIntegration, unregisterSillyTavernIntegration } from "./src/systems/integration/sillytavern.js";
 import {
     loadProfiles,
     normalizeProfile,
@@ -75,6 +76,7 @@ const extensionFolderPath = `scripts/extensions/${extensionTemplateNamespace}`;
 const logPrefix = "[CostumeSwitch]";
 const NO_EFFECTIVE_PATTERNS_MESSAGE = "All detection patterns were filtered out by ignored names. No detectors can run until you restore at least one allowed pattern.";
 const FOCUS_LOCK_NOTICE_INTERVAL = 2500;
+const MESSAGE_OUTCOME_STORAGE_KEY = "cs_scene_outcomes";
 
 function createFocusLockNotice() {
     return { at: 0, character: null, displayName: null, message: null, event: null };
@@ -426,6 +428,7 @@ const state = {
     perMessageStates: new Map(),
     messageStats: new Map(), // For statistical logging
     eventHandlers: {},
+    integrationHandlers: null,
     compiledRegexes: {},
     statusTimer: null,
     testerTimers: [],
@@ -1360,6 +1363,53 @@ function normalizeCostumeName(n) {
     const segments = s.split(/[\\/]+/).filter(Boolean);
     const base = segments.length ? segments[segments.length - 1] : s;
     return String(base).replace(/[-_](?:sama|san)$/i, "").trim();
+}
+function normalizeRosterKey(value) {
+    if (typeof value !== "string") {
+        return "";
+    }
+    return value.trim().toLowerCase();
+}
+function toDisplayNameEntries(displayNames) {
+    if (!(displayNames instanceof Map)) {
+        return [];
+    }
+    return Array.from(displayNames.entries()).filter(([key]) => typeof key === "string" && key.trim().length);
+}
+function fromDisplayNameEntries(entries) {
+    if (!Array.isArray(entries)) {
+        return new Map();
+    }
+    const map = new Map();
+    entries.forEach(([key, value]) => {
+        const normalized = normalizeRosterKey(key);
+        if (!normalized) {
+            return;
+        }
+        map.set(normalized, typeof value === "string" && value.trim() ? value.trim() : key);
+    });
+    return map;
+}
+function toStatsEntries(stats) {
+    if (!(stats instanceof Map)) {
+        return [];
+    }
+    return Array.from(stats.entries()).filter(([key]) => typeof key === "string" && key.trim().length);
+}
+function fromStatsEntries(entries) {
+    if (!Array.isArray(entries)) {
+        return new Map();
+    }
+    return new Map(entries.filter(([key]) => typeof key === "string" && key.trim().length));
+}
+function cloneDecisionEvent(event) {
+    if (!event || typeof event !== "object") {
+        return null;
+    }
+    return {
+        ...event,
+        outfit: event.outfit ? { ...event.outfit } : null,
+    };
 }
 function getSettings() { return extension_settings[extensionName]; }
 function getActiveProfile() { const settings = getSettings(); return settings?.profiles?.[settings.activeProfile]; }
@@ -4075,6 +4125,15 @@ function recordDecisionEvent(event) {
         ...event,
         timestamp: Number.isFinite(event.timestamp) ? event.timestamp : Date.now(),
     };
+    if (typeof entry.name === "string" && entry.name.trim()) {
+        entry.name = entry.name.trim();
+    }
+    const normalizedName = normalizeRosterKey(entry.normalized || entry.name);
+    if (normalizedName) {
+        entry.normalized = normalizedName;
+    } else {
+        delete entry.normalized;
+    }
     if (!entry.messageKey) {
         if (typeof event.messageKey === "string" && event.messageKey.trim()) {
             entry.messageKey = normalizeMessageKey(event.messageKey);
@@ -5956,6 +6015,259 @@ function calculateFinalMessageStats(reference) {
     requestScenePanelRender("final-stats", { immediate: true });
 }
 
+function collectDecisionEventsForKey(bufKey) {
+    const normalizedKey = normalizeMessageKey(bufKey);
+    if (!normalizedKey || !Array.isArray(state.recentDecisionEvents)) {
+        return [];
+    }
+    return state.recentDecisionEvents
+        .filter((event) => normalizeMessageKey(event?.messageKey) === normalizedKey)
+        .map((event) => cloneDecisionEvent(event))
+        .filter(Boolean);
+}
+
+function findChatMessageById(messageId) {
+    if (!Number.isFinite(messageId)) {
+        return null;
+    }
+    const { chat } = getContext();
+    if (!Array.isArray(chat)) {
+        return null;
+    }
+    return chat.find((message) => message && message.mesId === messageId) || null;
+}
+
+function findChatMessageByKey(key) {
+    const normalizedKey = normalizeMessageKey(key);
+    if (!normalizedKey) {
+        return null;
+    }
+    const resolvedId = extractMessageIdFromKey(normalizedKey);
+    const direct = findChatMessageById(resolvedId);
+    if (direct) {
+        return direct;
+    }
+    const { chat } = getContext();
+    if (!Array.isArray(chat)) {
+        return null;
+    }
+    for (let i = chat.length - 1; i >= 0; i -= 1) {
+        const message = chat[i];
+        if (!message || message.is_user) {
+            continue;
+        }
+        const candidateKey = normalizeMessageKey(message?.message_key || message?.key || `m${message.mesId}`);
+        if (candidateKey === normalizedKey) {
+            return message;
+        }
+    }
+    return null;
+}
+
+function collectDisplayNameMap(roster, events, existingEntries = []) {
+    const map = fromDisplayNameEntries(existingEntries);
+    events.forEach((event) => {
+        if (!event) {
+            return;
+        }
+        const normalized = normalizeRosterKey(event.normalized || event.name);
+        if (!normalized) {
+            return;
+        }
+        if (typeof event.name === "string" && event.name.trim() && !map.has(normalized)) {
+            map.set(normalized, event.name.trim());
+        }
+    });
+    roster.forEach((value) => {
+        const normalized = normalizeRosterKey(value);
+        if (!normalized || map.has(normalized)) {
+            return;
+        }
+        const fallback = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+        map.set(normalized, fallback);
+    });
+    return map;
+}
+
+function getOutcomeBucket(message, create = false) {
+    if (!message || typeof message !== "object") {
+        return null;
+    }
+    if (!message.extra || typeof message.extra !== "object") {
+        if (!create) {
+            return null;
+        }
+        message.extra = {};
+    }
+    const existing = message.extra[MESSAGE_OUTCOME_STORAGE_KEY];
+    if (existing && typeof existing === "object") {
+        return existing;
+    }
+    if (create) {
+        message.extra[MESSAGE_OUTCOME_STORAGE_KEY] = {};
+        return message.extra[MESSAGE_OUTCOME_STORAGE_KEY];
+    }
+    return null;
+}
+
+function persistSceneOutcome(message, swipeId, outcome) {
+    if (!message || typeof message !== "object" || message.is_user) {
+        return;
+    }
+    const bucket = getOutcomeBucket(message, true);
+    if (!bucket) {
+        return;
+    }
+    bucket[swipeId] = outcome;
+}
+
+function captureSceneOutcomeForMessage(reference) {
+    const { key: requestedKey, messageId } = parseMessageReference(reference);
+    const bufKey = findExistingMessageKey(requestedKey, messageId);
+    if (!bufKey) {
+        return;
+    }
+    const normalizedKey = normalizeMessageKey(bufKey);
+    const resolvedId = Number.isFinite(messageId) ? messageId : extractMessageIdFromKey(normalizedKey);
+    const message = findChatMessageById(resolvedId) || findChatMessageByKey(normalizedKey);
+    const swipeId = Number.isFinite(message?.swipe_id) ? message.swipe_id : 0;
+    const msgState = state.perMessageStates instanceof Map ? state.perMessageStates.get(normalizedKey) : null;
+    const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : new Set();
+    const roster = Array.from(rosterSet).map(normalizeRosterKey).filter(Boolean);
+    const events = collectDecisionEventsForKey(normalizedKey);
+    const existingOutcome = message ? getStoredSceneOutcome(message) : null;
+    const displayNames = collectDisplayNameMap(roster, events, existingOutcome?.displayNames);
+    const stats = state.messageStats instanceof Map ? state.messageStats.get(normalizedKey) : null;
+    const timestamp = Date.now();
+
+    replaceLiveTesterOutputs(events, {
+        roster,
+        displayNames,
+        timestamp,
+    });
+
+    applySceneRosterUpdate({
+        key: normalizedKey,
+        messageId: Number.isFinite(resolvedId) ? resolvedId : extractMessageIdFromKey(normalizedKey),
+        roster,
+        displayNames,
+        lastMatch: events.length ? { ...events[events.length - 1] } : null,
+        updatedAt: timestamp,
+    });
+
+    const buffer = state.perMessageBuffers instanceof Map ? state.perMessageBuffers.get(normalizedKey) || "" : "";
+    const outcome = {
+        version: 1,
+        messageKey: normalizedKey,
+        messageId: Number.isFinite(resolvedId) ? resolvedId : null,
+        roster,
+        displayNames: toDisplayNameEntries(displayNames),
+        events: events.map((event) => ({ ...event, messageKey: normalizedKey })),
+        stats: toStatsEntries(stats),
+        buffer,
+        text: message?.mes || "",
+        updatedAt: timestamp,
+        lastEvent: events.length ? { ...events[events.length - 1] } : null,
+    };
+
+    if (message) {
+        persistSceneOutcome(message, swipeId, outcome);
+        if (typeof saveChatDebounced === "function") {
+            saveChatDebounced();
+        }
+    }
+}
+
+function getStoredSceneOutcome(message) {
+    const bucket = getOutcomeBucket(message, false);
+    if (!bucket) {
+        return null;
+    }
+    const swipeId = Number.isFinite(message?.swipe_id) ? message.swipe_id : 0;
+    const entry = bucket[swipeId];
+    if (!entry || typeof entry !== "object") {
+        return null;
+    }
+    return entry;
+}
+
+function restoreSceneOutcomeForMessage(message, { immediateRender = true } = {}) {
+    const now = Date.now();
+    if (!message || message.is_user) {
+        resetSceneState();
+        replaceLiveTesterOutputs([], { roster: [] });
+        if (immediateRender) {
+            requestScenePanelRender("history-reset", { immediate: true });
+        }
+        return false;
+    }
+    const stored = getStoredSceneOutcome(message);
+    const fallbackKey = normalizeMessageKey(`m${message.mesId}`);
+    const messageKey = normalizeMessageKey(stored?.messageKey || fallbackKey);
+    if (!messageKey) {
+        resetSceneState();
+        replaceLiveTesterOutputs([], { roster: [] });
+        if (immediateRender) {
+            requestScenePanelRender("history-reset", { immediate: true });
+        }
+        return false;
+    }
+
+    trackMessageKey(messageKey);
+    if (!(state.perMessageBuffers instanceof Map)) {
+        state.perMessageBuffers = new Map();
+    }
+
+    const buffer = typeof stored?.buffer === "string" ? stored.buffer : normalizeStreamText(message.mes || "");
+    state.perMessageBuffers.set(messageKey, buffer);
+
+    const roster = Array.isArray(stored?.roster) ? stored.roster.filter(Boolean) : [];
+    const displayNames = collectDisplayNameMap(roster, [], stored?.displayNames);
+    const events = Array.isArray(stored?.events)
+        ? stored.events.map((event) => {
+            const clone = cloneDecisionEvent(event);
+            if (clone) {
+                clone.messageKey = messageKey;
+            }
+            return clone;
+        }).filter(Boolean)
+        : [];
+
+    if (!(state.messageStats instanceof Map)) {
+        state.messageStats = new Map();
+    }
+
+    updateMessageAnalytics(messageKey, buffer, { rosterSet: new Set(roster), assumeNormalized: true });
+    if (Array.isArray(stored?.stats) && stored.stats.length) {
+        state.messageStats.set(messageKey, fromStatsEntries(stored.stats));
+    }
+
+    const timestamp = Number.isFinite(stored?.updatedAt) ? stored.updatedAt : now;
+
+    replaceLiveTesterOutputs(events, {
+        roster,
+        displayNames,
+        timestamp,
+    });
+
+    const resolvedId = Number.isFinite(stored?.messageId) ? stored.messageId : message.mesId;
+
+    applySceneRosterUpdate({
+        key: messageKey,
+        messageId: Number.isFinite(resolvedId) ? resolvedId : extractMessageIdFromKey(messageKey),
+        roster,
+        displayNames,
+        lastMatch: stored?.lastEvent ? { ...stored.lastEvent } : (events.length ? { ...events[events.length - 1] } : null),
+        updatedAt: timestamp,
+    });
+
+    if (immediateRender) {
+        requestScenePanelRender("history-restore", { immediate: true });
+    }
+
+    return Boolean(stored);
+}
+
 
 // ======================================================================
 // SLASH COMMANDS
@@ -6384,6 +6696,155 @@ const handleStream = (...args) => {
     } catch (err) { console.error(`${logPrefix} stream handler error:`, err); }
 };
 
+function findAssistantMessageBeforeIndex(index) {
+    const { chat } = getContext();
+    if (!Array.isArray(chat) || chat.length === 0) {
+        return null;
+    }
+    const startIndex = Number.isFinite(index) ? Math.min(index, chat.length - 1) : chat.length - 1;
+    for (let i = startIndex; i >= 0; i -= 1) {
+        const candidate = chat[i];
+        if (candidate && !candidate.is_user) {
+            return candidate;
+        }
+    }
+    return null;
+}
+
+function resolveHistoryTargetMessage(args) {
+    const { chat } = getContext();
+    if (!Array.isArray(chat) || chat.length === 0) {
+        return null;
+    }
+    const values = Array.isArray(args) ? args : [];
+    let target = null;
+
+    const tryAssign = (message) => {
+        if (!target && message) {
+            target = message;
+        }
+    };
+
+    values.forEach((arg) => {
+        if (target) {
+            return;
+        }
+        if (typeof arg === "number" && chat[arg]) {
+            tryAssign(chat[arg]);
+            return;
+        }
+        if (!arg || typeof arg !== "object") {
+            if (typeof arg === "string") {
+                tryAssign(findChatMessageByKey(arg));
+            }
+            return;
+        }
+        if (Number.isFinite(arg.index) && chat[arg.index]) {
+            tryAssign(chat[arg.index]);
+        }
+        if (target) {
+            return;
+        }
+        if (Number.isFinite(arg.messageId)) {
+            tryAssign(findChatMessageById(arg.messageId));
+        }
+        if (target) {
+            return;
+        }
+        if (Number.isFinite(arg.mesId)) {
+            tryAssign(findChatMessageById(arg.mesId));
+        }
+        if (target) {
+            return;
+        }
+        if (Number.isFinite(arg.id)) {
+            tryAssign(findChatMessageById(arg.id));
+        }
+        if (target) {
+            return;
+        }
+        if (typeof arg.key === "string") {
+            tryAssign(findChatMessageByKey(arg.key));
+        }
+        if (target) {
+            return;
+        }
+        if (typeof arg.messageKey === "string") {
+            tryAssign(findChatMessageByKey(arg.messageKey));
+        }
+        if (target) {
+            return;
+        }
+        if (typeof arg.bufKey === "string") {
+            tryAssign(findChatMessageByKey(arg.bufKey));
+        }
+        if (target) {
+            return;
+        }
+        if (arg.detail && typeof arg.detail === "object") {
+            const nested = resolveHistoryTargetMessage([arg.detail]);
+            if (nested) {
+                tryAssign(nested);
+            }
+        }
+        if (target) {
+            return;
+        }
+        if (arg.message && typeof arg.message === "object") {
+            const nestedMessage = resolveHistoryTargetMessage([arg.message]);
+            if (nestedMessage) {
+                tryAssign(nestedMessage);
+            }
+        }
+        if (target) {
+            return;
+        }
+        if (Array.isArray(arg.messages) && arg.messages.length) {
+            const nested = resolveHistoryTargetMessage(arg.messages);
+            if (nested) {
+                tryAssign(nested);
+            }
+        }
+    });
+
+    if (!target && values.length === 1 && Array.isArray(values[0])) {
+        target = resolveHistoryTargetMessage(values[0]);
+    }
+
+    if (!target) {
+        target = findAssistantMessageBeforeIndex(chat.length - 1);
+    }
+
+    if (target && target.is_user) {
+        const index = chat.indexOf(target);
+        const fallback = findAssistantMessageBeforeIndex(index - 1);
+        if (fallback) {
+            target = fallback;
+        }
+    }
+
+    if (target && target.is_user) {
+        return findAssistantMessageBeforeIndex(chat.indexOf(target) - 1);
+    }
+
+    return target;
+}
+
+const handleHistoryChange = (...args) => {
+    try {
+        const target = resolveHistoryTargetMessage(args);
+        if (target) {
+            restoreSceneOutcomeForMessage(target);
+        } else {
+            resetSceneState();
+            replaceLiveTesterOutputs([], { roster: [] });
+            requestScenePanelRender("history-reset", { immediate: true });
+        }
+    } catch (error) {
+        console.warn(`${logPrefix} Failed to reconcile history change:`, error);
+    }
+};
+
 const handleMessageRendered = (...args) => {
     const tempKey = state.currentGenerationKey;
     let resolvedKey = null;
@@ -6422,6 +6883,7 @@ const handleMessageRendered = (...args) => {
 
     debugLog(`Message ${finalKey} rendered, calculating final stats from buffer.`);
     calculateFinalMessageStats({ key: finalKey, messageId: resolvedId });
+    captureSceneOutcomeForMessage({ key: finalKey, messageId: resolvedId });
     pruneMessageCaches();
     state.currentGenerationKey = null;
     requestScenePanelRender("message-rendered", { immediate: true });
@@ -6571,38 +7033,26 @@ async function mountScenePanelTemplate() {
 
 function load() {
     state.eventHandlers = {};
-    const registered = new Set();
-    const registerHandler = (eventType, handler) => {
-        if (typeof eventType !== 'string' || typeof handler !== 'function' || registered.has(eventType)) {
-            return;
-        }
-        registered.add(eventType);
-        state.eventHandlers[eventType] = handler;
-        eventSource.on(eventType, handler);
-    };
-
-    registerHandler(event_types?.STREAM_TOKEN_RECEIVED, handleStream);
-    registerHandler(event_types?.GENERATION_STARTED, handleGenerationStart);
-
-    const renderEvents = [
-        event_types?.CHARACTER_MESSAGE_RENDERED,
-        event_types?.MESSAGE_RENDERED,
-        event_types?.GENERATION_ENDED,
-        event_types?.STREAM_ENDED,
-        event_types?.STREAM_FINISHED,
-        event_types?.STREAM_COMPLETE,
-    ].filter((evt) => typeof evt === 'string');
-
-    renderEvents.forEach((evt) => registerHandler(evt, handleMessageRendered));
-
-    registerHandler(event_types?.CHAT_CHANGED, resetGlobalState);
+    if (state.integrationHandlers) {
+        unregisterSillyTavernIntegration(state.integrationHandlers);
+        state.integrationHandlers = null;
+    }
+    state.integrationHandlers = registerSillyTavernIntegration({
+        eventSource,
+        eventTypes: event_types,
+        onGenerationStarted: handleGenerationStart,
+        onStreamStarted: handleGenerationStart,
+        onStreamToken: handleStream,
+        onMessageFinished: handleMessageRendered,
+        onChatChanged: resetGlobalState,
+        onHistoryChanged: handleHistoryChange,
+    });
 }
 
 function unload() {
-    if (state.eventHandlers && typeof state.eventHandlers === 'object') {
-        for (const [event, handler] of Object.entries(state.eventHandlers)) {
-            eventSource.off(event, handler);
-        }
+    if (state.integrationHandlers) {
+        unregisterSillyTavernIntegration(state.integrationHandlers, { eventSource });
+        state.integrationHandlers = null;
     }
     resetGlobalState();
 }
