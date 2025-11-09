@@ -14,6 +14,33 @@ export function resolveContainer(target) {
         return result;
     }
 
+    if (typeof target === "object" && target !== null) {
+        const hasJQuery = Object.prototype.hasOwnProperty.call(target, "$") && target.$;
+        const hasElement = Object.prototype.hasOwnProperty.call(target, "el") && target.el;
+
+        if (hasJQuery || hasElement) {
+            if (hasJQuery) {
+                result.$ = target.$;
+                if (!result.el && target.$ && typeof target.$.length === "number" && target.$.length > 0) {
+                    result.el = target.$[0] || null;
+                }
+            }
+
+            if (hasElement && !result.el) {
+                result.el = target.el;
+            }
+
+            if (result.el && !result.$ && typeof window !== "undefined" && typeof window.jQuery === "function") {
+                const $instance = window.jQuery(result.el);
+                if ($instance && $instance.length) {
+                    result.$ = $instance;
+                }
+            }
+
+            return result;
+        }
+    }
+
     if (isJQueryLike(target)) {
         result.$ = target;
         result.el = target[0] || null;
