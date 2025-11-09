@@ -1,4 +1,4 @@
-import { extension_settings, getContext } from "../../../extensions.js";
+import { extension_settings, getContext, renderExtensionTemplateAsync } from "../../../extensions.js";
 import { saveSettingsDebounced, event_types, eventSource } from "../../../../script.js";
 import { executeSlashCommandsOnChatInput, registerSlashCommand } from "../../../slash-commands.js";
 import {
@@ -43,6 +43,16 @@ import {
     preparePatternSlotsForSave,
     flattenPatternSlots,
 } from "./profile-utils.js";
+import {
+    setScenePanelContainer,
+    setScenePanelContent,
+    setSceneCollapseToggle,
+    setSceneToolbar,
+    setSceneRosterList,
+    setSceneActiveCards,
+    setSceneLiveLog,
+    setSceneFooterButton,
+} from "./src/ui/scenePanelState.js";
 
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
@@ -6130,6 +6140,78 @@ export {
     handleStream,
 };
 
+async function mountScenePanelTemplate() {
+    try {
+        const $existingPanel = $("#cs-scene-panel").first();
+        if ($existingPanel.length > 0) {
+            setScenePanelContainer($existingPanel);
+            setScenePanelContent($existingPanel.find('[data-scene-panel="content"]'));
+            setSceneCollapseToggle($existingPanel.find('[data-scene-panel="collapse-toggle"]'));
+            setSceneToolbar($existingPanel.find('[data-scene-panel="toolbar"]'));
+            setSceneRosterList($existingPanel.find('[data-scene-panel="roster-list"]'));
+            setSceneActiveCards($existingPanel.find('[data-scene-panel="active-cards"]'));
+            setSceneLiveLog($existingPanel.find('[data-scene-panel="log-viewport"]'));
+            setSceneFooterButton($existingPanel.find('[data-scene-panel="open-settings"]'));
+            return;
+        }
+
+        const templateHtml = await renderExtensionTemplateAsync(extensionName, "ui/templates/scenePanel");
+        if (!templateHtml) {
+            console.warn(`${logPrefix} Scene panel template did not return any markup.`);
+            return;
+        }
+
+        const $fragment = $(templateHtml.trim());
+        const $panel = $fragment.filter("#cs-scene-panel").length > 0
+            ? $fragment.filter("#cs-scene-panel").first()
+            : $fragment.find("#cs-scene-panel").first();
+
+        if ($panel.length === 0) {
+            console.warn(`${logPrefix} Scene panel template is missing the #cs-scene-panel root node.`);
+            return;
+        }
+
+        const candidateSelectors = ["#sheld", "#st-chat-column", "#chat-column", "#st-chat"];
+        let $chatColumn = $();
+        for (const selector of candidateSelectors) {
+            $chatColumn = $(selector).first();
+            if ($chatColumn.length > 0) {
+                break;
+            }
+        }
+
+        if ($chatColumn.length > 0) {
+            $panel.insertAfter($chatColumn);
+        } else {
+            const workspaceSelectors = ["#st-workspace", "#st-container"];
+            let $workspace = $();
+            for (const selector of workspaceSelectors) {
+                $workspace = $(selector).first();
+                if ($workspace.length > 0) {
+                    break;
+                }
+            }
+
+            if ($workspace.length === 0) {
+                $workspace = $("body");
+            }
+
+            $workspace.append($panel);
+        }
+
+        setScenePanelContainer($panel);
+        setScenePanelContent($panel.find('[data-scene-panel="content"]'));
+        setSceneCollapseToggle($panel.find('[data-scene-panel="collapse-toggle"]'));
+        setSceneToolbar($panel.find('[data-scene-panel="toolbar"]'));
+        setSceneRosterList($panel.find('[data-scene-panel="roster-list"]'));
+        setSceneActiveCards($panel.find('[data-scene-panel="active-cards"]'));
+        setSceneLiveLog($panel.find('[data-scene-panel="log-viewport"]'));
+        setSceneFooterButton($panel.find('[data-scene-panel="open-settings"]'));
+    } catch (error) {
+        console.warn(`${logPrefix} Failed to mount scene panel:`, error);
+    }
+}
+
 function load() {
     state.eventHandlers = {};
     const registered = new Set();
@@ -6217,6 +6299,8 @@ if (typeof window !== "undefined" && typeof jQuery === "function") {
 
             const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
             $("#extensions_settings").append(settingsHtml);
+
+            await mountScenePanelTemplate();
 
             const buildMeta = await fetchBuildMetadata();
             renderBuildMetadata(buildMeta);

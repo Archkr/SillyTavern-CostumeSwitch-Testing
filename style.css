@@ -1458,3 +1458,278 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
   box-shadow: none;
   transform: none;
 }
+
+/* Scene roster workspace panel */
+.cs-scene-panel {
+    --cs-scene-panel-width: min(24rem, 30vw);
+    --cs-scene-panel-gap: 12px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 var(--cs-scene-panel-width);
+    max-width: 100%;
+    height: calc(100vh - var(--topBarBlockSize, 3.25rem));
+    margin-left: var(--cs-scene-panel-gap);
+    background: var(--SmartThemeBlurTintColor, rgba(18, 20, 38, 0.86));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 18px 32px rgba(0, 0, 0, 0.35);
+    color: var(--SmartThemeBodyColor, #f3f3f3);
+    overflow: hidden;
+    backdrop-filter: blur(16px);
+    float: right;
+}
+
+.cs-scene-panel__content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+    height: 100%;
+    overflow: hidden;
+}
+
+.cs-scene-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.cs-scene-panel__title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cs-scene-panel__title i {
+    font-size: 1.5rem;
+    color: var(--primary-color, #9c7dff);
+}
+
+.cs-scene-panel__title-copy h3 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.cs-scene-panel__title-copy p {
+    margin: 4px 0 0 0;
+    font-size: 0.85rem;
+    color: var(--text-color-soft, rgba(255, 255, 255, 0.7));
+}
+
+.cs-scene-panel__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cs-scene-panel__icon-button {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.06);
+    color: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.cs-scene-panel__icon-button:hover,
+.cs-scene-panel__icon-button:focus-visible {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.cs-scene-panel__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.cs-scene-panel__toggle input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-color, #9c7dff);
+}
+
+.cs-scene-panel__section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 14px;
+}
+
+.cs-scene-panel__section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.cs-scene-panel__section-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cs-scene-panel__text-button {
+    border: none;
+    background: transparent;
+    color: var(--primary-color, #9c7dff);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 4px 0;
+}
+
+.cs-scene-panel__text-button:hover,
+.cs-scene-panel__text-button:focus-visible {
+    text-decoration: underline;
+}
+
+.cs-scene-panel__scrollable,
+.cs-scene-panel__card-list,
+.cs-scene-panel__log {
+    overflow-y: auto;
+    max-height: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.cs-scene-panel__card-list {
+    max-height: 260px;
+}
+
+.cs-scene-panel__log {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.cs-scene-panel__footer {
+    margin-top: auto;
+    padding-top: 8px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.cs-scene-panel__footer-button {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 10px 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.cs-scene-panel__footer-button:hover,
+.cs-scene-panel__footer-button:focus-visible {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+.cs-scene-panel__collapse-toggle {
+    position: absolute;
+    top: 18px;
+    left: -44px;
+    width: 40px;
+    height: 80px;
+    border-radius: 12px 0 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.5);
+    color: var(--primary-color, #9c7dff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+    z-index: 2;
+}
+
+.cs-scene-panel__collapse-toggle:hover,
+.cs-scene-panel__collapse-toggle:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--SmartThemeBodyColor, #f3f3f3);
+}
+
+.cs-scene-panel--collapsed,
+.cs-scene-panel[data-cs-collapsed="true"] {
+    min-width: 3rem;
+    max-width: 3rem;
+    flex-basis: 3rem;
+}
+
+.cs-scene-panel--collapsed .cs-scene-panel__content,
+.cs-scene-panel[data-cs-collapsed="true"] .cs-scene-panel__content {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.cs-scene-panel--collapsed .cs-scene-panel__collapse-toggle i,
+.cs-scene-panel[data-cs-collapsed="true"] .cs-scene-panel__collapse-toggle i {
+    transform: rotate(180deg);
+}
+
+.cs-scene-panel .visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+body:has(#cs-scene-panel) #sheld {
+    flex: 1 1 auto;
+}
+
+@media (max-width: 1400px) {
+    .cs-scene-panel {
+        position: fixed;
+        inset: calc(var(--topBarBlockSize, 3.25rem) + 12px) 16px 16px auto;
+        width: min(380px, 88vw);
+        max-height: calc(100vh - calc(var(--topBarBlockSize, 3.25rem) + 28px));
+        margin-left: 0;
+        z-index: 1040;
+    }
+
+    .cs-scene-panel__collapse-toggle {
+        left: auto;
+        right: 16px;
+        top: auto;
+        bottom: 16px;
+        border-radius: 12px;
+    }
+}
+
+@media (max-width: 900px) {
+    .cs-scene-panel {
+        width: min(100%, 92vw);
+        inset: auto 4vw 4vw 4vw;
+        height: auto;
+        max-height: 70vh;
+    }
+
+    .cs-scene-panel__content {
+        padding: 16px;
+    }
+}
