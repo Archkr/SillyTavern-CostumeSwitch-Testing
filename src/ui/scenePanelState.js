@@ -6,6 +6,10 @@ let $sceneRosterList = null;
 let $sceneActiveCards = null;
 let $sceneLiveLog = null;
 let $sceneFooterButton = null;
+let $sceneRosterSection = null;
+let $sceneActiveSection = null;
+let $sceneLogSection = null;
+let $sceneStatusText = null;
 
 export function setScenePanelContainer($element) {
     $scenePanelContainer = $element;
@@ -47,12 +51,28 @@ export function getSceneRosterList() {
     return $sceneRosterList;
 }
 
+export function setSceneRosterSection($element) {
+    $sceneRosterSection = $element;
+}
+
+export function getSceneRosterSection() {
+    return $sceneRosterSection;
+}
+
 export function setSceneActiveCards($element) {
     $sceneActiveCards = $element;
 }
 
 export function getSceneActiveCards() {
     return $sceneActiveCards;
+}
+
+export function setSceneActiveSection($element) {
+    $sceneActiveSection = $element;
+}
+
+export function getSceneActiveSection() {
+    return $sceneActiveSection;
 }
 
 export function setSceneLiveLog($element) {
@@ -63,10 +83,26 @@ export function getSceneLiveLog() {
     return $sceneLiveLog;
 }
 
+export function setSceneLiveLogSection($element) {
+    $sceneLogSection = $element;
+}
+
+export function getSceneLiveLogSection() {
+    return $sceneLogSection;
+}
+
 export function setSceneFooterButton($element) {
     $sceneFooterButton = $element;
 }
 
 export function getSceneFooterButton() {
     return $sceneFooterButton;
+}
+
+export function setSceneStatusText($element) {
+    $sceneStatusText = $element;
+}
+
+export function getSceneStatusText() {
+    return $sceneStatusText;
 }

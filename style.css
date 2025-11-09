@@ -1522,6 +1522,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
 }
 
 .cs-scene-panel__icon-button {
@@ -1538,10 +1539,22 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     transition: background 0.2s ease, border-color 0.2s ease;
 }
 
+.cs-scene-panel__icon-button[aria-pressed="true"] {
+    background: rgba(156, 125, 255, 0.25);
+    border-color: rgba(156, 125, 255, 0.55);
+    color: #ffffff;
+}
+
 .cs-scene-panel__icon-button:hover,
 .cs-scene-panel__icon-button:focus-visible {
     background: rgba(255, 255, 255, 0.16);
     border-color: rgba(255, 255, 255, 0.35);
+}
+
+.cs-scene-panel__helper {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.75);
+    margin-top: 2px;
 }
 
 .cs-scene-panel__toggle {
@@ -1566,6 +1579,29 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     padding: 14px;
+}
+
+[data-scene-panel-hidden="true"] {
+    display: none !important;
+}
+
+.cs-scene-panel[data-cs-disabled="true"] {
+    opacity: 0.82;
+}
+
+.cs-toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.cs-toggle-row__label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.6);
 }
 
 .cs-scene-panel__section-header {

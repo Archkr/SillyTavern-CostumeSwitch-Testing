@@ -280,16 +280,45 @@
                 </div>
                 <div class="cs-field-group">
                   <label class="cs-inline-label">Scene Panel</label>
+                  <label class="cs-toggle cs-toggle--inline" title="Show or hide the scene roster panel beside chat.">
+                    <input id="cs-scene-panel-enable" type="checkbox" data-change-notice="Scene panel visibility will update immediately." />
+                    <span class="cs-toggle-indicator"></span>
+                    <span>Show scene panel</span>
+                  </label>
                   <label class="cs-toggle cs-toggle--inline" title="Automatically expand the scene panel when a live stream begins.">
                     <input id="cs-scene-auto-open" type="checkbox" data-change-notice="Scene panel will auto-open when streaming starts." />
                     <span class="cs-toggle-indicator"></span>
                     <span>Auto-open panel on stream</span>
+                  </label>
+                  <label class="cs-toggle cs-toggle--inline" title="Automatically expand the panel when a new detection result is saved.">
+                    <input id="cs-scene-auto-open-results" type="checkbox" data-change-notice="Scene panel will pop open when new results are captured." />
+                    <span class="cs-toggle-indicator"></span>
+                    <span>Auto-open on new results</span>
                   </label>
                   <label class="cs-toggle cs-toggle--inline" title="Display roster avatars alongside names in the scene panel.">
                     <input id="cs-scene-show-avatars" type="checkbox" data-change-notice="Roster avatars will be shown in the scene panel." />
                     <span class="cs-toggle-indicator"></span>
                     <span>Show roster avatars</span>
                   </label>
+                  <div class="cs-toggle-row">
+                    <span class="cs-toggle-row__label">Sections</span>
+                    <label class="cs-toggle cs-toggle--inline" title="Show or hide the roster section inside the scene panel.">
+                      <input id="cs-scene-section-roster" type="checkbox" data-change-notice="Scene roster section will be toggled in the panel." />
+                      <span class="cs-toggle-indicator"></span>
+                      <span>Roster</span>
+                    </label>
+                    <label class="cs-toggle cs-toggle--inline" title="Show or hide the active characters cards inside the scene panel.">
+                      <input id="cs-scene-section-active" type="checkbox" data-change-notice="Active characters section will be toggled in the panel." />
+                      <span class="cs-toggle-indicator"></span>
+                      <span>Active</span>
+                    </label>
+                    <label class="cs-toggle cs-toggle--inline" title="Show or hide the live result log inside the scene panel.">
+                      <input id="cs-scene-section-log" type="checkbox" data-change-notice="Live log section will be toggled in the panel." />
+                      <span class="cs-toggle-indicator"></span>
+                      <span>Live log</span>
+                    </label>
+                  </div>
+                  <small class="cs-helper-text">Experimental: The scene panel mirrors the live tester timeline for actual chat replies and may evolve as we refine it.</small>
                 </div>
                 <div class="cs-field-group">
                   <label for="cs-attribution-verbs">Attribution Verbs</label>
