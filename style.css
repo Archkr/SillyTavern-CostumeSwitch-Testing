@@ -1618,6 +1618,213 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     padding: 12px;
 }
 
+.cs-scene-panel__placeholder {
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+.cs-scene-panel__placeholder[data-tone="informative"] {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.cs-scene-roster__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.cs-scene-roster__row[data-active="true"] {
+    border-color: rgba(156, 125, 255, 0.35);
+    box-shadow: inset 0 0 0 1px rgba(156, 125, 255, 0.2);
+}
+
+.cs-scene-roster__row[data-latest="true"] {
+    background: rgba(156, 125, 255, 0.12);
+}
+
+.cs-scene-roster__avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cs-scene-roster__avatar--hidden {
+    display: none;
+}
+
+.cs-scene-roster__avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cs-scene-roster__avatar-fallback {
+    font-weight: 600;
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.cs-scene-roster__body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.cs-scene-roster__name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.cs-scene-roster__name {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.cs-scene-roster__status {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.cs-scene-roster__status--active {
+    color: #7ee787;
+}
+
+.cs-scene-roster__badge {
+    background: rgba(156, 125, 255, 0.25);
+    color: rgba(255, 255, 255, 0.9);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.cs-scene-roster__meta,
+.cs-scene-roster__analysis {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.cs-scene-roster__analysis {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    white-space: normal;
+}
+
+.cs-scene-active__card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.cs-scene-active__card[data-roster="true"] {
+    border-color: rgba(126, 231, 135, 0.35);
+}
+
+.cs-scene-active__name {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.cs-scene-active__details,
+.cs-scene-active__event {
+    margin: 0;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.cs-scene-log__metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.cs-scene-log__metric {
+    display: inline-flex;
+    gap: 4px;
+    font-size: 0.72rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 8px;
+    border-radius: 999px;
+}
+
+.cs-scene-log__metric-label {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.cs-scene-log__metric-value {
+    font-weight: 600;
+}
+
+.cs-scene-log__stats {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 12px 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 6px;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.cs-scene-log__events {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cs-scene-log__event {
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cs-scene-log__event[data-event-type="switch"] {
+    border-color: rgba(126, 231, 135, 0.35);
+}
+
+.cs-scene-log__event[data-event-type="skipped"] {
+    border-color: rgba(255, 196, 86, 0.35);
+}
+
+.cs-scene-log__event[data-event-type="veto"] {
+    border-color: rgba(255, 102, 102, 0.4);
+}
+
+.cs-scene-log__event-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.cs-scene-log__event-meta {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
 .cs-scene-panel__footer {
     margin-top: auto;
     padding-top: 8px;
