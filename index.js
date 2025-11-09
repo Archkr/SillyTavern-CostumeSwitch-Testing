@@ -62,6 +62,10 @@ import {
     setSceneActiveCards,
     setSceneLiveLog,
     setSceneFooterButton,
+    setSceneRosterSection,
+    setSceneActiveSection,
+    setSceneLiveLogSection,
+    setSceneStatusText,
     getScenePanelContainer,
     getSceneCollapseToggle,
     getSceneRosterList,
@@ -385,6 +389,26 @@ function getVerbInflections(category = "attribution", edition = "default") {
     return buildVerbSlices({ category, edition });
 }
 
+const DEFAULT_SCENE_PANEL_SECTIONS = Object.freeze({
+    roster: true,
+    activeCharacters: true,
+    liveLog: true,
+});
+
+const DEFAULT_SCENE_PANEL_SETTINGS = Object.freeze({
+    enabled: true,
+    autoOpenOnStream: true,
+    autoOpenOnResults: true,
+    showRosterAvatars: true,
+    sections: DEFAULT_SCENE_PANEL_SECTIONS,
+});
+
+const SCENE_PANEL_SECTION_LABELS = Object.freeze({
+    roster: "Scene roster",
+    activeCharacters: "Active characters",
+    liveLog: "Live log",
+});
+
 const DEFAULTS = {
     enabled: true,
     profiles: {
@@ -395,20 +419,53 @@ const DEFAULTS = {
     activeScorePreset: 'Balanced Baseline',
     focusLock: { character: null },
     scenePanel: {
-        autoOpenOnStream: true,
-        showRosterAvatars: true,
+        ...DEFAULT_SCENE_PANEL_SETTINGS,
+        sections: { ...DEFAULT_SCENE_PANEL_SECTIONS },
     },
 };
 
 function ensureScenePanelSettings(settings) {
+    const defaults = DEFAULTS.scenePanel;
     if (!settings || typeof settings !== "object") {
-        return { ...DEFAULTS.scenePanel };
+        return {
+            ...defaults,
+            sections: { ...DEFAULT_SCENE_PANEL_SECTIONS },
+        };
     }
-    if (typeof settings.scenePanel !== "object" || settings.scenePanel === null) {
-        settings.scenePanel = { ...DEFAULTS.scenePanel };
+    const incoming = settings.scenePanel;
+    let normalized;
+    if (typeof incoming !== "object" || incoming === null) {
+        normalized = {
+            ...defaults,
+            sections: { ...DEFAULT_SCENE_PANEL_SECTIONS },
+        };
     } else {
-        settings.scenePanel = Object.assign({}, DEFAULTS.scenePanel, settings.scenePanel);
+        const sections = typeof incoming.sections === "object" && incoming.sections !== null
+            ? incoming.sections
+            : {};
+        normalized = {
+            ...defaults,
+            ...incoming,
+            sections: {
+                ...DEFAULT_SCENE_PANEL_SECTIONS,
+                ...sections,
+            },
+        };
     }
+
+    normalized.enabled = normalized.enabled !== false;
+    normalized.autoOpenOnStream = normalized.autoOpenOnStream !== false;
+    normalized.autoOpenOnResults = normalized.autoOpenOnResults !== false;
+    normalized.showRosterAvatars = normalized.showRosterAvatars !== false;
+    normalized.sections.roster = normalized.sections.roster !== false;
+    normalized.sections.activeCharacters = normalized.sections.activeCharacters !== false;
+    normalized.sections.liveLog = normalized.sections.liveLog !== false;
+
+    settings.scenePanel = {
+        ...normalized,
+        sections: { ...normalized.sections },
+    };
+
     return settings.scenePanel;
 }
 
@@ -1164,6 +1221,27 @@ function setScenePanelCollapsed(collapsed) {
 
 function toggleScenePanelCollapsed() {
     setScenePanelCollapsed(!isScenePanelCollapsed());
+}
+
+function maybeAutoExpandScenePanel(reason = "result") {
+    if (typeof document === "undefined") {
+        return;
+    }
+    const settings = getSettings?.();
+    const panelSettings = ensureScenePanelSettings(settings || {});
+    if (!panelSettings.enabled) {
+        return;
+    }
+    if (reason === "stream" && !panelSettings.autoOpenOnStream) {
+        return;
+    }
+    if (reason === "result" && !panelSettings.autoOpenOnResults) {
+        return;
+    }
+    if (!isScenePanelCollapsed()) {
+        return;
+    }
+    setScenePanelCollapsed(false);
 }
 
 function buildDisplayNameMap(scene, membership, testers) {
@@ -2239,6 +2317,73 @@ const uiMapping = {
     distancePenaltyWeight: { selector: '#cs-distance-penalty', type: 'number' },
 };
 
+function updateScenePanelSettingControls(panelSettings = ensureScenePanelSettings(getSettings?.() || {})) {
+    const settings = panelSettings || ensureScenePanelSettings(getSettings?.() || {});
+    const sections = settings?.sections || {};
+    $("#cs-scene-panel-enable").prop('checked', !!(settings && settings.enabled));
+    $("#cs-scene-auto-open").prop('checked', !!(settings && settings.autoOpenOnStream));
+    $("#cs-scene-auto-open-results").prop('checked', !!(settings && settings.autoOpenOnResults));
+    $("#cs-scene-show-avatars").prop('checked', !!(settings && settings.showRosterAvatars));
+    $("#cs-scene-section-roster").prop('checked', sections.roster !== false);
+    $("#cs-scene-section-active").prop('checked', sections.activeCharacters !== false);
+    $("#cs-scene-section-log").prop('checked', sections.liveLog !== false);
+}
+
+function applyScenePanelEnabledSetting(enabled, { message } = {}) {
+    const settings = getSettings();
+    const panelSettings = ensureScenePanelSettings(settings);
+    panelSettings.enabled = Boolean(enabled);
+    updateScenePanelSettingControls(panelSettings);
+    requestScenePanelRender("panel-enabled", { immediate: true });
+    const fallbackMessage = panelSettings.enabled
+        ? "Scene panel enabled."
+        : "Scene panel hidden.";
+    persistSettings(message || fallbackMessage, "info");
+}
+
+function applyScenePanelSectionSetting(sectionKey, visible, { message } = {}) {
+    if (!sectionKey) {
+        return;
+    }
+    const settings = getSettings();
+    const panelSettings = ensureScenePanelSettings(settings);
+    if (typeof panelSettings.sections !== "object" || panelSettings.sections === null) {
+        panelSettings.sections = { ...DEFAULT_SCENE_PANEL_SECTIONS };
+    }
+    panelSettings.sections[sectionKey] = Boolean(visible);
+    updateScenePanelSettingControls(panelSettings);
+    requestScenePanelRender(`section-${sectionKey}`, { immediate: true });
+    const label = SCENE_PANEL_SECTION_LABELS[sectionKey] || sectionKey;
+    const fallbackMessage = panelSettings.sections[sectionKey]
+        ? `${label} section enabled.`
+        : `${label} section hidden.`;
+    persistSettings(message || fallbackMessage, "info");
+}
+
+function applyScenePanelAutoOpenOnStreamSetting(enabled, { message } = {}) {
+    const settings = getSettings();
+    const panelSettings = ensureScenePanelSettings(settings);
+    panelSettings.autoOpenOnStream = Boolean(enabled);
+    updateScenePanelSettingControls(panelSettings);
+    requestScenePanelRender("auto-open-stream", { immediate: true });
+    const fallbackMessage = panelSettings.autoOpenOnStream
+        ? "Scene panel auto-open enabled."
+        : "Scene panel auto-open disabled.";
+    persistSettings(message || fallbackMessage, "info");
+}
+
+function applyScenePanelAutoOpenResultsSetting(enabled, { message } = {}) {
+    const settings = getSettings();
+    const panelSettings = ensureScenePanelSettings(settings);
+    panelSettings.autoOpenOnResults = Boolean(enabled);
+    updateScenePanelSettingControls(panelSettings);
+    requestScenePanelRender("auto-open-results", { immediate: true });
+    const fallbackMessage = panelSettings.autoOpenOnResults
+        ? "Scene panel will auto-open on new results."
+        : "Scene panel will stay collapsed after new results.";
+    persistSettings(message || fallbackMessage, "info");
+}
+
 function normalizeProfileNameInput(name) {
     return String(name ?? '').replace(/\s+/g, ' ').trim();
 }
@@ -2650,8 +2795,7 @@ function loadProfile(profileName) {
     $("#cs-profile-name").val('').attr('placeholder', `Enter a name... (current: ${profileName})`);
     $("#cs-enable").prop('checked', !!settings.enabled);
     const scenePanelSettings = ensureScenePanelSettings(settings);
-    $("#cs-scene-auto-open").prop('checked', !!scenePanelSettings.autoOpenOnStream);
-    $("#cs-scene-show-avatars").prop('checked', !!scenePanelSettings.showRosterAvatars);
+    updateScenePanelSettingControls(scenePanelSettings);
     for (const key in uiMapping) {
         const { selector, type } = uiMapping[key];
         const value = profile[key] ?? PROFILE_DEFAULTS[key];
@@ -5251,7 +5395,8 @@ function testRegexPattern() {
 
 function wireUI() {
     const settings = getSettings();
-    ensureScenePanelSettings(settings);
+    const panelSettings = ensureScenePanelSettings(settings);
+    updateScenePanelSettingControls(panelSettings);
     initTabNavigation();
     Object.entries(uiMapping).forEach(([key, mapping]) => {
         const selector = mapping?.selector;
@@ -5292,14 +5437,63 @@ function wireUI() {
         settings.enabled = enabled;
         persistSettings('Extension ' + (enabled ? 'Enabled' : 'Disabled'), 'info');
     });
+    $(document).on('change', '#cs-scene-panel-enable', function() {
+        const enabled = $(this).prop('checked');
+        const notice = this?.dataset?.changeNotice
+            || `Scene panel will ${enabled ? 'appear next to chat.' : 'hide until re-enabled.'}`;
+        announceAutoSaveIntent(this, null, notice, 'cs-scene-panel-enable');
+        applyScenePanelEnabledSetting(enabled, {
+            message: enabled ? 'Scene panel enabled.' : 'Scene panel hidden.',
+        });
+    });
     $(document).on('change', '#cs-scene-auto-open', function() {
         const autoOpen = $(this).prop('checked');
         const notice = this?.dataset?.changeNotice
             || `Scene panel will ${autoOpen ? 'auto-open' : 'remain collapsed'} when streaming starts.`;
         announceAutoSaveIntent(this, null, notice, 'cs-scene-auto-open');
-        const scenePanelSettings = ensureScenePanelSettings(settings);
-        scenePanelSettings.autoOpenOnStream = autoOpen;
-        persistSettings(autoOpen ? 'Scene panel auto-open enabled.' : 'Scene panel auto-open disabled.', 'info');
+        applyScenePanelAutoOpenOnStreamSetting(autoOpen, {
+            message: autoOpen
+                ? 'Scene panel auto-open enabled.'
+                : 'Scene panel auto-open disabled.',
+        });
+    });
+    $(document).on('change', '#cs-scene-auto-open-results', function() {
+        const autoOpen = $(this).prop('checked');
+        const notice = this?.dataset?.changeNotice
+            || `Scene panel will ${autoOpen ? 'pop open' : 'stay collapsed'} when new results are captured.`;
+        announceAutoSaveIntent(this, null, notice, 'cs-scene-auto-open-results');
+        applyScenePanelAutoOpenResultsSetting(autoOpen, {
+            message: autoOpen
+                ? 'Scene panel will auto-open on new results.'
+                : 'Scene panel will stay collapsed after new results.',
+        });
+    });
+    $(document).on('change', '#cs-scene-section-roster', function() {
+        const visible = $(this).prop('checked');
+        const notice = this?.dataset?.changeNotice
+            || `Scene roster section will ${visible ? 'be shown' : 'be hidden'} in the panel.`;
+        announceAutoSaveIntent(this, null, notice, 'cs-scene-section-roster');
+        applyScenePanelSectionSetting('roster', visible, {
+            message: visible ? 'Scene roster section enabled.' : 'Scene roster section hidden.',
+        });
+    });
+    $(document).on('change', '#cs-scene-section-active', function() {
+        const visible = $(this).prop('checked');
+        const notice = this?.dataset?.changeNotice
+            || `Active characters section will ${visible ? 'be shown' : 'be hidden'} in the panel.`;
+        announceAutoSaveIntent(this, null, notice, 'cs-scene-section-active');
+        applyScenePanelSectionSetting('activeCharacters', visible, {
+            message: visible ? 'Active characters section enabled.' : 'Active characters section hidden.',
+        });
+    });
+    $(document).on('change', '#cs-scene-section-log', function() {
+        const visible = $(this).prop('checked');
+        const notice = this?.dataset?.changeNotice
+            || `Live log section will ${visible ? 'be shown' : 'be hidden'} in the panel.`;
+        announceAutoSaveIntent(this, null, notice, 'cs-scene-section-log');
+        applyScenePanelSectionSetting('liveLog', visible, {
+            message: visible ? 'Live log section enabled.' : 'Live log section hidden.',
+        });
     });
     $(document).on('change', '#cs-scene-show-avatars', function() {
         const showAvatars = $(this).prop('checked');
@@ -5308,8 +5502,54 @@ function wireUI() {
         announceAutoSaveIntent(this, null, notice, 'cs-scene-show-avatars');
         const scenePanelSettings = ensureScenePanelSettings(settings);
         scenePanelSettings.showRosterAvatars = showAvatars;
+        updateScenePanelSettingControls(scenePanelSettings);
         requestScenePanelRender("avatar-toggle", { immediate: true });
         persistSettings(showAvatars ? 'Roster avatars enabled.' : 'Roster avatars hidden.', 'info');
+    });
+    $(document).on('click', '#cs-scene-panel-toggle', function(event) {
+        event.preventDefault();
+        const scenePanelSettings = ensureScenePanelSettings(settings);
+        const next = !scenePanelSettings.enabled;
+        applyScenePanelEnabledSetting(next, {
+            message: next ? 'Scene panel enabled.' : 'Scene panel hidden.',
+        });
+    });
+    $(document).on('click', '#cs-scene-section-toggle-roster', function(event) {
+        event.preventDefault();
+        const scenePanelSettings = ensureScenePanelSettings(settings);
+        const current = scenePanelSettings.sections?.roster !== false;
+        const next = !current;
+        applyScenePanelSectionSetting('roster', next, {
+            message: next ? 'Scene roster section enabled.' : 'Scene roster section hidden.',
+        });
+    });
+    $(document).on('click', '#cs-scene-section-toggle-active', function(event) {
+        event.preventDefault();
+        const scenePanelSettings = ensureScenePanelSettings(settings);
+        const current = scenePanelSettings.sections?.activeCharacters !== false;
+        const next = !current;
+        applyScenePanelSectionSetting('activeCharacters', next, {
+            message: next ? 'Active characters section enabled.' : 'Active characters section hidden.',
+        });
+    });
+    $(document).on('click', '#cs-scene-section-toggle-log', function(event) {
+        event.preventDefault();
+        const scenePanelSettings = ensureScenePanelSettings(settings);
+        const current = scenePanelSettings.sections?.liveLog !== false;
+        const next = !current;
+        applyScenePanelSectionSetting('liveLog', next, {
+            message: next ? 'Live log section enabled.' : 'Live log section hidden.',
+        });
+    });
+    $(document).on('click', '#cs-scene-panel-toggle-auto-open', function(event) {
+        event.preventDefault();
+        const scenePanelSettings = ensureScenePanelSettings(settings);
+        const next = !scenePanelSettings.autoOpenOnResults;
+        applyScenePanelAutoOpenResultsSetting(next, {
+            message: next
+                ? 'Scene panel will auto-open on new results.'
+                : 'Scene panel will stay collapsed after new results.',
+        });
     });
     $(document).on('click', '#cs-save', () => {
         const button = document.getElementById('cs-save');
@@ -6013,6 +6253,7 @@ function calculateFinalMessageStats(reference) {
 
     debugLog("Final stats calculated for", bufKey, state.messageStats.get(bufKey));
     requestScenePanelRender("final-stats", { immediate: true });
+    maybeAutoExpandScenePanel("result");
 }
 
 function collectDecisionEventsForKey(bufKey) {
@@ -6562,6 +6803,7 @@ const handleGenerationStart = (...args) => {
         state.perMessageBuffers.set(bufKey, '');
     }
     requestScenePanelRender("generation-start", { immediate: true });
+    maybeAutoExpandScenePanel("stream");
 };
 
 const handleStream = (...args) => {
@@ -6952,9 +7194,13 @@ async function mountScenePanelTemplate() {
             setSceneCollapseToggle($existingPanel.find('[data-scene-panel="collapse-toggle"]'));
             setSceneToolbar($existingPanel.find('[data-scene-panel="toolbar"]'));
             setSceneRosterList($existingPanel.find('[data-scene-panel="roster-list"]'));
+            setSceneRosterSection($existingPanel.find('[data-scene-panel="roster"]'));
             setSceneActiveCards($existingPanel.find('[data-scene-panel="active-cards"]'));
+            setSceneActiveSection($existingPanel.find('[data-scene-panel="active-characters"]'));
             setSceneLiveLog($existingPanel.find('[data-scene-panel="log-viewport"]'));
+            setSceneLiveLogSection($existingPanel.find('[data-scene-panel="live-log"]'));
             setSceneFooterButton($existingPanel.find('[data-scene-panel="open-settings"]'));
+            setSceneStatusText($existingPanel.find('[data-scene-panel="status-text"]'));
             initializeScenePanelUI();
             requestScenePanelRender("mount", { immediate: true });
             return;
@@ -7021,9 +7267,13 @@ async function mountScenePanelTemplate() {
         setSceneCollapseToggle($panel.find('[data-scene-panel="collapse-toggle"]'));
         setSceneToolbar($panel.find('[data-scene-panel="toolbar"]'));
         setSceneRosterList($panel.find('[data-scene-panel="roster-list"]'));
+        setSceneRosterSection($panel.find('[data-scene-panel="roster"]'));
         setSceneActiveCards($panel.find('[data-scene-panel="active-cards"]'));
+        setSceneActiveSection($panel.find('[data-scene-panel="active-characters"]'));
         setSceneLiveLog($panel.find('[data-scene-panel="log-viewport"]'));
+        setSceneLiveLogSection($panel.find('[data-scene-panel="live-log"]'));
         setSceneFooterButton($panel.find('[data-scene-panel="open-settings"]'));
+        setSceneStatusText($panel.find('[data-scene-panel="status-text"]'));
         initializeScenePanelUI();
         requestScenePanelRender("mount", { immediate: true });
     } catch (error) {
