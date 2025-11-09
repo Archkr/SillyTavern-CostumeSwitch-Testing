@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.6.0 (Unreleased)
+
+### Fixed
+- **Scene panel mounting.** Resolving pre-fetched container references no longer breaks roster rendering, fixing the empty panel and console error triggered when the UI initializes.
+
 ## v3.5.0
 
 ### Added
