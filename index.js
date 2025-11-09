@@ -7077,10 +7077,25 @@ const handleHistoryChange = (...args) => {
         const target = resolveHistoryTargetMessage(args);
         if (target) {
             restoreSceneOutcomeForMessage(target);
-        } else {
+            return;
+        }
+
+        let ctx = null;
+        if (typeof getContext === "function") {
+            ctx = getContext();
+        } else if (typeof window !== "undefined" && window.SillyTavern && typeof window.SillyTavern.getContext === "function") {
+            ctx = window.SillyTavern.getContext();
+        }
+        const chatLog = ctx?.chat;
+        const hasAssistantMessages = Array.isArray(chatLog)
+            && chatLog.some((message) => message && !message.is_user);
+
+        if (!hasAssistantMessages) {
             resetSceneState();
             replaceLiveTesterOutputs([], { roster: [] });
             requestScenePanelRender("history-reset", { immediate: true });
+        } else {
+            debugLog("History change did not resolve to an assistant message; preserving scene panel state.", args);
         }
     } catch (error) {
         console.warn(`${logPrefix} Failed to reconcile history change:`, error);

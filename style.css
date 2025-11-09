@@ -1459,17 +1459,24 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
   transform: none;
 }
 
-/* Scene roster workspace panel */
-.cs-scene-panel {
+:root {
     --cs-scene-panel-width: min(24rem, 30vw);
     --cs-scene-panel-gap: 12px;
-    position: relative;
+    --cs-scene-panel-collapsed-width: 3rem;
+}
+
+/* Scene roster workspace panel */
+.cs-scene-panel {
+    position: fixed;
+    top: calc(var(--topBarBlockSize, 3.25rem) + var(--cs-scene-panel-gap));
+    right: var(--cs-scene-panel-gap);
+    bottom: var(--cs-scene-panel-gap);
+    width: var(--cs-scene-panel-width);
+    max-width: min(var(--cs-scene-panel-width), calc(100vw - (var(--cs-scene-panel-gap) * 2)));
+    height: calc(100vh - (var(--topBarBlockSize, 3.25rem) + (var(--cs-scene-panel-gap) * 2)));
     display: flex;
     flex-direction: column;
-    flex: 0 0 var(--cs-scene-panel-width);
-    max-width: 100%;
-    height: calc(100vh - var(--topBarBlockSize, 3.25rem));
-    margin-left: var(--cs-scene-panel-gap);
+    max-height: calc(100vh - (var(--topBarBlockSize, 3.25rem) + (var(--cs-scene-panel-gap) * 2)));
     background: var(--SmartThemeBlurTintColor, rgba(18, 20, 38, 0.86));
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 16px;
@@ -1477,7 +1484,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     color: var(--SmartThemeBodyColor, #f3f3f3);
     overflow: hidden;
     backdrop-filter: blur(16px);
-    float: right;
+    z-index: 1040;
 }
 
 .cs-scene-panel__content {
@@ -1912,9 +1919,9 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-panel--collapsed,
 .cs-scene-panel[data-cs-collapsed="true"] {
-    min-width: 3rem;
-    max-width: 3rem;
-    flex-basis: 3rem;
+    width: var(--cs-scene-panel-collapsed-width);
+    min-width: var(--cs-scene-panel-collapsed-width);
+    max-width: var(--cs-scene-panel-collapsed-width);
 }
 
 .cs-scene-panel--collapsed .cs-scene-panel__content,
@@ -1941,18 +1948,24 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     border: 0 !important;
 }
 
-body:has(#cs-scene-panel) #sheld {
-    flex: 1 1 auto;
+@media (min-width: 1401px) {
+    body:has(#cs-scene-panel) #sheld {
+        margin-right: calc(var(--cs-scene-panel-width) + var(--cs-scene-panel-gap));
+    }
+
+    body:has(#cs-scene-panel[data-cs-collapsed="true"]) #sheld {
+        margin-right: calc(var(--cs-scene-panel-collapsed-width) + var(--cs-scene-panel-gap));
+    }
 }
 
 @media (max-width: 1400px) {
     .cs-scene-panel {
-        position: fixed;
-        inset: calc(var(--topBarBlockSize, 3.25rem) + 12px) 16px 16px auto;
+        left: auto;
+        right: 16px;
+        top: calc(var(--topBarBlockSize, 3.25rem) + 12px);
+        bottom: 16px;
         width: min(380px, 88vw);
         max-height: calc(100vh - calc(var(--topBarBlockSize, 3.25rem) + 28px));
-        margin-left: 0;
-        z-index: 1040;
     }
 
     .cs-scene-panel__collapse-toggle {
@@ -1961,6 +1974,11 @@ body:has(#cs-scene-panel) #sheld {
         top: auto;
         bottom: 16px;
         border-radius: 12px;
+    }
+
+    body:has(#cs-scene-panel) #sheld,
+    body:has(#cs-scene-panel[data-cs-collapsed="true"]) #sheld {
+        margin-right: 0;
     }
 }
 
