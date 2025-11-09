@@ -7,7 +7,7 @@ await register(new URL("./module-mock-loader.js", import.meta.url));
 const extensionSettingsStore = {};
 globalThis.__extensionSettingsStore = extensionSettingsStore;
 
-const { getWinner, extensionName, adjustWindowForTrim, handleStream, state } = await import("../index.js");
+const { getWinner, extensionName, adjustWindowForTrim, handleStream, remapMessageKey, state } = await import("../index.js");
 
 extensionSettingsStore[extensionName] = {
     enabled: true,
@@ -198,4 +198,23 @@ test("handleStream records veto phrase and recent events", () => {
     const vetoEvents = state.recentDecisionEvents.filter(event => event.type === "veto");
     assert.equal(vetoEvents.length > 0, true, "expected veto event to be recorded");
     assert.equal(vetoEvents[vetoEvents.length - 1].match, "OOC:");
+});
+
+test("remapMessageKey retargets recent decision events for rendered messages", () => {
+    const settings = extensionSettingsStore[extensionName];
+    settings.session = settings.session || {};
+
+    const sharedEvent = { type: "switch", messageKey: "live", name: "Kotori" };
+    state.recentDecisionEvents = [
+        sharedEvent,
+        { type: "switch", messageKey: "m7", name: "Origami" },
+    ];
+    state.lastTesterReport = { events: [sharedEvent] };
+    settings.session.recentDecisionEvents = [sharedEvent];
+
+    remapMessageKey("live", "m101");
+
+    assert.equal(state.recentDecisionEvents[0].messageKey, "m101");
+    assert.equal(state.lastTesterReport.events[0].messageKey, "m101");
+    assert.equal(settings.session.recentDecisionEvents[0].messageKey, "m101");
 });

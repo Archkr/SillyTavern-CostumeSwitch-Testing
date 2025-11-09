@@ -22,7 +22,7 @@ export async function load(url, context, defaultLoad) {
     if (url === "node:mock/script") {
         return {
             format: "module",
-            source: `export const saveSettingsDebounced = () => {};\nexport const event_types = {};\nexport const eventSource = { on: () => {}, off: () => {} };`,
+            source: `export const saveSettingsDebounced = () => {};\nexport const saveChatDebounced = () => {};\nexport const event_types = {};\nexport const eventSource = { on: () => {}, off: () => {} };`,
             shortCircuit: true,
         };
     }

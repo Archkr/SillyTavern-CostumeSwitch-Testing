@@ -6731,6 +6731,9 @@ function createMessageState(profile, bufKey) {
 function remapMessageKey(oldKey, newKey) {
     if (!oldKey || !newKey || oldKey === newKey) return;
 
+    const normalizedOld = normalizeMessageKey(oldKey);
+    const normalizedNew = normalizeMessageKey(newKey);
+
     const moveEntry = (map) => {
         if (!(map instanceof Map) || !map.has(oldKey)) return;
         const value = map.get(oldKey);
@@ -6756,6 +6759,29 @@ function remapMessageKey(oldKey, newKey) {
     }
 
     replaceTrackedMessageKey(oldKey, newKey);
+
+    const remapEvents = (events) => {
+        if (!Array.isArray(events) || !normalizedOld || !normalizedNew) {
+            return;
+        }
+        events.forEach((event) => {
+            if (!event || typeof event !== "object") {
+                return;
+            }
+            if (normalizeMessageKey(event.messageKey) === normalizedOld) {
+                event.messageKey = normalizedNew;
+            }
+        });
+    };
+
+    remapEvents(state.recentDecisionEvents);
+    if (Array.isArray(state.lastTesterReport?.events)) {
+        remapEvents(state.lastTesterReport.events);
+    }
+    const session = ensureSessionData();
+    if (session && Array.isArray(session.recentDecisionEvents)) {
+        remapEvents(session.recentDecisionEvents);
+    }
 
     debugLog(`Remapped message data from ${oldKey} to ${newKey}.`);
 }
@@ -7198,6 +7224,7 @@ export {
     simulateTesterStream,
     buildVariantFolderPath,
     handleStream,
+    remapMessageKey,
 };
 
 async function mountScenePanelTemplate() {
