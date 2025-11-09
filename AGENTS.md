@@ -11,3 +11,6 @@
 
 # CostumeSwitch-v3.4.0
 - `CostumeSwitch-v3.4.0/` is what is currently released to the public. Do not edit anything in this directory. When asked to make a changelog, this is where you'll compare what we currently have to the older version, to make the changelog.
+
+# rpg-companion-sillytavern
+- `rpg-companion-sillytavern/` is the extension that we are using to learn how to make a side panel. If there are any errors with the side panel, then check this directory to see how they made their own side panel
