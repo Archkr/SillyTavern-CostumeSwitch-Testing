@@ -6155,7 +6155,19 @@ async function mountScenePanelTemplate() {
             return;
         }
 
-        const templateHtml = await renderExtensionTemplateAsync(extensionName, "ui/templates/scenePanel");
+        let templateHtml;
+        try {
+            templateHtml = await renderExtensionTemplateAsync(extensionName, "ui/templates/scenePanel");
+        } catch (primaryError) {
+            console.warn(`${logPrefix} Scene panel template missing at ui/templates/scenePanel.html, attempting fallback.`, primaryError);
+            try {
+                templateHtml = await renderExtensionTemplateAsync(extensionName, "src/ui/templates/scenePanel");
+            } catch (fallbackError) {
+                console.error(`${logPrefix} Failed to load scene panel template from both primary and fallback locations.`, fallbackError);
+                return;
+            }
+        }
+
         if (!templateHtml) {
             console.warn(`${logPrefix} Scene panel template did not return any markup.`);
             return;
