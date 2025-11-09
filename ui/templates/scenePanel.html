@@ -1,0 +1,68 @@
+<div id="cs-scene-panel" class="cs-scene-panel" data-scene-panel-root>
+    <button id="cs-scene-panel-collapse" class="cs-scene-panel__collapse-toggle" type="button" data-scene-panel="collapse-toggle" aria-expanded="true" aria-controls="cs-scene-panel-content" title="Collapse scene roster">
+        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        <span class="visually-hidden">Toggle scene panel</span>
+    </button>
+    <div id="cs-scene-panel-content" class="cs-scene-panel__content" data-scene-panel="content">
+        <header class="cs-scene-panel__header">
+            <div class="cs-scene-panel__title">
+                <i class="fa-solid fa-masks-theater" aria-hidden="true"></i>
+                <div class="cs-scene-panel__title-copy">
+                    <h3>Scene Roster</h3>
+                    <p>Track who is active in the current scene.</p>
+                </div>
+            </div>
+            <div class="cs-scene-panel__toolbar" data-scene-panel="toolbar">
+                <button id="cs-scene-refresh" class="cs-scene-panel__icon-button" type="button" data-scene-panel="refresh">
+                    <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+                    <span class="visually-hidden">Refresh roster</span>
+                </button>
+                <label class="cs-scene-panel__toggle" data-scene-panel="auto-pin">
+                    <input id="cs-scene-auto-pin" type="checkbox" />
+                    <span>Auto-pin active</span>
+                </label>
+            </div>
+        </header>
+        <section class="cs-scene-panel__section" data-scene-panel="roster">
+            <header class="cs-scene-panel__section-header">
+                <h4>Scene roster</h4>
+                <div class="cs-scene-panel__section-actions">
+                    <button id="cs-scene-manage-roster" class="cs-scene-panel__text-button" type="button" data-scene-panel="manage-roster">Manage</button>
+                    <button id="cs-scene-clear-roster" class="cs-scene-panel__text-button" type="button" data-scene-panel="clear-roster">Clear</button>
+                </div>
+            </header>
+            <div id="cs-scene-roster-list" class="cs-scene-panel__scrollable" data-scene-panel="roster-list">
+                <!-- Scene roster entries will be rendered here -->
+            </div>
+        </section>
+        <section class="cs-scene-panel__section" data-scene-panel="active-characters">
+            <header class="cs-scene-panel__section-header">
+                <h4>Active characters</h4>
+                <div class="cs-scene-panel__section-actions">
+                    <button id="cs-scene-focus-toggle" class="cs-scene-panel__text-button" type="button" data-scene-panel="focus-toggle">Toggle focus lock</button>
+                </div>
+            </header>
+            <div id="cs-scene-active-characters" class="cs-scene-panel__card-list" data-scene-panel="active-cards">
+                <!-- Active character cards will be rendered here -->
+            </div>
+        </section>
+        <section class="cs-scene-panel__section" data-scene-panel="live-log">
+            <header class="cs-scene-panel__section-header">
+                <h4>Live result log</h4>
+                <div class="cs-scene-panel__section-actions">
+                    <button id="cs-scene-log-expand" class="cs-scene-panel__text-button" type="button" data-scene-panel="log-expand">Expand</button>
+                    <button id="cs-scene-log-copy" class="cs-scene-panel__text-button" type="button" data-scene-panel="log-copy">Copy</button>
+                </div>
+            </header>
+            <div id="cs-scene-live-log" class="cs-scene-panel__log" data-scene-panel="log-viewport">
+                <!-- Live detection results will be appended here -->
+            </div>
+        </section>
+        <footer class="cs-scene-panel__footer" data-scene-panel="footer">
+            <button id="cs-scene-open-settings" class="cs-scene-panel__footer-button" type="button" data-scene-panel="open-settings">
+                <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+                <span>Scene roster settings</span>
+            </button>
+        </footer>
+    </div>
+</div>
