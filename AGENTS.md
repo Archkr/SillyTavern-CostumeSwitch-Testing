@@ -8,6 +8,7 @@
 - Keep experimental or in-progress features clearly gated behind their feature flags.
 - Update or add tests in the `test/` directory when you change profile persistence or detection logic.
 - Document noteworthy UI affordances or feature flags in the settings copy so users understand experimental scope.
+- Document noteworthy changes in CHANGELOG.md to contribute to the future releases changelog. If CHANGELOG.md is still set for the previous or currently released version, then reset it and prep it for future release.
 
 # CostumeSwitch-v3.4.0
 - `CostumeSwitch-v3.4.0/` is what is currently released to the public. Do not edit anything in this directory. When asked to make a changelog, this is where you'll compare what we currently have to the older version, to make the changelog.
