@@ -61,22 +61,18 @@ function renderStatsList(stats, displayNames) {
     return list;
 }
 
-function selectEventsForDisplay(events, { limit = 25, maxSkips = 8 } = {}) {
+function selectEventsForDisplay(events, { limit = 25 } = {}) {
     if (!Array.isArray(events) || events.length === 0) {
         return [];
     }
     const selected = [];
-    let skipped = 0;
     for (let index = events.length - 1; index >= 0 && selected.length < limit; index -= 1) {
         const event = events[index];
         if (!event || typeof event !== "object") {
             continue;
         }
         if (event.type === "skipped") {
-            if (skipped >= maxSkips) {
-                continue;
-            }
-            skipped += 1;
+            continue;
         }
         selected.push(event);
     }
@@ -197,7 +193,7 @@ export function renderLiveLog(target, panelState = {}) {
         return;
     }
 
-    const displayable = selectEventsForDisplay(events, { limit: 25, maxSkips: 8 });
+    const displayable = selectEventsForDisplay(events, { limit: 25 });
     displayable.forEach((event) => {
         const item = renderEvent(event, panelState.displayNames, now);
         if (item) {

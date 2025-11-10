@@ -8637,6 +8637,10 @@ async function mountScenePanelTemplate() {
             setSceneActiveSection($existingPanel.find('[data-scene-panel="active-characters"]'));
             setSceneLiveLog($existingPanel.find('[data-scene-panel="log-viewport"]'));
             setSceneLiveLogSection($existingPanel.find('[data-scene-panel="live-log"]'));
+            setSceneCoverageSection($existingPanel.find('[data-scene-panel="coverage"]'));
+            setSceneCoveragePronouns($existingPanel.find('[data-scene-panel="coverage-pronouns"]'));
+            setSceneCoverageAttribution($existingPanel.find('[data-scene-panel="coverage-attribution"]'));
+            setSceneCoverageAction($existingPanel.find('[data-scene-panel="coverage-action"]'));
             setSceneFooterButton($existingPanel.find('[data-scene-panel="open-settings"]'));
             setSceneStatusText($existingPanel.find('[data-scene-panel="status-text"]'));
             initializeScenePanelUI();
