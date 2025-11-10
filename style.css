@@ -1463,6 +1463,8 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     --cs-scene-panel-width: min(24rem, 30vw);
     --cs-scene-panel-gap: 12px;
     --cs-scene-panel-collapsed-width: 3rem;
+    --cs-scene-panel-accent: linear-gradient(135deg, rgba(156, 125, 255, 0.45), rgba(64, 180, 255, 0.35));
+    --cs-scene-panel-sheen: linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
 }
 
 /* Scene roster workspace panel */
@@ -1477,13 +1479,18 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     display: flex;
     flex-direction: column;
     max-height: calc(100vh - (var(--topBarBlockSize, 3.25rem) + (var(--cs-scene-panel-gap) * 2)));
-    background: var(--SmartThemeBlurTintColor, rgba(18, 20, 38, 0.86));
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background:
+        var(--cs-scene-panel-sheen),
+        linear-gradient(200deg, rgba(12, 14, 30, 0.78), rgba(12, 16, 44, 0.94)),
+        var(--SmartThemeBlurTintColor, rgba(18, 20, 38, 0.86));
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 16px;
-    box-shadow: 0 18px 32px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 28px 46px rgba(5, 7, 20, 0.45);
     color: var(--SmartThemeBodyColor, #f3f3f3);
     overflow: hidden;
     backdrop-filter: blur(16px);
+    animation: cs-scene-panel-enter 420ms cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform, opacity;
     z-index: 1040;
 }
 
@@ -1494,6 +1501,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     padding: 20px;
     height: 100%;
     overflow: hidden;
+    animation: cs-scene-panel-fade 480ms ease;
 }
 
 .cs-scene-panel__header {
@@ -1511,9 +1519,11 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     flex: 1 1 auto;
     padding: 14px 16px;
     border-radius: 16px;
-    background: linear-gradient(140deg, rgba(156, 125, 255, 0.32), rgba(64, 180, 255, 0.2));
+    position: relative;
+    background: var(--cs-scene-panel-accent);
     border: 1px solid rgba(255, 255, 255, 0.16);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    overflow: hidden;
 }
 
 .cs-scene-panel__crest {
@@ -1540,6 +1550,35 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     gap: 4px;
 }
 
+.cs-scene-panel__status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.cs-scene-panel__status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: radial-gradient(circle at center, rgba(120, 247, 196, 0.95) 0%, rgba(76, 214, 255, 0.55) 60%, rgba(76, 214, 255, 0) 100%);
+    box-shadow: 0 0 12px rgba(76, 214, 255, 0.6);
+    animation: cs-scene-panel-pulse 1.8s ease-in-out infinite;
+}
+
+.cs-scene-panel__status-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cs-scene-panel__status-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.76);
+}
+
 .cs-scene-panel__eyebrow {
     font-size: 0.7rem;
     letter-spacing: 0.14em;
@@ -1557,6 +1596,71 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     margin: 0;
     font-size: 0.88rem;
     color: var(--text-color-soft, rgba(255, 255, 255, 0.75));
+}
+
+.cs-scene-panel__nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(14px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    width: fit-content;
+    align-self: flex-start;
+    animation: cs-scene-panel-fade 520ms ease;
+}
+
+.cs-scene-panel__nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.78);
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 999px;
+    position: relative;
+    transition: color 0.25s ease, transform 0.25s ease;
+    z-index: 0;
+}
+
+.cs-scene-panel__nav-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: rgba(156, 125, 255, 0.2);
+    opacity: 0;
+    transform: scale(0.94);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    z-index: -1;
+}
+
+.cs-scene-panel__nav-link:hover::after,
+.cs-scene-panel__nav-link:focus-visible::after {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.cs-scene-panel__nav-link:hover,
+.cs-scene-panel__nav-link:focus-visible {
+    color: var(--SmartThemeBodyColor, #f3f3f3);
+    transform: translateY(-1px);
+}
+
+.cs-scene-panel__nav-link span {
+    position: relative;
+    z-index: 1;
+}
+
+.cs-scene-panel__nav-link i {
+    font-size: 0.75rem;
+    opacity: 0.75;
 }
 
 .cs-scene-panel__toolbar {
@@ -1577,7 +1681,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background 0.2s ease, border-color 0.2s ease;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 .cs-scene-panel__icon-button[aria-pressed="true"] {
@@ -1588,14 +1692,16 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-panel__icon-button:hover,
 .cs-scene-panel__icon-button:focus-visible {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.35);
+    background: rgba(156, 125, 255, 0.4);
+    border-color: rgba(156, 125, 255, 0.7);
+    transform: translateY(-1px);
 }
 
 .cs-scene-panel__helper {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.75);
-    margin-top: 2px;
+    margin: 0;
+    font-size: 0.76rem;
+    color: rgba(255, 255, 255, 0.72);
+    line-height: 1.4;
 }
 
 .cs-scene-panel__toggle {
@@ -1620,10 +1726,39 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     display: flex;
     flex-direction: column;
     gap: 12px;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(6, 8, 20, 0.38);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     padding: 14px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.28s ease, border-color 0.3s ease, background 0.35s ease, box-shadow 0.35s ease;
+    box-shadow: 0 12px 24px rgba(5, 7, 20, 0.24);
+}
+
+.cs-scene-panel__section::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: linear-gradient(90deg, rgba(156, 125, 255, 0.75), rgba(64, 180, 255, 0.4));
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.cs-scene-panel__section:hover,
+.cs-scene-panel__section:focus-within {
+    transform: translateY(-2px);
+    border-color: rgba(156, 125, 255, 0.35);
+    background: rgba(12, 16, 44, 0.55);
+    box-shadow: 0 18px 32px rgba(8, 12, 30, 0.35);
+}
+
+.cs-scene-panel__section:hover::before,
+.cs-scene-panel__section:focus-within::before {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 [data-scene-panel-hidden="true"] {
@@ -1671,11 +1806,15 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     cursor: pointer;
     font-size: 0.75rem;
     padding: 4px 0;
+    position: relative;
+    transition: color 0.25s ease, transform 0.2s ease;
 }
 
 .cs-scene-panel__text-button:hover,
 .cs-scene-panel__text-button:focus-visible {
     text-decoration: underline;
+    color: var(--SmartThemeBodyColor, #f3f3f3);
+    transform: translateY(-1px);
 }
 
 .cs-scene-panel__scrollable,
@@ -2394,6 +2533,62 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     clip: rect(0, 0, 0, 0) !important;
     white-space: nowrap !important;
     border: 0 !important;
+}
+
+@keyframes cs-scene-panel-enter {
+    from {
+        opacity: 0;
+        transform: translate3d(20px, 14px, 0) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
+@keyframes cs-scene-panel-fade {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes cs-scene-panel-pulse {
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 12px rgba(76, 214, 255, 0.55);
+    }
+
+    50% {
+        transform: scale(1.2);
+        box-shadow: 0 0 20px rgba(120, 247, 196, 0.8);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cs-scene-panel,
+    .cs-scene-panel__content,
+    .cs-scene-panel__nav,
+    .cs-scene-panel__section,
+    .cs-scene-panel__nav-link,
+    .cs-scene-panel__icon-button,
+    .cs-scene-panel__text-button,
+    .cs-scene-panel__status-indicator {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .cs-scene-panel__status-indicator {
+        animation: none !important;
+    }
 }
 
 @media (max-width: 1400px) {

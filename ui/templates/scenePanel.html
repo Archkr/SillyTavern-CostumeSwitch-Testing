@@ -13,7 +13,13 @@
                     <span class="cs-scene-panel__eyebrow">Costume Switcher</span>
                     <h3>Scene Control Center</h3>
                     <p class="cs-scene-panel__subtitle">Live roster, focus tools, and result analytics in one place.</p>
-                    <p class="cs-scene-panel__helper" data-scene-panel="status-text" aria-live="polite">Mirrors the live tester timeline while tracking actual chat results.</p>
+                    <div class="cs-scene-panel__status-row">
+                        <span class="cs-scene-panel__status-indicator" aria-hidden="true"></span>
+                        <div class="cs-scene-panel__status-copy">
+                            <span class="cs-scene-panel__status-label">Live sync</span>
+                            <p class="cs-scene-panel__helper" data-scene-panel="status-text" aria-live="polite">Mirrors the live tester timeline while tracking actual chat results.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="cs-scene-panel__toolbar" data-scene-panel="toolbar">
@@ -47,7 +53,21 @@
                 </label>
             </div>
         </header>
-        <section class="cs-scene-panel__section" data-scene-panel="roster">
+        <nav class="cs-scene-panel__nav" aria-label="Scene panel quick links">
+            <a class="cs-scene-panel__nav-link" href="#cs-scene-section-roster">
+                <i class="fa-solid fa-users" aria-hidden="true"></i>
+                <span>Roster</span>
+            </a>
+            <a class="cs-scene-panel__nav-link" href="#cs-scene-section-active">
+                <i class="fa-solid fa-user-clock" aria-hidden="true"></i>
+                <span>Active</span>
+            </a>
+            <a class="cs-scene-panel__nav-link" href="#cs-scene-section-log">
+                <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+                <span>Log</span>
+            </a>
+        </nav>
+        <section id="cs-scene-section-roster" class="cs-scene-panel__section" data-scene-panel="roster">
             <header class="cs-scene-panel__section-header">
                 <h4>Scene roster</h4>
                 <div class="cs-scene-panel__section-actions">
@@ -59,7 +79,7 @@
                 <!-- Scene roster entries will be rendered here -->
             </div>
         </section>
-        <section class="cs-scene-panel__section" data-scene-panel="active-characters">
+        <section id="cs-scene-section-active" class="cs-scene-panel__section" data-scene-panel="active-characters">
             <header class="cs-scene-panel__section-header">
                 <h4>Active characters</h4>
                 <div class="cs-scene-panel__section-actions">
@@ -70,7 +90,7 @@
                 <!-- Active character cards will be rendered here -->
             </div>
         </section>
-        <section class="cs-scene-panel__section" data-scene-panel="live-log">
+        <section id="cs-scene-section-log" class="cs-scene-panel__section" data-scene-panel="live-log">
             <header class="cs-scene-panel__section-header">
                 <h4>Live result log</h4>
                 <div class="cs-scene-panel__section-actions">
