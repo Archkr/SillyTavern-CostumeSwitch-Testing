@@ -1961,6 +1961,49 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     border-color: rgba(255, 255, 255, 0.28);
 }
 
+.cs-scene-panel__summon {
+    position: fixed;
+    bottom: var(--cs-scene-panel-gap, 12px);
+    right: var(--cs-scene-panel-gap, 12px);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(18, 12, 34, 0.82);
+    color: var(--SmartThemeBodyColor, #f3f3f3);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    box-shadow: 0 22px 44px rgba(14, 9, 30, 0.55);
+    z-index: 35;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.cs-scene-panel__summon:hover,
+.cs-scene-panel__summon:focus-visible {
+    background: rgba(156, 125, 255, 0.34);
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 26px 50px rgba(26, 12, 58, 0.6);
+}
+
+.cs-scene-panel__summon[hidden] {
+    display: none !important;
+}
+
+.cs-scene-panel__summon-icon {
+    font-size: 1rem;
+}
+
+.cs-scene-panel__summon-label {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
 .cs-scene-panel__icon-button--ghost {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.18);
@@ -2209,6 +2252,81 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-layer__steps li::marker {
     color: var(--primary-color, #c9a9ff);
+}
+
+.cs-scene-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.cs-scene-settings__intro {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.72);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.cs-scene-settings__group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(180deg, rgba(20, 14, 40, 0.8), rgba(10, 8, 22, 0.8));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.cs-scene-settings__group-title {
+    margin: 0;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.58);
+}
+
+.cs-scene-settings__toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.cs-scene-settings__toggle:hover .cs-scene-settings__toggle-label,
+.cs-scene-settings__toggle:focus-within .cs-scene-settings__toggle-label {
+    color: #ffffff;
+}
+
+.cs-scene-settings__checkbox {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--primary-color, #9c7dff);
+}
+
+.cs-scene-settings__toggle-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cs-scene-settings__toggle-label {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.cs-scene-settings__toggle-description {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.64);
+    line-height: 1.5;
+}
+
+.cs-scene-settings__link {
+    align-self: flex-start;
+    margin-top: 4px;
 }
 
 .cs-scene-panel__collapse-toggle {

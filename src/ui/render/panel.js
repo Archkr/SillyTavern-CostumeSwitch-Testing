@@ -12,7 +12,81 @@ import {
 import { renderSceneRoster } from "./sceneRoster.js";
 import { renderActiveCharacters } from "./activeCharacters.js";
 import { renderLiveLog } from "./liveLog.js";
-import { resolveContainer, clearContainer } from "./utils.js";
+import { resolveContainer, clearContainer, createElement } from "./utils.js";
+
+let scenePanelSummonButton = null;
+
+function ensureScenePanelSummonButton() {
+    if (typeof document === "undefined") {
+        return null;
+    }
+    if (scenePanelSummonButton && scenePanelSummonButton.isConnected) {
+        return scenePanelSummonButton;
+    }
+    const existing = document.getElementById("cs-scene-panel-summon");
+    if (existing) {
+        scenePanelSummonButton = existing;
+        return scenePanelSummonButton;
+    }
+    const button = createElement("button", "cs-scene-panel__summon");
+    if (!button) {
+        return null;
+    }
+    button.id = "cs-scene-panel-summon";
+    button.type = "button";
+    button.setAttribute("data-scene-panel", "show-panel");
+    button.setAttribute("aria-controls", "cs-scene-panel");
+    button.setAttribute("aria-label", "Show scene panel");
+    button.title = "Show scene panel";
+    const icon = createElement("i", "fa-solid fa-masks-theater cs-scene-panel__summon-icon");
+    if (icon) {
+        icon.setAttribute("aria-hidden", "true");
+        button.appendChild(icon);
+    }
+    const label = createElement("span", "cs-scene-panel__summon-label");
+    if (label) {
+        label.textContent = "Scene panel";
+        button.appendChild(label);
+    }
+    button.hidden = true;
+    button.setAttribute("aria-hidden", "true");
+    const parent = document.body;
+    if (parent) {
+        parent.appendChild(button);
+    }
+    scenePanelSummonButton = button;
+    return scenePanelSummonButton;
+}
+
+function updateScenePanelSummonVisibility(enabled) {
+    const button = ensureScenePanelSummonButton();
+    if (!button) {
+        return;
+    }
+    if (!button.isConnected && typeof document !== "undefined" && document.body) {
+        document.body.appendChild(button);
+    }
+    if (enabled) {
+        button.dataset.visible = "false";
+        button.hidden = true;
+        button.setAttribute("aria-hidden", "true");
+    } else {
+        button.dataset.visible = "true";
+        button.hidden = false;
+        if (typeof button.removeAttribute === "function") {
+            button.removeAttribute("hidden");
+        }
+        button.removeAttribute("aria-hidden");
+        try {
+            button.focus({ preventScroll: true });
+        } catch (err) {
+            try {
+                button.focus();
+            } catch (innerErr) {
+            }
+        }
+    }
+}
 
 function applyCollapsedState(collapsed) {
     const container = getScenePanelContainer?.();
@@ -38,10 +112,20 @@ function applyPanelEnabledState(enabled) {
     if ($ && typeof $.attr === "function") {
         $.attr("data-cs-disabled", value);
         $.attr("aria-disabled", enabled ? "false" : "true");
+        $.attr("aria-hidden", enabled ? "false" : "true");
     } else if (el) {
         el.setAttribute("data-cs-disabled", value);
         el.setAttribute("aria-disabled", enabled ? "false" : "true");
+        el.setAttribute("aria-hidden", enabled ? "false" : "true");
     }
+    if (el) {
+        if (enabled) {
+            el.removeAttribute("hidden");
+        } else {
+            el.setAttribute("hidden", "");
+        }
+    }
+    updateScenePanelSummonVisibility(enabled);
 }
 
 function applyAutoPinMode(active) {

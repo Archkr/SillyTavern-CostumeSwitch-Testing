@@ -20,7 +20,13 @@ function renderCard(entry, { displayNames, now, pinned = false }) {
         container.dataset.roster = "true";
     }
     if (pinned) {
-        container.classList.add("cs-scene-active__card--pinned");
+        if (container.classList && typeof container.classList.add === "function") {
+            container.classList.add("cs-scene-active__card--pinned");
+        } else {
+            const classes = new Set(String(container.className || "").split(/\s+/).filter(Boolean));
+            classes.add("cs-scene-active__card--pinned");
+            container.className = Array.from(classes).join(" ");
+        }
         const badge = createElement("span", "cs-scene-active__pin");
         if (badge) {
             const icon = createElement("i", "fa-solid fa-thumbtack");
