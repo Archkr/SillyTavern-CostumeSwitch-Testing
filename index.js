@@ -1376,14 +1376,40 @@ function collectScenePanelState() {
     const displayNames = buildDisplayNameMap(scene, membership, testers);
     const ranking = getLastTopCharacters(4);
 
-    const activeKey = state.currentGenerationKey
+    const streamingKey = state.currentGenerationKey
         ? normalizeMessageKey(state.currentGenerationKey)
+        : null;
+
+    const getBufferForKey = (key) => {
+        if (!key || !(state.perMessageBuffers instanceof Map)) {
+            return "";
+        }
+        return state.perMessageBuffers.get(key) || "";
+    };
+
+    const streamingBuffer = streamingKey ? getBufferForKey(streamingKey) : "";
+    const hasStreamingBuffer = Boolean(streamingBuffer.trim().length);
+
+    let hasStreamingEvents = false;
+    if (streamingKey && Array.isArray(state.recentDecisionEvents)) {
+        hasStreamingEvents = state.recentDecisionEvents.some((event) => {
+            if (!event || !event.messageKey) {
+                return false;
+            }
+            const normalizedEventKey = normalizeMessageKey(event.messageKey);
+            return normalizedEventKey === streamingKey;
+        });
+    }
+
+    const shouldUseStreamingKey = Boolean(streamingKey && (hasStreamingBuffer || hasStreamingEvents));
+
+    const activeKey = shouldUseStreamingKey
+        ? streamingKey
         : getLastStatsMessageKey();
 
-    let buffer = "";
-    if (activeKey && state.perMessageBuffers instanceof Map && state.perMessageBuffers.has(activeKey)) {
-        buffer = state.perMessageBuffers.get(activeKey) || "";
-    }
+    const buffer = shouldUseStreamingKey
+        ? streamingBuffer
+        : getBufferForKey(activeKey);
 
     const stats = activeKey && state.messageStats instanceof Map
         ? state.messageStats.get(activeKey) || null
@@ -1403,7 +1429,8 @@ function collectScenePanelState() {
             if (!activeKey) {
                 return true;
             }
-            return event.messageKey === activeKey;
+            const normalizedEventKey = normalizeMessageKey(event.messageKey);
+            return normalizedEventKey === activeKey;
         })
         : [];
 
@@ -1469,7 +1496,7 @@ function collectScenePanelState() {
             updatedAt,
         },
         now: Date.now(),
-        isStreaming: Boolean(state.currentGenerationKey),
+        isStreaming: Boolean(state.currentGenerationKey && shouldUseStreamingKey),
         collapsed: isScenePanelCollapsed(),
     };
 }

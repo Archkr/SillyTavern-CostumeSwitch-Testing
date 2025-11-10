@@ -258,6 +258,36 @@ test("collectScenePanelState analytics updatedAt reflects latest scene activity"
     assert.equal(panelWithoutEvents.analytics.updatedAt, testerTimestamp);
 });
 
+test("collectScenePanelState defers stream switch until new data is available", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    state.recentDecisionEvents = [{ type: "switch", messageKey: "m1", timestamp: 1000 }];
+    state.topSceneRanking = new Map();
+    state.topSceneRankingUpdatedAt = new Map();
+    state.messageStats = new Map([["m1", new Map([["kotori", 2]])]]);
+    state.perMessageBuffers = new Map([
+        ["m1", "Kotori waves."],
+        ["live", ""],
+    ]);
+    state.perMessageStates = new Map();
+    state.latestTopRanking = { bufKey: "m1", ranking: [], fullRanking: [], updatedAt: 1000 };
+    state.currentGenerationKey = "live";
+
+    const initialPanelState = collectScenePanelState();
+    assert.equal(initialPanelState.analytics.messageKey, "m1");
+    assert.equal(initialPanelState.analytics.buffer, "Kotori waves.");
+    assert.equal(initialPanelState.isStreaming, false);
+
+    state.perMessageBuffers.set("live", "Kotori smiles.");
+    state.recentDecisionEvents.push({ type: "switch", messageKey: "live", timestamp: 2000 });
+
+    const streamingPanelState = collectScenePanelState();
+    assert.equal(streamingPanelState.analytics.messageKey, "live");
+    assert.equal(streamingPanelState.analytics.buffer, "Kotori smiles.");
+    assert.equal(streamingPanelState.isStreaming, true);
+});
+
 test("remapMessageKey retargets recent decision events for rendered messages", () => {
     const settings = extensionSettingsStore[extensionName];
     settings.session = settings.session || {};
