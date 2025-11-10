@@ -7713,11 +7713,15 @@ function captureSceneOutcomeForMessage(reference) {
     const message = findChatMessageById(resolvedId) || findChatMessageByKey(normalizedKey);
     const swipeId = Number.isFinite(message?.swipe_id) ? message.swipe_id : 0;
     const msgState = state.perMessageStates instanceof Map ? state.perMessageStates.get(normalizedKey) : null;
+    const countdown = applyMessageRosterCountdown(msgState);
     const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : new Set();
     const roster = Array.from(rosterSet).map(normalizeRosterKey).filter(Boolean);
     const events = collectDecisionEventsForKey(normalizedKey);
     const existingOutcome = message ? getStoredSceneOutcome(message) : null;
-    const displayNames = collectDisplayNameMap(roster, events, existingOutcome?.displayNames);
+    const rosterForDisplayNames = Array.isArray(countdown?.before?.roster)
+        ? countdown.before.roster
+        : roster;
+    const displayNames = collectDisplayNameMap(rosterForDisplayNames, events, existingOutcome?.displayNames);
     const stats = state.messageStats instanceof Map ? state.messageStats.get(normalizedKey) : null;
     const timestamp = Date.now();
     const turnsRemaining = Number.isFinite(msgState?.rosterTTL) ? Math.max(0, Math.floor(msgState.rosterTTL)) : null;
@@ -7765,6 +7769,8 @@ function captureSceneOutcomeForMessage(reference) {
         }
     }
 }
+
+__testables.captureSceneOutcomeForMessage = captureSceneOutcomeForMessage;
 
 function getStoredSceneOutcome(message) {
     const bucket = getOutcomeBucket(message, false);
@@ -8035,6 +8041,16 @@ function createMessageState(profile, bufKey) {
         }
     }
 
+    const profileTTL = Number.isFinite(profile.sceneRosterTTL)
+        ? profile.sceneRosterTTL
+        : PROFILE_DEFAULTS.sceneRosterTTL;
+    const baseRosterTTL = Number.isFinite(oldState?.rosterTTL)
+        ? oldState.rosterTTL
+        : (Number.isFinite(profileTTL) ? profileTTL : null);
+    const baseOutfitTTL = Number.isFinite(oldState?.outfitTTL)
+        ? oldState.outfitTTL
+        : (Number.isFinite(profileTTL) ? profileTTL : null);
+
     const newState = {
         lastAcceptedName: null,
         lastAcceptedTs: 0,
@@ -8045,48 +8061,88 @@ function createMessageState(profile, bufKey) {
         pendingSubjectNormalized,
         sceneRoster: new Set(oldState?.sceneRoster || []),
         outfitRoster: new Map(oldState?.outfitRoster || []),
-        rosterTTL: profile.sceneRosterTTL,
-        outfitTTL: profile.sceneRosterTTL,
+        rosterTTL: baseRosterTTL,
+        outfitTTL: baseOutfitTTL,
         processedLength: 0,
         lastAcceptedIndex: -1,
         bufferOffset: 0,
     };
 
-    if (newState.sceneRoster.size > 0) {
-        newState.rosterTTL--;
-        if (newState.rosterTTL <= 0) {
-            debugLog("Scene roster TTL expired, clearing roster.");
-            newState.sceneRoster.clear();
-        }
-    }
-
-    if (newState.outfitRoster.size > 0) {
-        newState.outfitTTL--;
-        if (newState.outfitTTL <= 0) {
-            const expired = Array.from(newState.outfitRoster.keys());
-            debugLog("Outfit roster TTL expired, clearing tracked outfits:", expired.join(', '));
-            newState.outfitRoster.clear();
-            const cache = ensureCharacterOutfitCache(state);
-            expired.forEach(key => cache.delete(key));
-        }
-    }
-
     state.perMessageStates.set(bufKey, newState);
     state.perMessageBuffers.set(bufKey, '');
     trackMessageKey(bufKey);
 
-    if (state.currentGenerationKey && state.currentGenerationKey === bufKey) {
-        applySceneRosterUpdate({
-            key: bufKey,
-            messageId: extractMessageIdFromKey(bufKey),
-            roster: Array.from(newState.sceneRoster || []),
-            turnsRemaining: Number.isFinite(newState.rosterTTL) ? newState.rosterTTL : null,
-            updatedAt: Date.now(),
-        });
-        requestScenePanelRender("roster-prime");
+    return newState;
+}
+
+__testables.createMessageState = createMessageState;
+__testables.applyMessageRosterCountdown = applyMessageRosterCountdown;
+
+function applyMessageRosterCountdown(msgState) {
+    const beforeRoster = msgState?.sceneRoster instanceof Set ? Array.from(msgState.sceneRoster) : [];
+    const beforeOutfitEntries = msgState?.outfitRoster instanceof Map ? Array.from(msgState.outfitRoster.entries()) : [];
+    const beforeRosterTTL = Number.isFinite(msgState?.rosterTTL) ? msgState.rosterTTL : null;
+    const beforeOutfitTTL = Number.isFinite(msgState?.outfitTTL) ? msgState.outfitTTL : null;
+
+    if (!msgState || msgState.__ttlCountdownApplied) {
+        return {
+            before: {
+                roster: beforeRoster,
+                outfit: beforeOutfitEntries,
+                rosterTTL: beforeRosterTTL,
+                outfitTTL: beforeOutfitTTL,
+            },
+            after: {
+                roster: beforeRoster.slice(),
+                outfit: beforeOutfitEntries.slice(),
+                rosterTTL: beforeRosterTTL,
+                outfitTTL: beforeOutfitTTL,
+            },
+        };
     }
 
-    return newState;
+    msgState.__ttlCountdownApplied = true;
+
+    if (msgState.sceneRoster instanceof Set && msgState.sceneRoster.size > 0 && Number.isFinite(msgState.rosterTTL)) {
+        msgState.rosterTTL -= 1;
+        if (msgState.rosterTTL <= 0) {
+            debugLog("Scene roster TTL expired, clearing roster.");
+            msgState.sceneRoster.clear();
+        }
+        msgState.rosterTTL = Math.max(0, msgState.rosterTTL);
+    }
+
+    if (msgState.outfitRoster instanceof Map && msgState.outfitRoster.size > 0 && Number.isFinite(msgState.outfitTTL)) {
+        msgState.outfitTTL -= 1;
+        if (msgState.outfitTTL <= 0) {
+            const expired = Array.from(msgState.outfitRoster.keys());
+            debugLog("Outfit roster TTL expired, clearing tracked outfits:", expired.join(', '));
+            msgState.outfitRoster.clear();
+            const cache = ensureCharacterOutfitCache(state);
+            expired.forEach((key) => cache.delete(key));
+        }
+        msgState.outfitTTL = Math.max(0, msgState.outfitTTL);
+    }
+
+    const afterRoster = msgState.sceneRoster instanceof Set ? Array.from(msgState.sceneRoster) : [];
+    const afterOutfitEntries = msgState.outfitRoster instanceof Map ? Array.from(msgState.outfitRoster.entries()) : [];
+    const afterRosterTTL = Number.isFinite(msgState.rosterTTL) ? msgState.rosterTTL : null;
+    const afterOutfitTTL = Number.isFinite(msgState.outfitTTL) ? msgState.outfitTTL : null;
+
+    return {
+        before: {
+            roster: beforeRoster,
+            outfit: beforeOutfitEntries,
+            rosterTTL: beforeRosterTTL,
+            outfitTTL: beforeOutfitTTL,
+        },
+        after: {
+            roster: afterRoster,
+            outfit: afterOutfitEntries,
+            rosterTTL: afterRosterTTL,
+            outfitTTL: afterOutfitTTL,
+        },
+    };
 }
 
 function remapMessageKey(oldKey, newKey) {

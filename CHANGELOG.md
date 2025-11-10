@@ -25,6 +25,7 @@
   the event list.
 - **Roster inactivity detection.** Characters drop to an inactive state when they are missing from the latest detection pass,
   preventing message counters from stalling at their initial values.
+- **Scene roster TTL countdown.** Remaining message counters now inherit the previous turn balance and tick down after each completed message, so entries update once streams finish instead of freezing at the initial value or dropping early.
 - **First-stream detection fallback.** Streaming tokens now capture their message key when the generation-start hook fires too early, restoring roster updates for the first outputs after loading a chat.
 - **Scene roster scrolling.** The roster list keeps its scrollbox active so large casts remain accessible without shifting the entire panel.
 - **Scene panel analytics remapping.** Detection events recorded during streaming now follow the rendered message key, restoring roster/results feeds that previously appeared empty after generation finished.

@@ -146,6 +146,98 @@ test("handleStream logs focus lock status when locked", () => {
     assert.equal(noticeSnapshot.event.matchKind, "focus-lock");
 });
 
+test("createMessageState carries roster TTL forward between messages", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    state.perMessageStates = new Map();
+    state.perMessageBuffers = new Map();
+    state.currentGenerationKey = null;
+
+    const profile = { sceneRosterTTL: 5 };
+    const previousState = {
+        lastSubject: null,
+        pendingSubject: null,
+        pendingSubjectNormalized: null,
+        sceneRoster: new Set(["kotori"]),
+        outfitRoster: new Map([["kotori", { outfit: "casual" }]]),
+        rosterTTL: 3,
+        outfitTTL: 2,
+    };
+
+    state.perMessageStates.set("m0", previousState);
+
+    const newState = __testables.createMessageState(profile, "m1");
+
+    assert.equal(newState.rosterTTL, 3, "roster TTL should carry over between messages without decrementing early");
+    assert.equal(newState.outfitTTL, 2, "outfit TTL should carry over between messages without decrementing early");
+    assert.deepEqual(Array.from(newState.sceneRoster), ["kotori"]);
+});
+
+test("captureSceneOutcomeForMessage ticks roster countdown at completion", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    state.perMessageStates = new Map();
+    state.perMessageBuffers = new Map();
+    state.messageStats = new Map();
+    state.messageMatches = new Map();
+    state.recentDecisionEvents = [];
+
+    const msgState = {
+        sceneRoster: new Set(["kotori"]),
+        outfitRoster: new Map([["kotori", { outfit: "casual" }]]),
+        rosterTTL: 3,
+        outfitTTL: 2,
+    };
+
+    state.perMessageStates.set("m1", msgState);
+    state.perMessageBuffers.set("m1", "Kotori test message");
+    state.messageStats.set("m1", new Map());
+    state.messageMatches.set("m1", []);
+
+    __testables.captureSceneOutcomeForMessage({ key: "m1" });
+
+    assert.equal(msgState.rosterTTL, 2, "roster TTL should decrement after message completion");
+    assert.equal(msgState.outfitTTL, 1, "outfit TTL should decrement after message completion");
+    assert.deepEqual(Array.from(msgState.sceneRoster), ["kotori"]);
+
+    __testables.captureSceneOutcomeForMessage({ key: "m1" });
+
+    assert.equal(msgState.rosterTTL, 2, "roster TTL countdown should only apply once per message");
+    assert.equal(msgState.outfitTTL, 1, "outfit TTL countdown should only apply once per message");
+});
+
+test("captureSceneOutcomeForMessage clears roster once TTL expires", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    state.perMessageStates = new Map();
+    state.perMessageBuffers = new Map();
+    state.messageStats = new Map();
+    state.messageMatches = new Map();
+    state.recentDecisionEvents = [];
+
+    const msgState = {
+        sceneRoster: new Set(["kotori", "toka"]),
+        outfitRoster: new Map([["kotori", { outfit: "casual" }]]),
+        rosterTTL: 1,
+        outfitTTL: 1,
+    };
+
+    state.perMessageStates.set("m5", msgState);
+    state.perMessageBuffers.set("m5", "Multiple characters");
+    state.messageStats.set("m5", new Map());
+    state.messageMatches.set("m5", []);
+
+    __testables.captureSceneOutcomeForMessage({ key: "m5" });
+
+    assert.equal(msgState.rosterTTL, 0, "roster TTL should not go negative after expiry");
+    assert.equal(msgState.outfitTTL, 0, "outfit TTL should not go negative after expiry");
+    assert.deepEqual(Array.from(msgState.sceneRoster), [], "roster should clear once TTL reaches zero");
+    assert.equal(msgState.outfitRoster.size, 0, "outfit roster should clear once TTL reaches zero");
+});
+
 test("handleStream infers message key from token event payloads", () => {
     resetSceneState();
     clearLiveTesterOutputs();
