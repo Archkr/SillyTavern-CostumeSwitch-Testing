@@ -1760,10 +1760,16 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-panel__sections[data-sections-expanded="true"] {
     --cs-scene-section-max-height: none;
+    --cs-scene-section-gap-size: 16px;
+    --cs-scene-section-flex-basis: calc(
+        (100% - (var(--cs-scene-visible-section-count, 1) - 1) * var(--cs-scene-section-gap-size, 16px))
+        / var(--cs-scene-visible-section-count, 1)
+    );
 }
 
 .cs-scene-panel__sections[data-sections-expanded="true"] .cs-scene-panel__section {
-    flex: 1 1 0%;
+    flex: 1 1 var(--cs-scene-section-flex-basis);
+    min-height: var(--cs-scene-section-flex-basis);
 }
 
 .cs-scene-panel__sections[data-sections-expanded="true"] .cs-scene-panel__scrollable,

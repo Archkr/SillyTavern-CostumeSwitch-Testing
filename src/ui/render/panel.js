@@ -178,16 +178,41 @@ function applySectionLayoutState(visibleCount) {
         return;
     }
 
+    const sanitizedVisible = Math.max(0, Number.isFinite(visibleCount) ? Math.floor(visibleCount) : 0);
+
     let totalSections = 0;
+    let domVisibleCount = 0;
+
     if ($ && typeof $.find === "function") {
-        totalSections = $.find(".cs-scene-panel__section").length;
+        const $sections = $.find(".cs-scene-panel__section");
+        totalSections = $sections.length;
+        if (typeof $sections.filter === "function") {
+            domVisibleCount = $sections.filter(function filterVisibleSection() {
+                if (!this || typeof this.getAttribute !== "function") {
+                    return false;
+                }
+                return this.getAttribute("data-scene-panel-hidden") !== "true";
+            }).length;
+        } else {
+            domVisibleCount = totalSections;
+        }
     } else if (el && typeof el.querySelectorAll === "function") {
-        totalSections = el.querySelectorAll(".cs-scene-panel__section").length;
+        const sections = Array.from(el.querySelectorAll(".cs-scene-panel__section"));
+        totalSections = sections.length;
+        domVisibleCount = sections.filter((section) => {
+            if (!section || typeof section.getAttribute !== "function") {
+                return false;
+            }
+            return section.getAttribute("data-scene-panel-hidden") !== "true";
+        }).length;
     }
 
-    const sanitizedVisible = Math.max(0, Number.isFinite(visibleCount) ? Math.floor(visibleCount) : 0);
-    const expanded = sanitizedVisible > 0 && totalSections > 0 && sanitizedVisible < totalSections;
-    const visibleValue = String(sanitizedVisible);
+    const resolvedVisible = domVisibleCount > 0 ? domVisibleCount : sanitizedVisible;
+    const expanded = resolvedVisible > 0
+        && ((totalSections > 0 && resolvedVisible < totalSections) || sanitizedVisible > resolvedVisible);
+    const roundedVisible = Math.max(0, Number.isFinite(resolvedVisible) ? Math.round(resolvedVisible) : 0);
+    const safeVisible = expanded ? Math.max(1, roundedVisible) : roundedVisible;
+    const visibleValue = String(safeVisible);
     const expandedValue = expanded ? "true" : "false";
 
     if ($ && typeof $.attr === "function") {
