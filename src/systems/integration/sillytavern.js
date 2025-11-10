@@ -61,20 +61,27 @@ function resolveEventIdentifiers(eventTypes, candidates) {
         const visited = new Set();
 
         const pushEntry = (path, resolved) => {
-            if (typeof resolved !== "string") {
+            if (resolved == null) {
                 return;
             }
-            const trimmed = resolved.trim();
-            if (!trimmed) {
+
+            const type = typeof resolved;
+            if (type !== "string" && type !== "symbol") {
                 return;
             }
+
+            const normalizedValue = type === "string" ? resolved.trim() : resolved;
+            if (type === "string" && !normalizedValue) {
+                return;
+            }
+
             const keyName = path.length ? String(path[path.length - 1]) : "";
             const pathString = path.join(".");
             if (keyName) {
-                entries.push({ key: keyName, path: pathString, value: trimmed });
+                entries.push({ key: keyName, path: pathString, value: normalizedValue });
             }
             if (pathString && pathString !== keyName) {
-                entries.push({ key: pathString, path: pathString, value: trimmed });
+                entries.push({ key: pathString, path: pathString, value: normalizedValue });
             }
         };
 
@@ -82,7 +89,7 @@ function resolveEventIdentifiers(eventTypes, candidates) {
             if (!current) {
                 return;
             }
-            if (typeof current === "string") {
+            if (typeof current === "string" || typeof current === "symbol") {
                 pushEntry(path, current);
                 return;
             }
@@ -120,6 +127,10 @@ function resolveEventIdentifiers(eventTypes, candidates) {
     const entries = source ? flattenEventTypeEntries(source) : [];
 
     const addName = (name) => {
+        if (typeof name === "symbol") {
+            results.add(name);
+            return;
+        }
         if (typeof name === "string") {
             const trimmed = name.trim();
             if (trimmed) {
@@ -163,7 +174,10 @@ function resolveEventIdentifiers(eventTypes, candidates) {
         const regex = pattern instanceof RegExp ? pattern : new RegExp(String(pattern), "i");
         let matched = false;
         entries.forEach((entry) => {
-            if (regex.test(String(entry.key)) || (entry.path && regex.test(String(entry.path))) || regex.test(entry.value)) {
+            const candidateValue = typeof entry.value === "symbol"
+                ? (entry.value.description || entry.value.toString())
+                : String(entry.value);
+            if (regex.test(String(entry.key)) || (entry.path && regex.test(String(entry.path))) || regex.test(candidateValue)) {
                 addName(entry.value);
                 matched = true;
             }
@@ -188,8 +202,13 @@ function resolveEventIdentifiers(eventTypes, candidates) {
                 }
                 return;
             }
-            if (source && typeof source[key] === "string" && source[key].trim()) {
-                addName(source[key]);
+            const mappedValue = source ? source[key] : null;
+            if (typeof mappedValue === "string" && mappedValue.trim()) {
+                addName(mappedValue);
+                return;
+            }
+            if (typeof mappedValue === "symbol") {
+                addName(mappedValue);
                 return;
             }
             addName(key);

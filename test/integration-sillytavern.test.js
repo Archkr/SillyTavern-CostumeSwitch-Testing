@@ -57,3 +57,18 @@ test("resolveEventIdentifiers resolves nested keys by name", () => {
     const result = resolveEventIdentifiers(eventTypes, ["deleted", "history.message.deleted"]);
     assert.deepEqual(result.sort(), ["history.message.deleted", "message_deleted"].sort(), "should match nested keys by name");
 });
+
+test("resolveEventIdentifiers returns symbol values when available", () => {
+    const streamStarted = Symbol("generation_stream_started");
+    const eventTypes = {
+        generation: {
+            stream: {
+                started: streamStarted,
+            },
+        },
+    };
+    const [result] = resolveEventIdentifiers(eventTypes, [
+        { match: /(GENERATION|STREAM).*START/i },
+    ]);
+    assert.equal(result, streamStarted, "should preserve symbol identifiers for registration");
+});
