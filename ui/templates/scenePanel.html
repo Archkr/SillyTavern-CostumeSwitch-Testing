@@ -5,12 +5,15 @@
     </button>
     <div id="cs-scene-panel-content" class="cs-scene-panel__content" data-scene-panel="content">
         <header class="cs-scene-panel__header">
-            <div class="cs-scene-panel__title">
-                <i class="fa-solid fa-masks-theater" aria-hidden="true"></i>
+            <div class="cs-scene-panel__headline">
+                <div class="cs-scene-panel__crest" aria-hidden="true">
+                    <i class="fa-solid fa-masks-theater"></i>
+                </div>
                 <div class="cs-scene-panel__title-copy">
-                    <h3>Scene Roster</h3>
-                    <p>Track who is active in the current scene.</p>
-                    <p class="cs-scene-panel__helper" data-scene-panel="status-text">Mirrors the live tester timeline while tracking actual chat results.</p>
+                    <span class="cs-scene-panel__eyebrow">Costume Switcher</span>
+                    <h3>Scene Control Center</h3>
+                    <p class="cs-scene-panel__subtitle">Live roster, focus tools, and result analytics in one place.</p>
+                    <p class="cs-scene-panel__helper" data-scene-panel="status-text" aria-live="polite">Mirrors the live tester timeline while tracking actual chat results.</p>
                 </div>
             </div>
             <div class="cs-scene-panel__toolbar" data-scene-panel="toolbar">
@@ -38,9 +41,9 @@
                     <i class="fa-solid fa-rotate" aria-hidden="true"></i>
                     <span class="visually-hidden">Refresh roster</span>
                 </button>
-                <label class="cs-scene-panel__toggle" data-scene-panel="auto-pin">
+                <label class="cs-scene-panel__toggle" data-scene-panel="auto-pin" for="cs-scene-auto-pin">
                     <input id="cs-scene-auto-pin" type="checkbox" />
-                    <span>Auto-pin active</span>
+                    <span>Auto-pin top active</span>
                 </label>
             </div>
         </header>
@@ -48,8 +51,8 @@
             <header class="cs-scene-panel__section-header">
                 <h4>Scene roster</h4>
                 <div class="cs-scene-panel__section-actions">
-                    <button id="cs-scene-manage-roster" class="cs-scene-panel__text-button" type="button" data-scene-panel="manage-roster">Manage</button>
-                    <button id="cs-scene-clear-roster" class="cs-scene-panel__text-button" type="button" data-scene-panel="clear-roster">Clear</button>
+                    <button id="cs-scene-manage-roster" class="cs-scene-panel__text-button" type="button" data-scene-panel="manage-roster">Manage…</button>
+                    <button id="cs-scene-clear-roster" class="cs-scene-panel__text-button" type="button" data-scene-panel="clear-roster">Clear roster</button>
                 </div>
             </header>
             <div id="cs-scene-roster-list" class="cs-scene-panel__scrollable" data-scene-panel="roster-list">
@@ -85,5 +88,19 @@
                 <span>Scene roster settings</span>
             </button>
         </footer>
+    </div>
+    <div id="cs-scene-panel-layer" class="cs-scene-panel__layer" data-scene-panel="layer" hidden aria-hidden="true">
+        <div class="cs-scene-panel__sheet" role="dialog" aria-modal="true" aria-labelledby="cs-scene-layer-title" aria-describedby="cs-scene-layer-description" data-scene-panel="sheet">
+            <header class="cs-scene-panel__sheet-header">
+                <div class="cs-scene-panel__sheet-titles">
+                    <h4 id="cs-scene-layer-title" data-scene-panel="layer-title">Scene tools</h4>
+                    <p id="cs-scene-layer-description" data-scene-panel="layer-description">Manage roster entries and review live diagnostics.</p>
+                </div>
+                <button type="button" class="cs-scene-panel__icon-button cs-scene-panel__icon-button--ghost" data-scene-panel="close-layer" aria-label="Close panel">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </header>
+            <div class="cs-scene-panel__sheet-body" data-scene-panel="sheet-body"></div>
+        </div>
     </div>
 </div>

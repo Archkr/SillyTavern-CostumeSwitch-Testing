@@ -8,7 +8,7 @@ import {
     formatRelativeTime,
 } from "./utils.js";
 
-function renderCard(entry, { displayNames, now }) {
+function renderCard(entry, { displayNames, now, pinned = false }) {
     const container = createElement("article", "cs-scene-active__card");
     if (!container) {
         return null;
@@ -18,6 +18,23 @@ function renderCard(entry, { displayNames, now }) {
     }
     if (entry.inSceneRoster) {
         container.dataset.roster = "true";
+    }
+    if (pinned) {
+        container.classList.add("cs-scene-active__card--pinned");
+        const badge = createElement("span", "cs-scene-active__pin");
+        if (badge) {
+            const icon = createElement("i", "fa-solid fa-thumbtack");
+            if (icon) {
+                icon.setAttribute("aria-hidden", "true");
+                badge.appendChild(icon);
+            }
+            const label = createElement("span");
+            if (label) {
+                label.textContent = "Pinned focus";
+                badge.appendChild(label);
+            }
+            container.appendChild(badge);
+        }
     }
     const name = entry.name || (entry.normalized ? displayNames?.get(entry.normalized) : null) || entry.normalized || "Unknown";
     const title = createTextElement("h5", "cs-scene-active__name", name);
@@ -74,6 +91,22 @@ export function renderActiveCharacters(target, panelState = {}) {
     clearContainer(container);
 
     const ranking = Array.isArray(panelState.ranking) ? panelState.ranking : [];
+    const autoPinActive = panelState.settings?.autoPinActive !== false;
+    if (container.el) {
+        if (autoPinActive) {
+            container.el.setAttribute("data-pin-mode", "true");
+        } else {
+            container.el.removeAttribute("data-pin-mode");
+        }
+    } else if (container.$ && typeof container.$.attr === "function") {
+        if (autoPinActive) {
+            container.$.attr("data-pin-mode", "true");
+        } else if (typeof container.$.removeAttr === "function") {
+            container.$.removeAttr("data-pin-mode");
+        } else {
+            container.$.attr("data-pin-mode", "false");
+        }
+    }
     if (!ranking.length) {
         const placeholder = createPlaceholder("No recent detections to highlight.");
         appendContent(container, placeholder);
@@ -82,13 +115,14 @@ export function renderActiveCharacters(target, panelState = {}) {
 
     const fragment = document.createDocumentFragment();
     const now = Number.isFinite(panelState.now) ? panelState.now : Date.now();
-    ranking.forEach((entry) => {
+    ranking.forEach((entry, index) => {
         if (!entry || typeof entry !== "object") {
             return;
         }
         const card = renderCard(entry, {
             displayNames: panelState.displayNames,
             now,
+            pinned: autoPinActive && index === 0,
         });
         if (card) {
             fragment.appendChild(card);

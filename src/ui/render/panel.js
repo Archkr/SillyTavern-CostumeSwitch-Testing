@@ -44,6 +44,17 @@ function applyPanelEnabledState(enabled) {
     }
 }
 
+function applyAutoPinMode(active) {
+    const container = getScenePanelContainer?.();
+    const { $, el } = resolveContainer(container);
+    const value = active ? "true" : "false";
+    if ($ && typeof $.attr === "function") {
+        $.attr("data-cs-auto-pin", value);
+    } else if (el) {
+        el.setAttribute("data-cs-auto-pin", value);
+    }
+}
+
 function applySectionVisibility(target, visible) {
     const { $, el } = resolveContainer(target);
     const value = visible ? "false" : "true";
@@ -98,6 +109,7 @@ export function renderScenePanel(panelState = {}) {
     const settings = panelState.settings || {};
     const enabled = settings.enabled !== false;
     applyPanelEnabledState(enabled);
+    applyAutoPinMode(settings.autoPinActive !== false);
     updateStatusCopy(enabled);
 
     const sections = settings.sections || {};

@@ -1498,31 +1498,65 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-panel__header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
+    flex-wrap: wrap;
 }
 
-.cs-scene-panel__title {
+.cs-scene-panel__headline {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
+    flex: 1 1 auto;
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: linear-gradient(140deg, rgba(156, 125, 255, 0.32), rgba(64, 180, 255, 0.2));
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
-.cs-scene-panel__title i {
-    font-size: 1.5rem;
-    color: var(--primary-color, #9c7dff);
+.cs-scene-panel__crest {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.28);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.cs-scene-panel__crest i {
+    font-size: 1.6rem;
+    color: var(--primary-color, #c9a9ff);
+    text-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+}
+
+.cs-scene-panel__title-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cs-scene-panel__eyebrow {
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.66);
 }
 
 .cs-scene-panel__title-copy h3 {
     margin: 0;
-    font-size: 1.2rem;
+    font-size: 1.35rem;
+    color: var(--SmartThemeBodyColor, #f3f3f3);
 }
 
-.cs-scene-panel__title-copy p {
-    margin: 4px 0 0 0;
-    font-size: 0.85rem;
-    color: var(--text-color-soft, rgba(255, 255, 255, 0.7));
+.cs-scene-panel__subtitle {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--text-color-soft, rgba(255, 255, 255, 0.75));
 }
 
 .cs-scene-panel__toolbar {
@@ -1576,6 +1610,10 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     width: 16px;
     height: 16px;
     accent-color: var(--primary-color, #9c7dff);
+}
+
+.cs-scene-panel__toggle span {
+    font-weight: 600;
 }
 
 .cs-scene-panel__section {
@@ -1650,6 +1688,36 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-panel__card-list {
     max-height: 260px;
+}
+
+.cs-scene-panel__card-list[data-pin-mode="true"] .cs-scene-active__card:first-child {
+    position: relative;
+    border: 1px solid rgba(156, 125, 255, 0.55);
+    box-shadow: 0 14px 26px rgba(48, 19, 110, 0.45);
+}
+
+.cs-scene-active__card--pinned {
+    border: 1px solid rgba(156, 125, 255, 0.6);
+    background: linear-gradient(160deg, rgba(156, 125, 255, 0.22), rgba(0, 0, 0, 0.25));
+}
+
+.cs-scene-active__pin {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(17, 24, 48, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--SmartThemeBodyColor, #f3f3f3);
+}
+
+.cs-scene-active__pin i {
+    color: var(--primary-color, #c9a9ff);
 }
 
 .cs-scene-panel__log {
@@ -1891,6 +1959,256 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 .cs-scene-panel__footer-button:focus-visible {
     background: rgba(255, 255, 255, 0.16);
     border-color: rgba(255, 255, 255, 0.28);
+}
+
+.cs-scene-panel__icon-button--ghost {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.cs-scene-panel__icon-button--ghost:hover,
+.cs-scene-panel__icon-button--ghost:focus-visible {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.cs-scene-panel__layer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(8, 10, 24, 0.78);
+    backdrop-filter: blur(12px);
+    z-index: 5;
+}
+
+.cs-scene-panel__layer[hidden] {
+    display: none;
+}
+
+.cs-scene-panel__sheet {
+    width: min(480px, 100%);
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 20px;
+    border-radius: 18px;
+    background: rgba(12, 14, 28, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 28px 42px rgba(0, 0, 0, 0.45);
+}
+
+.cs-scene-panel__sheet-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.cs-scene-panel__sheet-titles h4 {
+    margin: 0 0 4px 0;
+    font-size: 1.05rem;
+    color: var(--SmartThemeBodyColor, #f3f3f3);
+}
+
+.cs-scene-panel__sheet-titles p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-color-soft, rgba(255, 255, 255, 0.72));
+}
+
+.cs-scene-panel__sheet-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.cs-scene-panel__sheet-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.cs-scene-panel__sheet-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+}
+
+.cs-scene-manager__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    font-size: 0.85rem;
+}
+
+.cs-scene-manager__list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.cs-scene-manager__row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+}
+
+.cs-scene-manager__identity {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cs-scene-manager__name {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.cs-scene-manager__meta {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.cs-scene-manager__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cs-scene-manager__toggle,
+.cs-scene-manager__remove {
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.08);
+    color: inherit;
+    font-size: 0.78rem;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.cs-scene-manager__toggle:hover,
+.cs-scene-manager__toggle:focus-visible,
+.cs-scene-manager__remove:hover,
+.cs-scene-manager__remove:focus-visible {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.32);
+}
+
+.cs-scene-manager__remove {
+    color: #ff9ba6;
+    border-color: rgba(255, 115, 135, 0.28);
+    background: rgba(255, 115, 135, 0.08);
+}
+
+.cs-scene-manager__remove:hover,
+.cs-scene-manager__remove:focus-visible {
+    background: rgba(255, 115, 135, 0.16);
+    border-color: rgba(255, 115, 135, 0.4);
+}
+
+.cs-scene-manager__empty {
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px dashed rgba(255, 255, 255, 0.22);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.cs-scene-manager__form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 12px 0 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cs-scene-manager__input {
+    flex: 1 1 180px;
+    min-width: 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.35);
+    color: inherit;
+    font-size: 0.85rem;
+}
+
+.cs-scene-manager__submit {
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(156, 125, 255, 0.45);
+    background: rgba(156, 125, 255, 0.2);
+    color: #ffffff;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.cs-scene-manager__submit:hover,
+.cs-scene-manager__submit:focus-visible {
+    background: rgba(156, 125, 255, 0.32);
+    border-color: rgba(156, 125, 255, 0.6);
+}
+
+.cs-scene-layer__section-title {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.cs-scene-layer__section-meta {
+    margin: 0;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.cs-scene-layer__events {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cs-scene-layer__copy {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.68);
+    line-height: 1.6;
+}
+
+.cs-scene-layer__steps {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.cs-scene-layer__steps li::marker {
+    color: var(--primary-color, #c9a9ff);
 }
 
 .cs-scene-panel__collapse-toggle {

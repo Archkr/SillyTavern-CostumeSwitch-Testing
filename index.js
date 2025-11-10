@@ -41,6 +41,9 @@ import {
     getCurrentSceneSnapshot,
     getRosterMembershipSnapshot,
     getLiveTesterOutputsSnapshot,
+    clearRosterMembership,
+    setRosterMember,
+    removeRosterMember,
 } from "./src/core/state.js";
 import { registerSillyTavernIntegration, unregisterSillyTavernIntegration } from "./src/systems/integration/sillytavern.js";
 import {
@@ -73,6 +76,7 @@ import {
     getSceneLiveLog,
 } from "./src/ui/scenePanelState.js";
 import { renderScenePanel } from "./src/ui/render/panel.js";
+import { formatRelativeTime } from "./src/ui/render/utils.js";
 
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionTemplateNamespace = `third-party/${extensionName}`;
@@ -400,6 +404,7 @@ const DEFAULT_SCENE_PANEL_SETTINGS = Object.freeze({
     autoOpenOnStream: true,
     autoOpenOnResults: true,
     showRosterAvatars: true,
+    autoPinActive: true,
     sections: DEFAULT_SCENE_PANEL_SECTIONS,
 });
 
@@ -457,6 +462,7 @@ function ensureScenePanelSettings(settings) {
     normalized.autoOpenOnStream = normalized.autoOpenOnStream !== false;
     normalized.autoOpenOnResults = normalized.autoOpenOnResults !== false;
     normalized.showRosterAvatars = normalized.showRosterAvatars !== false;
+    normalized.autoPinActive = normalized.autoPinActive !== false;
     normalized.sections.roster = normalized.sections.roster !== false;
     normalized.sections.activeCharacters = normalized.sections.activeCharacters !== false;
     normalized.sections.liveLog = normalized.sections.liveLog !== false;
@@ -1194,6 +1200,8 @@ const SCENE_PANEL_RENDER_DEBOUNCE_MS = 80;
 let scenePanelRenderTimer = null;
 let scenePanelRenderPending = false;
 let scenePanelUiWired = false;
+let scenePanelLayerMode = null;
+let scenePanelLayerReturnFocus = null;
 
 function isScenePanelCollapsed() {
     const container = getScenePanelContainer?.();
@@ -1567,6 +1575,630 @@ function initializeScenePanelUI() {
         }
     }
     scenePanelUiWired = true;
+}
+
+function getScenePanelLayerElement() {
+    if (typeof document === "undefined") {
+        return null;
+    }
+    return document.getElementById("cs-scene-panel-layer");
+}
+
+function getScenePanelLayerBodyElement() {
+    const layer = getScenePanelLayerElement();
+    if (!layer) {
+        return null;
+    }
+    return layer.querySelector('[data-scene-panel="sheet-body"]');
+}
+
+function getScenePanelLayerTitleElement() {
+    const layer = getScenePanelLayerElement();
+    if (!layer) {
+        return null;
+    }
+    return layer.querySelector('[data-scene-panel="layer-title"]');
+}
+
+function getScenePanelLayerDescriptionElement() {
+    const layer = getScenePanelLayerElement();
+    if (!layer) {
+        return null;
+    }
+    return layer.querySelector('[data-scene-panel="layer-description"]');
+}
+
+function openScenePanelLayer({ title, description, mode } = {}) {
+    if (typeof document === "undefined") {
+        return null;
+    }
+    const layer = getScenePanelLayerElement();
+    if (!layer) {
+        return null;
+    }
+    scenePanelLayerMode = mode || null;
+    const titleEl = getScenePanelLayerTitleElement();
+    if (titleEl && typeof title === "string") {
+        titleEl.textContent = title;
+    }
+    const descriptionEl = getScenePanelLayerDescriptionElement();
+    if (descriptionEl && typeof description === "string") {
+        descriptionEl.textContent = description;
+    }
+    layer.hidden = false;
+    layer.setAttribute("aria-hidden", "false");
+    if (typeof document.activeElement !== "undefined") {
+        scenePanelLayerReturnFocus = document.activeElement;
+    }
+    const closeButton = layer.querySelector('[data-scene-panel="close-layer"]');
+    setTimeout(() => {
+        if (closeButton && typeof closeButton.focus === "function") {
+            closeButton.focus();
+        }
+    }, 0);
+    rerenderScenePanelLayer();
+    return layer;
+}
+
+function closeScenePanelLayer({ restoreFocus = true } = {}) {
+    const layer = getScenePanelLayerElement();
+    if (layer) {
+        layer.setAttribute("aria-hidden", "true");
+        layer.hidden = true;
+    }
+    const focusTarget = scenePanelLayerReturnFocus;
+    scenePanelLayerMode = null;
+    scenePanelLayerReturnFocus = null;
+    if (restoreFocus && focusTarget && typeof focusTarget.focus === "function") {
+        try {
+            focusTarget.focus();
+        } catch (err) {
+        }
+    }
+}
+
+function isScenePanelLayerOpen() {
+    const layer = getScenePanelLayerElement();
+    return Boolean(layer && !layer.hidden);
+}
+
+function rerenderScenePanelLayer() {
+    if (!scenePanelLayerMode) {
+        return;
+    }
+    if (scenePanelLayerMode === "roster") {
+        renderSceneRosterManagerLayer();
+        return;
+    }
+    if (scenePanelLayerMode === "log") {
+        renderSceneLogLayer();
+        return;
+    }
+    if (scenePanelLayerMode === "settings-help") {
+        renderSceneSettingsHelpLayer();
+    }
+}
+
+function formatRosterManagerMeta(member, now) {
+    const parts = [];
+    if (member.active) {
+        parts.push("Active now");
+    } else if (Number.isFinite(member.lastSeenAt)) {
+        parts.push(`Seen ${formatRelativeTime(member.lastSeenAt, now) || "recently"}`);
+    } else {
+        parts.push("Inactive");
+    }
+    if (Number.isFinite(member.joinedAt)) {
+        const joined = formatRelativeTime(member.joinedAt, now);
+        if (joined) {
+            parts.push(`Joined ${joined}`);
+        }
+    }
+    return parts.join(" • ");
+}
+
+function renderSceneRosterManagerLayer() {
+    const body = getScenePanelLayerBodyElement();
+    if (!body) {
+        return;
+    }
+    body.textContent = "";
+    const membership = typeof getRosterMembershipSnapshot === "function"
+        ? getRosterMembershipSnapshot()
+        : null;
+    const members = Array.isArray(membership?.members) ? membership.members.slice() : [];
+    const now = Date.now();
+    members.sort((a, b) => {
+        if ((a?.active ? 1 : 0) !== (b?.active ? 1 : 0)) {
+            return a?.active ? -1 : 1;
+        }
+        const aSeen = Number.isFinite(a?.lastSeenAt) ? a.lastSeenAt : 0;
+        const bSeen = Number.isFinite(b?.lastSeenAt) ? b.lastSeenAt : 0;
+        return bSeen - aSeen;
+    });
+    const activeCount = members.filter((member) => member?.active).length;
+    const summary = document.createElement("div");
+    summary.className = "cs-scene-manager__summary";
+    summary.textContent = `Active: ${activeCount} • Tracked: ${members.length}`;
+    body.appendChild(summary);
+    if (!members.length) {
+        const empty = document.createElement("div");
+        empty.className = "cs-scene-manager__empty";
+        empty.textContent = "No characters are currently tracked. Add a name to prime the roster.";
+        body.appendChild(empty);
+    } else {
+        const list = document.createElement("ul");
+        list.className = "cs-scene-manager__list";
+        members.forEach((member) => {
+            if (!member) {
+                return;
+            }
+            const item = document.createElement("li");
+            item.className = "cs-scene-manager__row";
+            item.dataset.character = member.normalized || member.name || "";
+            const identity = document.createElement("div");
+            identity.className = "cs-scene-manager__identity";
+            const name = document.createElement("span");
+            name.className = "cs-scene-manager__name";
+            name.textContent = member.name || member.normalized || "Unknown";
+            identity.appendChild(name);
+            const meta = document.createElement("span");
+            meta.className = "cs-scene-manager__meta";
+            meta.textContent = formatRosterManagerMeta(member, now);
+            identity.appendChild(meta);
+            item.appendChild(identity);
+            const actions = document.createElement("div");
+            actions.className = "cs-scene-manager__actions";
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.className = "cs-scene-manager__toggle";
+            toggle.dataset.action = "toggle-active";
+            toggle.dataset.name = member.name || member.normalized || "";
+            toggle.textContent = member.active ? "Mark inactive" : "Reactivate";
+            actions.appendChild(toggle);
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "cs-scene-manager__remove";
+            remove.dataset.action = "remove-member";
+            remove.dataset.name = member.name || member.normalized || "";
+            remove.textContent = "Remove";
+            actions.appendChild(remove);
+            item.appendChild(actions);
+            list.appendChild(item);
+        });
+        body.appendChild(list);
+    }
+    const form = document.createElement("form");
+    form.className = "cs-scene-manager__form";
+    form.id = "cs-scene-manager-form";
+    form.dataset.scenePanel = "manager-form";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.name = "character";
+    input.placeholder = "Add character name…";
+    input.autocomplete = "off";
+    input.className = "cs-scene-manager__input";
+    form.appendChild(input);
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.className = "cs-scene-manager__submit";
+    submit.textContent = "Add to roster";
+    form.appendChild(submit);
+    body.appendChild(form);
+}
+
+function renderSceneLogLayer() {
+    const body = getScenePanelLayerBodyElement();
+    if (!body) {
+        return;
+    }
+    body.textContent = "";
+    const panelState = collectScenePanelState();
+    const analytics = panelState?.analytics || {};
+    const events = Array.isArray(analytics.events) ? analytics.events.slice(-50) : [];
+    const now = Number.isFinite(panelState?.now) ? panelState.now : Date.now();
+    const summary = document.createElement("div");
+    summary.className = "cs-scene-manager__summary";
+    const updatedCopy = formatRelativeTime(analytics.updatedAt, now) || "just now";
+    const charCount = typeof analytics.buffer === "string" ? analytics.buffer.length : 0;
+    summary.textContent = `Last updated ${updatedCopy} • Buffer ${charCount} chars • Events ${events.length}`;
+    body.appendChild(summary);
+    const stats = analytics.stats instanceof Map ? analytics.stats : null;
+    if (stats && stats.size) {
+        const statsList = document.createElement("ul");
+        statsList.className = "cs-scene-log__stats";
+        Array.from(stats.entries()).slice(0, 8).forEach(([normalized, count]) => {
+            const item = document.createElement("li");
+            const name = panelState.displayNames?.get(normalized) || normalized;
+            item.textContent = `${name} × ${count}`;
+            statsList.appendChild(item);
+        });
+        body.appendChild(statsList);
+    }
+    if (!events.length) {
+        const empty = document.createElement("div");
+        empty.className = "cs-scene-manager__empty";
+        empty.textContent = panelState?.isStreaming
+            ? "Awaiting detections for this message…"
+            : "No live diagnostics recorded yet.";
+        body.appendChild(empty);
+        return;
+    }
+    const list = document.createElement("div");
+    list.className = "cs-scene-layer__events";
+    events.forEach((entry) => {
+        if (!entry || typeof entry !== "object") {
+            return;
+        }
+        const wrapper = document.createElement("div");
+        wrapper.className = "cs-scene-log__event";
+        if (entry.type) {
+            wrapper.dataset.eventType = entry.type;
+        }
+        const title = document.createElement("div");
+        title.className = "cs-scene-log__event-title";
+        if (entry.type === "switch") {
+            const folder = entry.outfit?.folder ? ` → ${entry.outfit.folder}` : "";
+            title.textContent = `Switch${folder}`;
+        } else if (entry.type === "skipped") {
+            const reason = describeSkipReason(entry.reason);
+            const name = entry.name ? ` ${entry.name}` : "";
+            title.textContent = `Skipped${name} · ${reason}`;
+        } else if (entry.type === "veto") {
+            title.textContent = `Veto · ${entry.match || "unknown"}`;
+        } else {
+            title.textContent = entry.type || "Event";
+        }
+        wrapper.appendChild(title);
+        const metaParts = [];
+        if (entry.name && entry.type !== "skipped") {
+            metaParts.push(entry.name);
+        }
+        if (entry.matchKind) {
+            metaParts.push(entry.matchKind);
+        }
+        if (Number.isFinite(entry.charIndex)) {
+            metaParts.push(`#${entry.charIndex + 1}`);
+        }
+        if (entry.outfit?.label) {
+            metaParts.push(entry.outfit.label);
+        }
+        const when = formatRelativeTime(entry.timestamp, now);
+        if (when) {
+            metaParts.push(when);
+        }
+        if (metaParts.length) {
+            const meta = document.createElement("div");
+            meta.className = "cs-scene-log__event-meta";
+            meta.textContent = metaParts.join(" • ");
+            wrapper.appendChild(meta);
+        }
+        list.appendChild(wrapper);
+    });
+    body.appendChild(list);
+}
+
+function renderSceneSettingsHelpLayer() {
+    const body = getScenePanelLayerBodyElement();
+    if (!body) {
+        return;
+    }
+    body.textContent = "";
+    const intro = document.createElement("p");
+    intro.className = "cs-scene-layer__copy";
+    intro.textContent = "Open the Costume Switcher drawer to adjust auto-open, section visibility, and roster avatar settings.";
+    body.appendChild(intro);
+    const steps = document.createElement("ol");
+    steps.className = "cs-scene-layer__steps";
+    [
+        "Click the Extensions menu in SillyTavern.",
+        "Select \"Costume Switcher\" from the drawer.",
+        "Switch to the Detection & Timing tab to find the scene panel options.",
+    ].forEach((instruction) => {
+        const item = document.createElement("li");
+        item.textContent = instruction;
+        steps.appendChild(item);
+    });
+    body.appendChild(steps);
+}
+
+function syncSceneRosterFromMembership({ message } = {}) {
+    const membership = typeof getRosterMembershipSnapshot === "function"
+        ? getRosterMembershipSnapshot()
+        : null;
+    const members = Array.isArray(membership?.members) ? membership.members : [];
+    const activeMembers = members.filter((member) => member && member.active);
+    const rosterNames = activeMembers.map((member) => member.name || member.normalized).filter(Boolean);
+    const displayNames = new Map();
+    activeMembers.forEach((member) => {
+        const key = typeof member.normalized === "string" && member.normalized
+            ? member.normalized
+            : (member.name || "").toLowerCase();
+        if (key) {
+            displayNames.set(key, member.name || member.normalized || key);
+        }
+    });
+    const scene = typeof getCurrentSceneSnapshot === "function" ? getCurrentSceneSnapshot() : {};
+    applySceneRosterUpdate({
+        key: scene.key,
+        messageId: scene.messageId,
+        roster: rosterNames,
+        displayNames,
+        lastMatch: scene.lastEvent,
+        updatedAt: Date.now(),
+    });
+    requestScenePanelRender("roster-manager", { immediate: true });
+    if (message) {
+        showStatus(message, "success");
+    }
+}
+
+function buildSceneLogCopy(panelState = collectScenePanelState()) {
+    if (!panelState || typeof panelState !== "object") {
+        return "No live events recorded yet.";
+    }
+    const analytics = panelState.analytics || {};
+    const events = Array.isArray(analytics.events) ? analytics.events : [];
+    if (!events.length) {
+        return "No live events recorded yet.";
+    }
+    const lines = [];
+    events.forEach((event) => {
+        if (!event || typeof event !== "object") {
+            return;
+        }
+        const timestamp = Number.isFinite(event.timestamp)
+            ? new Date(event.timestamp).toLocaleString()
+            : "Timestamp unavailable";
+        const parts = [`[${timestamp}]`, event.type ? event.type.toUpperCase() : "EVENT"];
+        if (event.name) {
+            parts.push(`Name: ${event.name}`);
+        }
+        if (event.matchKind) {
+            parts.push(`Match: ${event.matchKind}`);
+        }
+        if (event.reason) {
+            parts.push(`Reason: ${describeSkipReason(event.reason)}`);
+        }
+        if (event.outfit?.folder) {
+            parts.push(`Outfit: ${event.outfit.folder}`);
+        }
+        lines.push(parts.join(" | "));
+    });
+    return lines.join("\n");
+}
+
+async function copyScenePanelLog() {
+    if (typeof document === "undefined") {
+        return false;
+    }
+    const text = buildSceneLogCopy();
+    if (!text) {
+        return false;
+    }
+    try {
+        if (navigator?.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (err) {
+    }
+    try {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "absolute";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
+function handleScenePanelManageRoster(event) {
+    event?.preventDefault?.();
+    openScenePanelLayer({
+        mode: "roster",
+        title: "Manage scene roster",
+        description: "Prime, reactivate, or remove characters from the live roster.",
+    });
+}
+
+function handleScenePanelClearRoster(event) {
+    event?.preventDefault?.();
+    if (!confirm("Clear the entire scene roster?")) {
+        return;
+    }
+    if (typeof clearRosterMembership === "function") {
+        clearRosterMembership();
+    }
+    syncSceneRosterFromMembership({ message: "Scene roster cleared." });
+    rerenderScenePanelLayer();
+}
+
+function handleScenePanelRefresh(event) {
+    event?.preventDefault?.();
+    requestScenePanelRender("manual-refresh", { immediate: true });
+    showStatus("Scene panel refreshed.", "info");
+    rerenderScenePanelLayer();
+}
+
+async function handleScenePanelFocusToggle(event) {
+    event?.preventDefault?.();
+    const settings = getSettings?.();
+    if (!settings) {
+        return;
+    }
+    const lockedName = String(settings?.focusLock?.character ?? "").trim();
+    if (lockedName) {
+        settings.focusLock.character = null;
+        await manualReset();
+        updateFocusLockUI();
+        persistSettings("Focus lock removed.", "info");
+        showStatus("Focus lock removed.", "info");
+        requestScenePanelRender("focus-lock", { immediate: true });
+        return;
+    }
+    const panelState = collectScenePanelState();
+    const ranking = Array.isArray(panelState?.ranking) ? panelState.ranking : [];
+    const sceneRoster = Array.isArray(panelState?.scene?.roster) ? panelState.scene.roster : [];
+    let candidate = ranking.find((entry) => entry?.name) || sceneRoster.find((entry) => entry && (entry.name || typeof entry === "string"));
+    if (candidate && typeof candidate === "object") {
+        candidate = candidate.name || candidate.normalized || null;
+    }
+    if (typeof candidate !== "string" || !candidate.trim()) {
+        showStatus("No recent characters to focus lock.", "info");
+        return;
+    }
+    const target = candidate.trim();
+    settings.focusLock.character = target;
+    await issueCostumeForName(target, { isLock: true });
+    updateFocusLockUI();
+    persistSettings(`Focus lock set to "${escapeHtml(target)}".`, "info");
+    showStatus(`Focus lock set to ${target}.`, "success");
+    requestScenePanelRender("focus-lock", { immediate: true });
+}
+
+function handleScenePanelExpandLog(event) {
+    event?.preventDefault?.();
+    openScenePanelLayer({
+        mode: "log",
+        title: "Live result log",
+        description: "Review the latest detection events and diagnostics.",
+    });
+}
+
+async function handleScenePanelCopyLog(event) {
+    event?.preventDefault?.();
+    const success = await copyScenePanelLog();
+    if (success) {
+        showStatus("Live log copied to clipboard.", "success");
+    } else {
+        showStatus("Unable to copy the live log.", "error");
+    }
+}
+
+function openExtensionSettingsView() {
+    let opened = false;
+    try {
+        const ctx = typeof getContext === "function"
+            ? getContext()
+            : window?.SillyTavern?.getContext?.();
+        if (ctx?.ui?.openExtensionSettings) {
+            ctx.ui.openExtensionSettings(extensionName);
+            opened = true;
+        } else if (ctx?.openExtensionSettings) {
+            ctx.openExtensionSettings(extensionName);
+            opened = true;
+        }
+    } catch (err) {
+    }
+    if (typeof document !== "undefined") {
+        const menuButton = document.querySelector('[data-menu="extensions"]');
+        if (menuButton) {
+            menuButton.dispatchEvent(new Event("click", { bubbles: true }));
+            opened = true;
+        }
+        const container = document.getElementById("costume-switcher-settings");
+        if (container) {
+            container.scrollIntoView({ behavior: "smooth", block: "start" });
+            opened = true;
+        }
+    }
+    return opened;
+}
+
+function handleScenePanelOpenSettings(event) {
+    event?.preventDefault?.();
+    if (openExtensionSettingsView()) {
+        showStatus("Opening Costume Switcher settings…", "info");
+        return;
+    }
+    openScenePanelLayer({
+        mode: "settings-help",
+        title: "Find the scene panel settings",
+        description: "Follow these steps to reach the configuration panel inside SillyTavern.",
+    });
+}
+
+function handleSceneManagerSubmit(event) {
+    event?.preventDefault?.();
+    const form = event?.currentTarget;
+    const input = form?.querySelector(".cs-scene-manager__input");
+    const name = String(input?.value || "").trim();
+    if (!name) {
+        showStatus("Enter a character name to add.", "info");
+        return;
+    }
+    const added = typeof setRosterMember === "function"
+        ? setRosterMember(name, { name, active: true, lastSeenAt: Date.now(), joinedAt: Date.now() })
+        : null;
+    if (!added) {
+        showStatus("Unable to add that name to the roster.", "error");
+        return;
+    }
+    if (input) {
+        input.value = "";
+    }
+    syncSceneRosterFromMembership({ message: `${escapeHtml(added.name)} added to the scene roster.` });
+    rerenderScenePanelLayer();
+}
+
+function handleSceneManagerToggle(event) {
+    event?.preventDefault?.();
+    const button = event?.currentTarget;
+    const name = String(button?.dataset?.name || "").trim();
+    if (!name) {
+        return;
+    }
+    const membership = typeof getRosterMembershipSnapshot === "function"
+        ? getRosterMembershipSnapshot()
+        : null;
+    const members = Array.isArray(membership?.members) ? membership.members : [];
+    const normalizedTarget = name.toLowerCase();
+    const member = members.find((entry) => {
+        if (!entry) {
+            return false;
+        }
+        const normalized = (entry.name || entry.normalized || "").toLowerCase();
+        return normalized === normalizedTarget;
+    });
+    const nextActive = !(member?.active);
+    if (typeof setRosterMember === "function") {
+        setRosterMember(name, {
+            name,
+            active: nextActive,
+            lastSeenAt: Date.now(),
+            lastLeftAt: !nextActive ? Date.now() : member?.lastLeftAt ?? null,
+        });
+    }
+    syncSceneRosterFromMembership({
+        message: nextActive
+            ? `${escapeHtml(name)} reactivated.`
+            : `${escapeHtml(name)} marked inactive.`,
+    });
+    rerenderScenePanelLayer();
+}
+
+function handleSceneManagerRemove(event) {
+    event?.preventDefault?.();
+    const button = event?.currentTarget;
+    const name = String(button?.dataset?.name || "").trim();
+    if (!name) {
+        return;
+    }
+    if (!confirm(`Remove ${name} from the scene roster?`)) {
+        return;
+    }
+    if (typeof removeRosterMember === "function") {
+        removeRosterMember(name);
+    }
+    syncSceneRosterFromMembership({ message: `${escapeHtml(name)} removed from the scene roster.` });
+    rerenderScenePanelLayer();
 }
 
 
@@ -2474,6 +3106,7 @@ function updateScenePanelSettingControls(panelSettings = ensureScenePanelSetting
     $("#cs-scene-panel-enable").prop('checked', !!(settings && settings.enabled));
     $("#cs-scene-auto-open").prop('checked', !!(settings && settings.autoOpenOnStream));
     $("#cs-scene-auto-open-results").prop('checked', !!(settings && settings.autoOpenOnResults));
+    $("#cs-scene-auto-pin").prop('checked', settings.autoPinActive !== false);
     $("#cs-scene-show-avatars").prop('checked', !!(settings && settings.showRosterAvatars));
     $("#cs-scene-section-roster").prop('checked', sections.roster !== false);
     $("#cs-scene-section-active").prop('checked', sections.activeCharacters !== false);
@@ -2520,6 +3153,18 @@ function applyScenePanelAutoOpenOnStreamSetting(enabled, { message } = {}) {
     const fallbackMessage = panelSettings.autoOpenOnStream
         ? "Scene panel auto-open enabled."
         : "Scene panel auto-open disabled.";
+    persistSettings(message || fallbackMessage, "info");
+}
+
+function applyScenePanelAutoPinSetting(enabled, { message } = {}) {
+    const settings = getSettings();
+    const panelSettings = ensureScenePanelSettings(settings);
+    panelSettings.autoPinActive = Boolean(enabled);
+    updateScenePanelSettingControls(panelSettings);
+    requestScenePanelRender("auto-pin", { immediate: true });
+    const fallbackMessage = panelSettings.autoPinActive
+        ? "Auto-pin highlight enabled."
+        : "Auto-pin highlight disabled.";
     persistSettings(message || fallbackMessage, "info");
 }
 
@@ -5705,6 +6350,15 @@ function wireUI() {
         requestScenePanelRender("avatar-toggle", { immediate: true });
         persistSettings(showAvatars ? 'Roster avatars enabled.' : 'Roster avatars hidden.', 'info');
     });
+    $(document).on('change', '#cs-scene-auto-pin', function() {
+        const enabled = $(this).prop('checked');
+        const notice = this?.dataset?.changeNotice
+            || `Top active character will ${enabled ? 'stay highlighted' : 'no longer be highlighted'} in the panel.`;
+        announceAutoSaveIntent(this, null, notice, 'cs-scene-auto-pin');
+        applyScenePanelAutoPinSetting(enabled, {
+            message: enabled ? 'Auto-pin highlight enabled.' : 'Auto-pin highlight disabled.',
+        });
+    });
     $(document).on('click', '#cs-scene-panel-toggle', function(event) {
         event.preventDefault();
         const scenePanelSettings = ensureScenePanelSettings(settings);
@@ -5749,6 +6403,27 @@ function wireUI() {
                 ? 'Scene panel will auto-open on new results.'
                 : 'Scene panel will stay collapsed after new results.',
         });
+    });
+    $(document).on('click', '#cs-scene-manage-roster', handleScenePanelManageRoster);
+    $(document).on('click', '#cs-scene-clear-roster', handleScenePanelClearRoster);
+    $(document).on('click', '#cs-scene-refresh', handleScenePanelRefresh);
+    $(document).on('click', '#cs-scene-focus-toggle', handleScenePanelFocusToggle);
+    $(document).on('click', '#cs-scene-log-expand', handleScenePanelExpandLog);
+    $(document).on('click', '#cs-scene-log-copy', handleScenePanelCopyLog);
+    $(document).on('click', '#cs-scene-open-settings', handleScenePanelOpenSettings);
+    $(document).on('submit', '#cs-scene-manager-form', handleSceneManagerSubmit);
+    $(document).on('click', '.cs-scene-manager__toggle', handleSceneManagerToggle);
+    $(document).on('click', '.cs-scene-manager__remove', handleSceneManagerRemove);
+    $(document).on('click', '[data-scene-panel="close-layer"]', () => closeScenePanelLayer());
+    $(document).on('click', '#cs-scene-panel-layer', function(event) {
+        if (event.target === this) {
+            closeScenePanelLayer();
+        }
+    });
+    $(document).on('keydown', function(event) {
+        if (event.key === "Escape" && isScenePanelLayerOpen()) {
+            closeScenePanelLayer();
+        }
     });
     $(document).on('click', '#cs-save', () => {
         const button = document.getElementById('cs-save');
