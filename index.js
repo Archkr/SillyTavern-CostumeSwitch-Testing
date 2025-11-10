@@ -6468,10 +6468,18 @@ function wireUI() {
     });
     $(document).on('click', '#cs-scene-panel-summon', function(event) {
         event.preventDefault();
-        setScenePanelCollapsed(false);
-        applyScenePanelEnabledSetting(true, {
-            message: 'Scene panel enabled.',
-        });
+        const scenePanelSettings = ensureScenePanelSettings(settings);
+        const isEnabled = scenePanelSettings.enabled !== false;
+        if (isEnabled) {
+            applyScenePanelEnabledSetting(false, {
+                message: 'Scene panel hidden.',
+            });
+        } else {
+            setScenePanelCollapsed(false);
+            applyScenePanelEnabledSetting(true, {
+                message: 'Scene panel enabled.',
+            });
+        }
     });
     $(document).on('click', '#cs-scene-panel-toggle', function(event) {
         event.preventDefault();

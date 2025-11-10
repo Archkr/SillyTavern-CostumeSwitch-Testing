@@ -38,6 +38,9 @@ function ensureScenePanelSummonButton() {
     button.setAttribute("aria-controls", "cs-scene-panel");
     button.setAttribute("aria-label", "Show scene panel");
     button.title = "Show scene panel";
+    button.setAttribute("aria-pressed", "false");
+    button.dataset.panelVisible = "false";
+    button.dataset.panelCollapsed = "false";
     const icon = createElement("i", "fa-solid fa-masks-theater cs-scene-panel__summon-icon");
     if (icon) {
         icon.setAttribute("aria-hidden", "true");
@@ -58,7 +61,7 @@ function ensureScenePanelSummonButton() {
     return scenePanelSummonButton;
 }
 
-function updateScenePanelSummonVisibility(enabled) {
+function updateScenePanelSummonVisibility(enabled, { collapsed = false } = {}) {
     const button = ensureScenePanelSummonButton();
     if (!button) {
         return;
@@ -66,17 +69,28 @@ function updateScenePanelSummonVisibility(enabled) {
     if (!button.isConnected && typeof document !== "undefined" && document.body) {
         document.body.appendChild(button);
     }
-    if (enabled) {
-        button.dataset.visible = "false";
-        button.hidden = true;
-        button.setAttribute("aria-hidden", "true");
-    } else {
-        button.dataset.visible = "true";
-        button.hidden = false;
-        if (typeof button.removeAttribute === "function") {
-            button.removeAttribute("hidden");
-        }
-        button.removeAttribute("aria-hidden");
+    button.dataset.visible = "true";
+    button.dataset.panelVisible = enabled ? "true" : "false";
+    button.dataset.panelCollapsed = collapsed ? "true" : "false";
+    button.hidden = false;
+    button.removeAttribute("hidden");
+    button.removeAttribute("aria-hidden");
+    button.setAttribute("aria-pressed", enabled ? "true" : "false");
+    button.setAttribute("aria-label", enabled ? "Hide scene panel" : "Show scene panel");
+    button.title = enabled ? "Hide scene panel" : "Show scene panel";
+
+    const icon = button.querySelector(".cs-scene-panel__summon-icon");
+    if (icon) {
+        icon.classList.remove("fa-eye", "fa-eye-slash", "fa-masks-theater");
+        icon.classList.add(enabled ? "fa-eye-slash" : "fa-masks-theater");
+    }
+
+    const label = button.querySelector(".cs-scene-panel__summon-label");
+    if (label) {
+        label.textContent = enabled ? "Hide Scene Panel" : "Show Scene Panel";
+    }
+
+    if (!enabled) {
         try {
             button.focus({ preventScroll: true });
         } catch (err) {
@@ -105,7 +119,7 @@ function applyCollapsedState(collapsed) {
     }
 }
 
-function applyPanelEnabledState(enabled) {
+function applyPanelEnabledState(enabled, { collapsed = false } = {}) {
     const container = getScenePanelContainer?.();
     const { $, el } = resolveContainer(container);
     const value = enabled ? "false" : "true";
@@ -125,7 +139,7 @@ function applyPanelEnabledState(enabled) {
             el.setAttribute("hidden", "");
         }
     }
-    updateScenePanelSummonVisibility(enabled);
+    updateScenePanelSummonVisibility(enabled, { collapsed });
 }
 
 function applyAutoPinMode(active) {
@@ -188,11 +202,12 @@ export function renderScenePanel(panelState = {}) {
         return;
     }
 
-    applyCollapsedState(Boolean(panelState.collapsed));
+    const collapsed = Boolean(panelState.collapsed);
+    applyCollapsedState(collapsed);
 
     const settings = panelState.settings || {};
     const enabled = settings.enabled !== false;
-    applyPanelEnabledState(enabled);
+    applyPanelEnabledState(enabled, { collapsed });
     applyAutoPinMode(settings.autoPinActive !== false);
     updateStatusCopy(enabled);
 

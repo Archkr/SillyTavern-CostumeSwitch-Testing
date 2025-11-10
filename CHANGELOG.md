@@ -4,7 +4,7 @@
 
 ### Added
 - **Scene panel command center.** Polished the side panel with a branded header, roster manager drawer, log viewer, auto-pin highlight toggle, and quick focus-lock controls so every button delivers meaningful actions.
-- **Summon toggle for the scene panel.** Hide the panel completely and bring it back with a floating summon button so the chat column can reclaim the full width when you need extra room.
+- **Summon toggle for the scene panel.** Hide the panel completely and bring it back with a floating summon button that stays available as a quick toggle so the chat column can reclaim the full width whenever you need extra room.
 - **Inline scene roster settings.** The footer button now opens an in-panel settings sheet with quick toggles for auto-open behavior, section visibility, and roster avatars.
 
 ### Fixed
