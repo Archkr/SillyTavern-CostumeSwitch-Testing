@@ -8120,6 +8120,21 @@ const handleStream = (...args) => {
             return;
         }
 
+        if (!state.currentGenerationKey) {
+            let fallbackKey = null;
+            for (const arg of args) {
+                const { key } = parseMessageReference(arg);
+                if (key) {
+                    fallbackKey = key;
+                    break;
+                }
+            }
+            if (fallbackKey) {
+                state.currentGenerationKey = fallbackKey;
+                debugLog(`Adopted ${fallbackKey} as stream key from token payload.`);
+            }
+        }
+
         const profile = getActiveProfile();
         if (!profile) return;
 

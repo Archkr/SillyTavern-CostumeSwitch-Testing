@@ -1732,10 +1732,12 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     display: flex;
     flex-direction: column;
     gap: 10px;
+    min-height: 0;
 }
 
 .cs-scene-panel__section[data-scene-panel="roster"] {
     flex: 0 0 auto;
+    min-height: 0;
 }
 
 .cs-scene-panel__section[data-scene-panel="roster"] > .cs-scene-panel__scrollable {

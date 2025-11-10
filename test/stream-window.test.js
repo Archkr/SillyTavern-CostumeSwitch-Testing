@@ -132,6 +132,49 @@ test("handleStream logs focus lock status when locked", () => {
     assert.equal(noticeSnapshot.event.matchKind, "focus-lock");
 });
 
+test("handleStream infers message key from token event payloads", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    const originalPerMessageStates = state.perMessageStates;
+    const originalPerMessageBuffers = state.perMessageBuffers;
+    const originalMessageQueue = state.messageKeyQueue;
+    const originalCompiledRegexes = state.compiledRegexes;
+    const originalGenerationKey = state.currentGenerationKey;
+
+    state.perMessageStates = new Map();
+    state.perMessageBuffers = new Map();
+    state.messageKeyQueue = [];
+    state.currentGenerationKey = null;
+    state.compiledRegexes = {};
+
+    const settings = extensionSettingsStore[extensionName];
+    const originalProfile = settings.profiles.Default;
+    const originalEnabled = settings.enabled;
+    const originalFocusLock = settings.focusLock.character;
+
+    settings.enabled = true;
+    settings.focusLock.character = null;
+    settings.profiles.Default = { ...originalProfile };
+
+    try {
+        handleStream({ messageId: 321, token: "Kotori" });
+
+        assert.equal(state.currentGenerationKey, "m321");
+        assert.ok(state.perMessageStates.has("m321"));
+        assert.equal(state.perMessageBuffers.get("m321"), "Kotori");
+    } finally {
+        settings.profiles.Default = originalProfile;
+        settings.enabled = originalEnabled;
+        settings.focusLock.character = originalFocusLock;
+        state.currentGenerationKey = originalGenerationKey;
+        state.perMessageStates = originalPerMessageStates;
+        state.perMessageBuffers = originalPerMessageBuffers;
+        state.messageKeyQueue = originalMessageQueue;
+        state.compiledRegexes = originalCompiledRegexes;
+    }
+});
+
 test("handleStream records veto phrase and recent events", () => {
     const original$ = globalThis.$;
     const statusMessages = [];
