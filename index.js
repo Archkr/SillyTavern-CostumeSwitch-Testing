@@ -1529,7 +1529,14 @@ function collectScenePanelState() {
     });
 
     const profileForCoverage = getActiveProfile();
-    const coverage = analyzeCoverageDiagnostics(buffer, profileForCoverage);
+    const hasBufferText = typeof buffer === "string" && buffer.trim().length > 0;
+    let coverage;
+    if (hasBufferText) {
+        coverage = analyzeCoverageDiagnostics(buffer, profileForCoverage);
+    } else {
+        const fallbackCoverage = state.lastTesterReport?.coverage || state.coverageDiagnostics;
+        coverage = cloneCoverageDiagnostics(fallbackCoverage);
+    }
 
     const rankingSource = ranking.length ? ranking : rankingForMessage.slice(0, 4);
     const preparedRanking = rankingSource.map((entry) => {
@@ -5689,6 +5696,18 @@ function analyzeCoverageDiagnostics(text, profile = getActiveProfile()) {
         missingAttributionVerbs: Array.from(missingAttribution).sort(),
         missingActionVerbs: Array.from(missingAction).sort(),
         totalTokens: tokens.length,
+    };
+}
+
+function cloneCoverageDiagnostics(value) {
+    if (!value || typeof value !== "object") {
+        return { missingPronouns: [], missingAttributionVerbs: [], missingActionVerbs: [], totalTokens: 0 };
+    }
+    return {
+        missingPronouns: Array.isArray(value.missingPronouns) ? [...value.missingPronouns] : [],
+        missingAttributionVerbs: Array.isArray(value.missingAttributionVerbs) ? [...value.missingAttributionVerbs] : [],
+        missingActionVerbs: Array.isArray(value.missingActionVerbs) ? [...value.missingActionVerbs] : [],
+        totalTokens: Number.isFinite(value.totalTokens) ? value.totalTokens : 0,
     };
 }
 

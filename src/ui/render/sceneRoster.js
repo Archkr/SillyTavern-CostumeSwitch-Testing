@@ -228,6 +228,7 @@ function mergeRosterData(scene, membership, testers, now) {
         });
     }
 
+    const sceneActive = new Set();
     if (scene && Array.isArray(scene.roster)) {
         scene.roster.forEach((entry) => {
             const normalized = normalizeMember(entry);
@@ -247,8 +248,20 @@ function mergeRosterData(scene, membership, testers, now) {
                     ? Math.min(existing.turnsRemaining, normalized.turnsRemaining)
                     : normalized.turnsRemaining;
             }
+            existing.lastLeftAt = null;
+            sceneActive.add(existing.normalized);
             map.set(normalized.normalized, existing);
         });
+    }
+
+    for (const [normalized, entry] of map.entries()) {
+        if (!sceneActive.has(normalized)) {
+            entry.active = false;
+            entry.turnsRemaining = null;
+            if (!Number.isFinite(entry.lastLeftAt) && Number.isFinite(entry.lastSeenAt)) {
+                entry.lastLeftAt = entry.lastSeenAt;
+            }
+        }
     }
 
     const testerMap = new Map();
