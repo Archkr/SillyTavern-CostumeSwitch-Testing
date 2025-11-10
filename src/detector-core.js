@@ -358,7 +358,7 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
     const scanDialogueActions = Boolean(options.scanDialogueActions);
     const matches = [];
 
-    const addMatch = (name, matchKind, index, priority) => {
+    const addMatch = (name, matchKind, index, priority, length = null) => {
         const trimmedName = String(name ?? "").trim();
         if (!trimmedName) {
             return;
@@ -368,27 +368,33 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
             matchKind,
             matchIndex: Number.isFinite(index) ? index : null,
             priority: Number.isFinite(priority) ? priority : null,
+            matchLength: Number.isFinite(length) && length > 0 ? length : null,
         });
+    };
+
+    const getMatchLength = (match) => {
+        const value = typeof match?.match === "string" ? match.match.length : null;
+        return Number.isFinite(value) && value > 0 ? value : null;
     };
 
     if (regexes.speakerRegex) {
         findMatches(text, regexes.speakerRegex, quoteRanges).forEach(match => {
             const name = match.groups?.[0]?.trim();
-            addMatch(name, "speaker", match.index, priorityWeights.speaker);
+            addMatch(name, "speaker", match.index, priorityWeights.speaker, getMatchLength(match));
         });
     }
 
     if (profile.detectAttribution !== false && regexes.attributionRegex) {
         findMatches(text, regexes.attributionRegex, quoteRanges, { searchInsideQuotes: scanDialogueActions }).forEach(match => {
             const name = match.groups?.find(group => group)?.trim();
-            addMatch(name, "attribution", match.index, priorityWeights.attribution);
+            addMatch(name, "attribution", match.index, priorityWeights.attribution, getMatchLength(match));
         });
     }
 
     if (profile.detectAction !== false && regexes.actionRegex) {
         findMatches(text, regexes.actionRegex, quoteRanges, { searchInsideQuotes: scanDialogueActions }).forEach(match => {
             const name = match.groups?.find(group => group)?.trim();
-            addMatch(name, "action", match.index, priorityWeights.action);
+            addMatch(name, "action", match.index, priorityWeights.action, getMatchLength(match));
         });
     }
 
@@ -398,21 +404,21 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
 
     if (profile.detectPronoun && regexes.pronounRegex && validatedSubject) {
         findMatches(text, regexes.pronounRegex, quoteRanges).forEach(match => {
-            addMatch(validatedSubject, "pronoun", match.index, priorityWeights.pronoun);
+            addMatch(validatedSubject, "pronoun", match.index, priorityWeights.pronoun, getMatchLength(match));
         });
     }
 
     if (profile.detectVocative !== false && regexes.vocativeRegex) {
         findMatches(text, regexes.vocativeRegex, quoteRanges, { searchInsideQuotes: true }).forEach(match => {
             const name = match.groups?.[0]?.trim();
-            addMatch(name, "vocative", match.index, priorityWeights.vocative);
+            addMatch(name, "vocative", match.index, priorityWeights.vocative, getMatchLength(match));
         });
     }
 
     if (profile.detectPossessive && regexes.possessiveRegex) {
         findMatches(text, regexes.possessiveRegex, quoteRanges).forEach(match => {
             const name = match.groups?.[0]?.trim();
-            addMatch(name, "possessive", match.index, priorityWeights.possessive);
+            addMatch(name, "possessive", match.index, priorityWeights.possessive, getMatchLength(match));
         });
     }
 
@@ -420,7 +426,7 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         findMatches(text, regexes.nameRegex, quoteRanges).forEach(match => {
             const raw = match.groups?.[0] ?? match.match;
             const name = String(raw ?? "").replace(/-(?:sama|san)$/i, "").trim();
-            addMatch(name, "name", match.index, priorityWeights.name);
+            addMatch(name, "name", match.index, priorityWeights.name, getMatchLength(match));
         });
     }
 

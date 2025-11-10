@@ -78,6 +78,40 @@ test('collectDetections identifies action matches for narrative cues', () => {
     assert.ok(attributionMatches.includes('Yuzuru'), 'expected Yuzuru attribution detection');
 });
 
+test("collectDetections records match lengths for downstream scoring", () => {
+    const profile = {
+        patterns: ["Kotori"],
+        ignorePatterns: [],
+        attributionVerbs: [],
+        actionVerbs: DEFAULT_ACTION_VERB_FORMS,
+        pronounVocabulary: ["she"],
+        detectAttribution: false,
+        detectAction: false,
+        detectVocative: false,
+        detectPossessive: false,
+        detectPronoun: false,
+        detectGeneral: true,
+    };
+
+    const { regexes } = compileProfileRegexes(profile, {
+        unicodeWordPattern: "[\\p{L}\\p{M}\\p{N}_]",
+        defaultPronouns: ["she"],
+    });
+
+    const sample = "Kotori steadies her ribbon fan.";
+
+    const matches = collectDetections(sample, profile, regexes, {
+        priorityWeights: {
+            name: 1,
+        },
+    });
+
+    const generalMatch = matches.find(entry => entry.matchKind === "name");
+    assert.ok(generalMatch, "expected a general name match for Kotori");
+    assert.ok(Number.isFinite(generalMatch.matchLength), "match length should be recorded");
+    assert.ok(generalMatch.matchLength >= generalMatch.name.length, "match length should cover the detected name");
+});
+
 test('collectDetections optionally scans inside dialogue when enabled', () => {
     const profile = {
         patterns: ['Kotori', 'Reine'],

@@ -11,7 +11,7 @@ const {
     getLiveTesterOutputsSnapshot,
     clearLiveTesterOutputs,
 } = await import("../src/core/state.js");
-const { compileProfileRegexes } = await import("../src/detector-core.js");
+const { compileProfileRegexes, collectDetections } = await import("../src/detector-core.js");
 
 const baseSettings = {
     enabled: true,
@@ -147,7 +147,14 @@ test("first-token pronoun yields a detection when falling back to the pending su
 
     const pronounEvents = result.events.filter(event => event.matchKind === "pronoun");
     assert.ok(pronounEvents.length > 0, "expected a pronoun detection for the leading token");
-    assert.equal(pronounEvents[0].charIndex, 0, "pronoun detection should align with the first token");
+    const pronounMatches = collectDetections(text, profile, state.compiledRegexes, {
+        priorityWeights: { pronoun: profile.priorityPronounWeight },
+        lastSubject: msgState.pendingSubject,
+    }).filter(match => match.matchKind === "pronoun");
+    assert.ok(pronounMatches.length > 0, "expected a pronoun match from the detector core");
+    assert.equal(pronounMatches[0].matchIndex, 0, "pronoun detection should start at the first token");
+    const expectedEnd = pronounMatches[0].matchIndex + (pronounMatches[0].matchLength || 1) - 1;
+    assert.equal(pronounEvents[0].charIndex, expectedEnd, "pronoun detection should report the ending index of the match span");
     assert.equal(msgState.pendingSubject, "Kotori", "pending subject should persist until a non-pronoun confirmation occurs");
 });
 

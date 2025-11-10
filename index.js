@@ -917,7 +917,13 @@ function getWinner(matches, bias = 0, textLength = 0, options = {}) {
     matches.forEach((match) => {
         const isActive = match.priority >= 3; // speaker, attribution, action
         const hasFiniteIndex = Number.isFinite(match.matchIndex);
-        if (minIndex != null && hasFiniteIndex && match.matchIndex <= minIndex) {
+        const matchLength = Number.isFinite(match.matchLength) && match.matchLength > 0
+            ? Math.floor(match.matchLength)
+            : 1;
+        const matchEndIndex = hasFiniteIndex
+            ? match.matchIndex + matchLength - 1
+            : null;
+        if (minIndex != null && hasFiniteIndex && matchEndIndex != null && matchEndIndex <= minIndex) {
             return;
         }
         const distanceFromEnd = Number.isFinite(textLength)
@@ -6276,8 +6282,14 @@ function simulateTesterStream(combined, profile, bufKey) {
             continue;
         }
 
-        const absoluteIndex = Number.isFinite(bestMatch.matchIndex)
-            ? bufferOffset + bestMatch.matchIndex
+        const matchLength = Number.isFinite(bestMatch.matchLength) && bestMatch.matchLength > 0
+            ? Math.floor(bestMatch.matchLength)
+            : 1;
+        const matchEndRelative = Number.isFinite(bestMatch.matchIndex)
+            ? bestMatch.matchIndex + matchLength - 1
+            : null;
+        const absoluteIndex = Number.isFinite(matchEndRelative)
+            ? bufferOffset + matchEndRelative
             : newestAbsoluteIndex;
 
         msgState.lastAcceptedIndex = absoluteIndex;
@@ -8268,8 +8280,14 @@ const handleStream = (...args) => {
             const now = Date.now();
             const suppressMs = profile.repeatSuppressMs;
 
-            const absoluteIndex = Number.isFinite(bestMatch.matchIndex)
-                ? bufferOffset + bestMatch.matchIndex
+            const matchLength = Number.isFinite(bestMatch.matchLength) && bestMatch.matchLength > 0
+                ? Math.floor(bestMatch.matchLength)
+                : 1;
+            const matchEndRelative = Number.isFinite(bestMatch.matchIndex)
+                ? bestMatch.matchIndex + matchLength - 1
+                : null;
+            const absoluteIndex = Number.isFinite(matchEndRelative)
+                ? bufferOffset + matchEndRelative
                 : newestAbsoluteIndex;
             msgState.lastAcceptedIndex = absoluteIndex;
             msgState.processedLength = Math.max(msgState.processedLength || 0, absoluteIndex + 1);

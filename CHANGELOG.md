@@ -16,6 +16,7 @@
 - **Scene panel layout cleanup.** Retired the legacy collapse handle so the crest header and toolbar own panel visibility, keeping the frame tidy without the extra toggle stub.
 
 ### Fixed
+- **Buffer window trimming.** Streaming keeps matching after the max buffer limit trims older text, so outfit switching and live diagnostics continue instead of stalling at the limit.
 - **Coverage fallback in the scene panel.** The side panel now reuses the latest tester coverage analysis when no live buffer is
   streaming so vocabulary suggestions stay visible between messages.
 - **Skip reason flood control.** Live diagnostics cap repeated skip notices to keep recent switch and veto activity surfaced in

@@ -50,6 +50,20 @@ test("getWinner respects minimum index when roster bias is present", () => {
     assert.equal(filtered?.name, "Shido");
 });
 
+test("getWinner allows matches that extend beyond the processed boundary", () => {
+    const matches = [
+        { name: "Kotori", matchKind: "action", matchIndex: 95, matchLength: 6, priority: 3 },
+        { name: "Shido", matchKind: "action", matchIndex: 20, matchLength: 5, priority: 3 },
+    ];
+
+    const winner = getWinner(matches, 0, 120, {
+        distancePenaltyWeight: 0,
+        minIndex: 97,
+    });
+
+    assert.equal(winner?.name, "Kotori");
+});
+
 test("adjustWindowForTrim tracks buffer offset and preserves prior indices", () => {
     const msgState = { processedLength: 0, lastAcceptedIndex: 42, bufferOffset: 0 };
     adjustWindowForTrim(msgState, 60, 120);
