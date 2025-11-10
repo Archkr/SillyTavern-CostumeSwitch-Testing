@@ -7175,6 +7175,44 @@ function findAssistantMessageBeforeIndex(index) {
     return null;
 }
 
+function restoreLatestSceneOutcome({ immediateRender = true } = {}) {
+    try {
+        let ctx = null;
+        if (typeof getContext === "function") {
+            ctx = getContext();
+        } else if (typeof window !== "undefined" && window.SillyTavern && typeof window.SillyTavern.getContext === "function") {
+            ctx = window.SillyTavern.getContext();
+        }
+        const chatLog = ctx?.chat;
+        if (!Array.isArray(chatLog) || chatLog.length === 0) {
+            resetSceneState();
+            replaceLiveTesterOutputs([], { roster: [] });
+            if (immediateRender) {
+                requestScenePanelRender("history-reset", { immediate: true });
+            }
+            return false;
+        }
+        const latestAssistant = findAssistantMessageBeforeIndex(chatLog.length - 1);
+        if (!latestAssistant) {
+            resetSceneState();
+            replaceLiveTesterOutputs([], { roster: [] });
+            if (immediateRender) {
+                requestScenePanelRender("history-reset", { immediate: true });
+            }
+            return false;
+        }
+        return restoreSceneOutcomeForMessage(latestAssistant, { immediateRender });
+    } catch (error) {
+        console.warn(`${logPrefix} Failed to restore latest scene outcome:`, error);
+        resetSceneState();
+        replaceLiveTesterOutputs([], { roster: [] });
+        if (immediateRender) {
+            requestScenePanelRender("history-reset", { immediate: true });
+        }
+        return false;
+    }
+}
+
 function resolveHistoryTargetMessage(args) {
     const { chat } = getContext();
     if (!Array.isArray(chat) || chat.length === 0) {
@@ -7294,6 +7332,11 @@ function resolveHistoryTargetMessage(args) {
     return target;
 }
 
+const handleChatChanged = () => {
+    resetGlobalState({ immediateRender: false });
+    restoreLatestSceneOutcome({ immediateRender: true });
+};
+
 const handleHistoryChange = (...args) => {
     try {
         const target = resolveHistoryTargetMessage(args);
@@ -7368,10 +7411,12 @@ const handleMessageRendered = (...args) => {
     requestScenePanelRender("message-rendered", { immediate: true });
 };
 
-const resetGlobalState = () => {
+const resetGlobalState = ({ immediateRender = true } = {}) => {
     resetSceneState();
     clearLiveTesterOutputs();
-    requestScenePanelRender("global-reset", { immediate: true });
+    if (immediateRender) {
+        requestScenePanelRender("global-reset", { immediate: true });
+    }
     if (state.statusTimer) {
         clearTimeout(state.statusTimer);
         state.statusTimer = null;
@@ -7405,6 +7450,9 @@ const resetGlobalState = () => {
         focusLockNotice: createFocusLockNotice(),
     });
     clearSessionTopCharacters();
+    if (!immediateRender) {
+        requestScenePanelRender("global-reset", { immediate: true });
+    }
 };
 
 export {
@@ -7536,7 +7584,7 @@ function load() {
         onStreamStarted: handleGenerationStart,
         onStreamToken: handleStream,
         onMessageFinished: handleMessageRendered,
-        onChatChanged: resetGlobalState,
+        onChatChanged: handleChatChanged,
         onHistoryChanged: handleHistoryChange,
     });
 }
@@ -7612,6 +7660,7 @@ if (typeof window !== "undefined" && typeof jQuery === "function") {
             wireUI();
             registerCommands();
             load();
+            restoreLatestSceneOutcome({ immediateRender: true });
 
             window[`__${extensionName}_unload`] = unload;
             console.log(`${logPrefix} ${buildMeta?.label || 'dev build'} loaded successfully.`);
