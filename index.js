@@ -60,6 +60,7 @@ import {
     setScenePanelContainer,
     setScenePanelContent,
     setSceneCollapseToggle,
+    setSceneSectionsContainer,
     setSceneToolbar,
     setSceneRosterList,
     setSceneActiveCards,
@@ -75,6 +76,7 @@ import {
     setSceneCoverageAction,
     getScenePanelContainer,
     getSceneCollapseToggle,
+    getSceneSectionsContainer,
     getSceneRosterList,
     getSceneActiveCards,
     getSceneLiveLog,
@@ -8674,6 +8676,7 @@ async function mountScenePanelTemplate() {
             setScenePanelContainer($existingPanel);
             setScenePanelContent($existingPanel.find('[data-scene-panel="content"]'));
             setSceneCollapseToggle($existingPanel.find('[data-scene-panel="collapse-toggle"]'));
+            setSceneSectionsContainer($existingPanel.find('[data-scene-panel="sections"]'));
             setSceneToolbar($existingPanel.find('[data-scene-panel="toolbar"]'));
             setSceneRosterList($existingPanel.find('[data-scene-panel="roster-list"]'));
             setSceneRosterSection($existingPanel.find('[data-scene-panel="roster"]'));
@@ -8751,6 +8754,7 @@ async function mountScenePanelTemplate() {
         setScenePanelContainer($panel);
         setScenePanelContent($panel.find('[data-scene-panel="content"]'));
         setSceneCollapseToggle($panel.find('[data-scene-panel="collapse-toggle"]'));
+        setSceneSectionsContainer($panel.find('[data-scene-panel="sections"]'));
         setSceneToolbar($panel.find('[data-scene-panel="toolbar"]'));
         setSceneRosterList($panel.find('[data-scene-panel="roster-list"]'));
         setSceneRosterSection($panel.find('[data-scene-panel="roster"]'));

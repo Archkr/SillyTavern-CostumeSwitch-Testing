@@ -3,6 +3,7 @@ let $scenePanelContent = null;
 let $sceneCollapseToggle = null;
 let $sceneToolbar = null;
 let $sceneRosterList = null;
+let $sceneSectionsContainer = null;
 let $sceneActiveCards = null;
 let $sceneLiveLog = null;
 let $sceneFooterButton = null;
@@ -29,6 +30,14 @@ export function setScenePanelContent($element) {
 
 export function getScenePanelContent() {
     return $scenePanelContent;
+}
+
+export function setSceneSectionsContainer($element) {
+    $sceneSectionsContainer = $element;
+}
+
+export function getSceneSectionsContainer() {
+    return $sceneSectionsContainer;
 }
 
 export function setSceneCollapseToggle($element) {

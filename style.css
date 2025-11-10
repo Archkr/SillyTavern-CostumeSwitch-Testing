@@ -1524,6 +1524,8 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 }
 
 .cs-scene-panel__sections {
+    --cs-scene-visible-section-count: 0;
+    --cs-scene-section-max-height: 240px;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -1671,6 +1673,8 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     padding: 14px;
+    flex: 0 0 auto;
+    min-height: 0;
 }
 
 [data-scene-panel-hidden="true"] {
@@ -1729,7 +1733,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 .cs-scene-panel__card-list,
 .cs-scene-panel__log {
     overflow-y: auto;
-    max-height: 240px;
+    max-height: var(--cs-scene-section-max-height, 240px);
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -1738,10 +1742,6 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-panel__section[data-scene-panel="roster"] {
     --cs-scene-roster-scroll-height: 128px;
-    flex: 0 0 auto;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
 }
 
 .cs-scene-panel__section[data-scene-panel="roster"] > .cs-scene-panel__scrollable {
@@ -1756,6 +1756,26 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     flex-direction: column;
     gap: 10px;
     padding-bottom: 4px;
+}
+
+.cs-scene-panel__sections[data-sections-expanded="true"] {
+    --cs-scene-section-max-height: none;
+}
+
+.cs-scene-panel__sections[data-sections-expanded="true"] .cs-scene-panel__section {
+    flex: 1 1 0%;
+}
+
+.cs-scene-panel__sections[data-sections-expanded="true"] .cs-scene-panel__scrollable,
+.cs-scene-panel__sections[data-sections-expanded="true"] .cs-scene-panel__card-list,
+.cs-scene-panel__sections[data-sections-expanded="true"] .cs-scene-panel__log {
+    flex: 1 1 auto;
+    max-height: none;
+}
+
+.cs-scene-panel__sections[data-sections-expanded="true"] .cs-scene-panel__section[data-scene-panel="roster"] > .cs-scene-panel__scrollable {
+    flex: 1 1 auto;
+    max-height: none;
 }
 
 .cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-panel {

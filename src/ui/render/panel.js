@@ -12,6 +12,7 @@ import {
     getSceneCoveragePronouns,
     getSceneCoverageAttribution,
     getSceneCoverageAction,
+    getSceneSectionsContainer,
 } from "../scenePanelState.js";
 import { renderSceneRoster } from "./sceneRoster.js";
 import { renderActiveCharacters } from "./activeCharacters.js";
@@ -170,6 +171,42 @@ function applySectionVisibility(target, visible) {
     }
 }
 
+function applySectionLayoutState(visibleCount) {
+    const sectionsContainer = getSceneSectionsContainer?.();
+    const { $, el } = resolveContainer(sectionsContainer);
+    if (!$ && !el) {
+        return;
+    }
+
+    let totalSections = 0;
+    if ($ && typeof $.find === "function") {
+        totalSections = $.find(".cs-scene-panel__section").length;
+    } else if (el && typeof el.querySelectorAll === "function") {
+        totalSections = el.querySelectorAll(".cs-scene-panel__section").length;
+    }
+
+    const sanitizedVisible = Math.max(0, Number.isFinite(visibleCount) ? Math.floor(visibleCount) : 0);
+    const expanded = sanitizedVisible > 0 && totalSections > 0 && sanitizedVisible < totalSections;
+    const visibleValue = String(sanitizedVisible);
+    const expandedValue = expanded ? "true" : "false";
+
+    if ($ && typeof $.attr === "function") {
+        $.attr("data-visible-sections", visibleValue);
+        $.attr("data-sections-expanded", expandedValue);
+        if (typeof $.css === "function") {
+            $.css("--cs-scene-visible-section-count", visibleValue);
+        }
+    }
+
+    if (el) {
+        el.setAttribute("data-visible-sections", visibleValue);
+        el.setAttribute("data-sections-expanded", expandedValue);
+        if (el.style && typeof el.style.setProperty === "function") {
+            el.style.setProperty("--cs-scene-visible-section-count", visibleValue);
+        }
+    }
+}
+
 function updateToolbarToggleState(buttonId, pressed, { pressedTitle, unpressedTitle }) {
     if (typeof document === "undefined") {
         return;
@@ -226,6 +263,8 @@ export function renderScenePanel(panelState = {}) {
     applySectionVisibility(getSceneActiveSection?.(), showActive);
     applySectionVisibility(getSceneLiveLogSection?.(), showLog);
     applySectionVisibility(getSceneCoverageSection?.(), showCoverage);
+    const visibleSections = [showRoster, showActive, showLog, showCoverage].filter(Boolean).length;
+    applySectionLayoutState(visibleSections);
 
     updateToolbarToggleState("cs-scene-panel-toggle", enabled, {
         pressedTitle: "Hide scene panel",
