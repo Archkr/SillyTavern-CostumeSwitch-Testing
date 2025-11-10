@@ -1518,8 +1518,9 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     flex-direction: column;
     gap: 16px;
     padding: 20px;
-    height: 100%;
-    overflow: visible;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .cs-scene-panel__sections {
