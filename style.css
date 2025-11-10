@@ -1758,6 +1758,43 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     padding-bottom: 4px;
 }
 
+.cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-panel {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-panel h5 {
+    margin: 0 0 4px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-pill {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-color);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-pill:hover,
+.cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-pill:focus-visible {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    transform: translateY(-1px);
+}
+
 .cs-scene-panel__card-list {
     max-height: 260px;
 }

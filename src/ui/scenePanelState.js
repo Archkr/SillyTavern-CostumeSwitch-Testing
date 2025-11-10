@@ -10,6 +10,10 @@ let $sceneRosterSection = null;
 let $sceneActiveSection = null;
 let $sceneLogSection = null;
 let $sceneStatusText = null;
+let $sceneCoverageSection = null;
+let $sceneCoveragePronouns = null;
+let $sceneCoverageAttribution = null;
+let $sceneCoverageAction = null;
 
 export function setScenePanelContainer($element) {
     $scenePanelContainer = $element;
@@ -93,6 +97,38 @@ export function setSceneLiveLogSection($element) {
 
 export function getSceneLiveLogSection() {
     return $sceneLogSection;
+}
+
+export function setSceneCoverageSection($element) {
+    $sceneCoverageSection = $element;
+}
+
+export function getSceneCoverageSection() {
+    return $sceneCoverageSection;
+}
+
+export function setSceneCoveragePronouns($element) {
+    $sceneCoveragePronouns = $element;
+}
+
+export function getSceneCoveragePronouns() {
+    return $sceneCoveragePronouns;
+}
+
+export function setSceneCoverageAttribution($element) {
+    $sceneCoverageAttribution = $element;
+}
+
+export function getSceneCoverageAttribution() {
+    return $sceneCoverageAttribution;
+}
+
+export function setSceneCoverageAction($element) {
+    $sceneCoverageAction = $element;
+}
+
+export function getSceneCoverageAction() {
+    return $sceneCoverageAction;
 }
 
 export function setSceneFooterButton($element) {

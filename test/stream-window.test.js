@@ -298,7 +298,7 @@ test("collectScenePanelState analytics updatedAt reflects latest scene activity"
 
     state.recentDecisionEvents = [];
     const panelWithoutEvents = collectScenePanelState();
-    assert.equal(panelWithoutEvents.analytics.updatedAt, testerTimestamp);
+    assert.equal(panelWithoutEvents.analytics.updatedAt, rankingTimestamp);
 });
 
 test("collectScenePanelState defers stream switch until new data is available", () => {

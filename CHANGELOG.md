@@ -8,6 +8,7 @@
 - **Inline scene roster settings.** The footer button now opens an in-panel settings sheet with quick toggles for auto-open behavior, section visibility, and roster avatars.
 - **Roster expiry counter.** Every roster entry now displays the remaining message count before it expires, making it easy to spot characters that are about to drop from the scene.
 - **Aurora side panel finish.** The roster workspace picked up animated lighting, hover glows, and a responsive section scaffold so the settings footer stays anchored and never falls off-screen.
+- **Coverage suggestions in the scene panel.** Vocabulary guidance from the live tester now appears alongside the roster with quick-add pills that update in real time as chats roll in.
 
 ### Improved
 - **Scene control center polish.** Refined the panel with a live-status banner, quick section navigation chips, richer hover states, and smoother animations to make the roster workspace feel faster and more intentional.
@@ -27,6 +28,7 @@
 - **Streaming event detection.** The scene panel now tracks SillyTavern's symbol-based generation events, restoring auto-open behaviour and post-stream analytics updates for live messages.
 - **Character slot persistence.** Pattern cards stay linked to the active profile after auto-saves, so follow-up edits continue to stick instead of silently rolling back.
 - **Scene panel glow overflow.** The aurora backdrop now animates entirely inside the frame and keeps a generous bleed so no hard edges peek through mid-cycle.
+- **Live tester isolation.** Running pattern simulations no longer injects tester roster data or log events into the side panel.
 
 ## v3.5.0
 

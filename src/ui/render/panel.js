@@ -8,10 +8,15 @@ import {
     getSceneActiveSection,
     getSceneLiveLogSection,
     getSceneStatusText,
+    getSceneCoverageSection,
+    getSceneCoveragePronouns,
+    getSceneCoverageAttribution,
+    getSceneCoverageAction,
 } from "../scenePanelState.js";
 import { renderSceneRoster } from "./sceneRoster.js";
 import { renderActiveCharacters } from "./activeCharacters.js";
 import { renderLiveLog } from "./liveLog.js";
+import { renderCoverageSuggestions } from "./coverage.js";
 import { resolveContainer, clearContainer, createElement } from "./utils.js";
 
 let scenePanelSummonButton = null;
@@ -215,10 +220,12 @@ export function renderScenePanel(panelState = {}) {
     const showRoster = enabled && sections.roster !== false;
     const showActive = enabled && sections.activeCharacters !== false;
     const showLog = enabled && sections.liveLog !== false;
+    const showCoverage = enabled && sections.coverage !== false;
 
     applySectionVisibility(getSceneRosterSection?.(), showRoster);
     applySectionVisibility(getSceneActiveSection?.(), showActive);
     applySectionVisibility(getSceneLiveLogSection?.(), showLog);
+    applySectionVisibility(getSceneCoverageSection?.(), showCoverage);
 
     updateToolbarToggleState("cs-scene-panel-toggle", enabled, {
         pressedTitle: "Hide scene panel",
@@ -235,6 +242,10 @@ export function renderScenePanel(panelState = {}) {
     updateToolbarToggleState("cs-scene-section-toggle-log", showLog, {
         pressedTitle: "Hide live log section",
         unpressedTitle: "Show live log section",
+    });
+    updateToolbarToggleState("cs-scene-section-toggle-coverage", showCoverage, {
+        pressedTitle: "Hide coverage suggestions section",
+        unpressedTitle: "Show coverage suggestions section",
     });
     updateToolbarToggleState("cs-scene-panel-toggle-auto-open", settings.autoOpenOnResults !== false, {
         pressedTitle: "Disable auto-open on new results",
@@ -260,5 +271,28 @@ export function renderScenePanel(panelState = {}) {
         renderLiveLog(liveLogTarget, panelState);
     } else if (liveLogTarget) {
         clearContainer(liveLogTarget);
+    }
+
+    const coverageSection = getSceneCoverageSection?.();
+    const coveragePronouns = getSceneCoveragePronouns?.();
+    const coverageAttribution = getSceneCoverageAttribution?.();
+    const coverageAction = getSceneCoverageAction?.();
+    if (coverageSection && showCoverage) {
+        renderCoverageSuggestions({
+            section: coverageSection,
+            pronouns: coveragePronouns,
+            attribution: coverageAttribution,
+            action: coverageAction,
+        }, panelState);
+    } else {
+        if (coveragePronouns) {
+            clearContainer(coveragePronouns);
+        }
+        if (coverageAttribution) {
+            clearContainer(coverageAttribution);
+        }
+        if (coverageAction) {
+            clearContainer(coverageAction);
+        }
     }
 }

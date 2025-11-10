@@ -40,7 +40,6 @@ import {
     clearLiveTesterOutputs,
     getCurrentSceneSnapshot,
     getRosterMembershipSnapshot,
-    getLiveTesterOutputsSnapshot,
     clearRosterMembership,
     setRosterMember,
     removeRosterMember,
@@ -70,6 +69,10 @@ import {
     setSceneActiveSection,
     setSceneLiveLogSection,
     setSceneStatusText,
+    setSceneCoverageSection,
+    setSceneCoveragePronouns,
+    setSceneCoverageAttribution,
+    setSceneCoverageAction,
     getScenePanelContainer,
     getSceneCollapseToggle,
     getSceneRosterList,
@@ -398,6 +401,7 @@ const DEFAULT_SCENE_PANEL_SECTIONS = Object.freeze({
     roster: true,
     activeCharacters: true,
     liveLog: true,
+    coverage: true,
 });
 
 const DEFAULT_SCENE_PANEL_SETTINGS = Object.freeze({
@@ -413,6 +417,7 @@ const SCENE_PANEL_SECTION_LABELS = Object.freeze({
     roster: "Scene roster",
     activeCharacters: "Active characters",
     liveLog: "Live log",
+    coverage: "Coverage suggestions",
 });
 
 const DEFAULTS = {
@@ -467,6 +472,7 @@ function ensureScenePanelSettings(settings) {
     normalized.sections.roster = normalized.sections.roster !== false;
     normalized.sections.activeCharacters = normalized.sections.activeCharacters !== false;
     normalized.sections.liveLog = normalized.sections.liveLog !== false;
+    normalized.sections.coverage = normalized.sections.coverage !== false;
 
     settings.scenePanel = {
         ...normalized,
@@ -1422,8 +1428,7 @@ function collectScenePanelState() {
     const panelSettings = ensureScenePanelSettings(settings || {});
     const scene = getCurrentSceneSnapshot();
     const membership = getRosterMembershipSnapshot();
-    const testers = getLiveTesterOutputsSnapshot();
-    const displayNames = buildDisplayNameMap(scene, membership, testers);
+    const displayNames = buildDisplayNameMap(scene, membership, null);
     const ranking = getLastTopCharacters(4);
 
     const streamingKey = state.currentGenerationKey
@@ -1453,9 +1458,12 @@ function collectScenePanelState() {
 
     const shouldUseStreamingKey = Boolean(streamingKey && (hasStreamingBuffer || hasStreamingEvents));
 
-    const activeKey = shouldUseStreamingKey
+    let activeKey = shouldUseStreamingKey
         ? streamingKey
         : getLastStatsMessageKey();
+    if (typeof activeKey === "string" && activeKey.startsWith("tester:")) {
+        activeKey = null;
+    }
 
     const buffer = shouldUseStreamingKey
         ? streamingBuffer
@@ -1480,9 +1488,12 @@ function collectScenePanelState() {
                 return true;
             }
             if (!activeKey) {
-                return true;
+                return !event.messageKey.startsWith("tester:");
             }
             const normalizedEventKey = normalizeMessageKey(event.messageKey);
+            if (normalizedEventKey && normalizedEventKey.startsWith("tester:")) {
+                return false;
+            }
             return normalizedEventKey === activeKey;
         })
         : [];
@@ -1514,8 +1525,11 @@ function collectScenePanelState() {
         rankingUpdatedAt: activeRankingUpdatedAt,
         scene,
         membership,
-        testers,
+        testers: null,
     });
+
+    const profileForCoverage = getActiveProfile();
+    const coverage = analyzeCoverageDiagnostics(buffer, profileForCoverage);
 
     const rankingSource = ranking.length ? ranking : rankingForMessage.slice(0, 4);
     const preparedRanking = rankingSource.map((entry) => {
@@ -1536,7 +1550,6 @@ function collectScenePanelState() {
     return {
         scene,
         membership,
-        testers,
         settings: panelSettings,
         ranking: preparedRanking,
         displayNames,
@@ -1552,6 +1565,8 @@ function collectScenePanelState() {
         now: Date.now(),
         isStreaming: Boolean(state.currentGenerationKey && shouldUseStreamingKey),
         collapsed: isScenePanelCollapsed(),
+        testers: null,
+        coverage,
     };
 }
 
@@ -2025,6 +2040,13 @@ function renderSceneSettingsLayer() {
         description: "Include the live detection event feed inside the panel.",
         checked: sections.liveLog !== false,
         onChange: (checked) => applyScenePanelSectionSetting("liveLog", checked),
+    }));
+    contentGroup.appendChild(createToggle({
+        id: "cs-scene-settings-section-coverage",
+        label: "Show coverage suggestions",
+        description: "Surface vocabulary gaps directly alongside the roster.",
+        checked: sections.coverage !== false,
+        onChange: (checked) => applyScenePanelSectionSetting("coverage", checked),
     }));
     contentGroup.appendChild(createToggle({
         id: "cs-scene-settings-auto-pin",
@@ -3418,6 +3440,7 @@ function updateScenePanelSettingControls(panelSettings = ensureScenePanelSetting
     $("#cs-scene-section-roster").prop('checked', sections.roster !== false);
     $("#cs-scene-section-active").prop('checked', sections.activeCharacters !== false);
     $("#cs-scene-section-log").prop('checked', sections.liveLog !== false);
+    $("#cs-scene-section-coverage").prop('checked', sections.coverage !== false);
 }
 
 function applyScenePanelEnabledSetting(enabled, { message } = {}) {
@@ -6663,6 +6686,15 @@ function wireUI() {
             message: visible ? 'Live log section enabled.' : 'Live log section hidden.',
         });
     });
+    $(document).on('change', '#cs-scene-section-coverage', function() {
+        const visible = $(this).prop('checked');
+        const notice = this?.dataset?.changeNotice
+            || `Coverage suggestions will ${visible ? 'be shown' : 'be hidden'} in the panel.`;
+        announceAutoSaveIntent(this, null, notice, 'cs-scene-section-coverage');
+        applyScenePanelSectionSetting('coverage', visible, {
+            message: visible ? 'Coverage suggestions section enabled.' : 'Coverage suggestions section hidden.',
+        });
+    });
     $(document).on('change', '#cs-scene-show-avatars', function() {
         const showAvatars = $(this).prop('checked');
         const notice = this?.dataset?.changeNotice
@@ -6729,6 +6761,15 @@ function wireUI() {
         const next = !current;
         applyScenePanelSectionSetting('liveLog', next, {
             message: next ? 'Live log section enabled.' : 'Live log section hidden.',
+        });
+    });
+    $(document).on('click', '#cs-scene-section-toggle-coverage', function(event) {
+        event.preventDefault();
+        const scenePanelSettings = ensureScenePanelSettings(settings);
+        const current = scenePanelSettings.sections?.coverage !== false;
+        const next = !current;
+        applyScenePanelSectionSetting('coverage', next, {
+            message: next ? 'Coverage suggestions section enabled.' : 'Coverage suggestions section hidden.',
         });
     });
     $(document).on('click', '#cs-scene-panel-toggle-auto-open', function(event) {
@@ -7147,6 +7188,7 @@ function wireUI() {
             syncProfileFieldsToUI(profile, [field]);
             recompileRegexes();
             refreshCoverageFromLastReport();
+            requestScenePanelRender("coverage-pill", { immediate: true });
             showStatus(`Added "${escapeHtml(value)}" to ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}.`, 'success');
             scheduleProfileAutoSave({
                 key: field,
@@ -8649,6 +8691,10 @@ async function mountScenePanelTemplate() {
         setSceneActiveSection($panel.find('[data-scene-panel="active-characters"]'));
         setSceneLiveLog($panel.find('[data-scene-panel="log-viewport"]'));
         setSceneLiveLogSection($panel.find('[data-scene-panel="live-log"]'));
+        setSceneCoverageSection($panel.find('[data-scene-panel="coverage"]'));
+        setSceneCoveragePronouns($panel.find('[data-scene-panel="coverage-pronouns"]'));
+        setSceneCoverageAttribution($panel.find('[data-scene-panel="coverage-attribution"]'));
+        setSceneCoverageAction($panel.find('[data-scene-panel="coverage-action"]'));
         setSceneFooterButton($panel.find('[data-scene-panel="open-settings"]'));
         setSceneStatusText($panel.find('[data-scene-panel="status-text"]'));
         initializeScenePanelUI();

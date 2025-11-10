@@ -266,16 +266,6 @@ function mergeRosterData(scene, membership, testers, now) {
                 return;
             }
             testerMap.set(normalized, entry);
-            if (!map.has(normalized)) {
-                map.set(normalized, {
-                    name: entry.name || normalized,
-                    normalized,
-                    joinedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : null,
-                    lastSeenAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : null,
-                    lastLeftAt: null,
-                    active: Boolean(entry.activeInRoster),
-                });
-            }
         });
     }
 

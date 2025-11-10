@@ -30,6 +30,10 @@
                     <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
                     <span class="visually-hidden">Toggle live log section</span>
                 </button>
+                <button id="cs-scene-section-toggle-coverage" class="cs-scene-panel__icon-button" type="button" data-scene-panel="toggle-coverage" aria-pressed="true" title="Hide coverage suggestions section">
+                    <i class="fa-solid fa-language" aria-hidden="true"></i>
+                    <span class="visually-hidden">Toggle coverage suggestions section</span>
+                </button>
                 <button id="cs-scene-refresh" class="cs-scene-panel__icon-button" type="button" data-scene-panel="refresh">
                     <i class="fa-solid fa-rotate" aria-hidden="true"></i>
                     <span class="visually-hidden">Refresh roster</span>
@@ -74,6 +78,31 @@
                 </header>
                 <div id="cs-scene-live-log" class="cs-scene-panel__log" data-scene-panel="log-viewport">
                     <!-- Live detection results will be appended here -->
+                </div>
+            </section>
+            <section class="cs-scene-panel__section" data-scene-panel="coverage">
+                <header class="cs-scene-panel__section-header">
+                    <h4>Coverage suggestions</h4>
+                </header>
+                <div class="cs-coverage-panel" data-scene-panel="coverage-container">
+                    <div>
+                        <h5>Pronouns</h5>
+                        <div class="cs-coverage-list" data-scene-panel="coverage-pronouns">
+                            <div class="cs-scene-panel__placeholder" data-tone="muted">Awaiting an assistant message.</div>
+                        </div>
+                    </div>
+                    <div>
+                        <h5>Attribution verbs</h5>
+                        <div class="cs-coverage-list" data-scene-panel="coverage-attribution">
+                            <div class="cs-scene-panel__placeholder" data-tone="muted">Awaiting an assistant message.</div>
+                        </div>
+                    </div>
+                    <div>
+                        <h5>Action verbs</h5>
+                        <div class="cs-coverage-list" data-scene-panel="coverage-action">
+                            <div class="cs-scene-panel__placeholder" data-tone="muted">Awaiting an assistant message.</div>
+                        </div>
+                    </div>
                 </div>
             </section>
         </div>
