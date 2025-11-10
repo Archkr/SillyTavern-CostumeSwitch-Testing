@@ -16,6 +16,12 @@
 - **Scene panel layout cleanup.** Retired the legacy collapse handle so the crest header and toolbar own panel visibility, keeping the frame tidy without the extra toggle stub.
 
 ### Fixed
+- **Coverage fallback in the scene panel.** The side panel now reuses the latest tester coverage analysis when no live buffer is
+  streaming so vocabulary suggestions stay visible between messages.
+- **Skip reason flood control.** Live diagnostics cap repeated skip notices to keep recent switch and veto activity surfaced in
+  the event list.
+- **Roster inactivity detection.** Characters drop to an inactive state when they are missing from the latest detection pass,
+  preventing message counters from stalling at their initial values.
 - **First-stream detection fallback.** Streaming tokens now capture their message key when the generation-start hook fires too early, restoring roster updates for the first outputs after loading a chat.
 - **Scene roster scrolling.** The roster list keeps its scrollbox active so large casts remain accessible without shifting the entire panel.
 - **Scene panel analytics remapping.** Detection events recorded during streaming now follow the rendered message key, restoring roster/results feeds that previously appeared empty after generation finished.
