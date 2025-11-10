@@ -1631,7 +1631,9 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 }
 
 .cs-scene-panel[data-cs-disabled="true"] {
-    opacity: 0.82;
+    display: none;
+    pointer-events: none;
+    visibility: hidden;
 }
 
 .cs-toggle-row {

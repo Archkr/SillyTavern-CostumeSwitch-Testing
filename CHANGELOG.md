@@ -12,6 +12,7 @@
 - **Scene panel mounting.** Resolving pre-fetched container references no longer breaks roster rendering, fixing the empty panel and console error triggered when the UI initializes.
 - **Scene panel rehydration.** Switching chats or waiting for autosaves now restores the latest assistant message so the roster, active characters, and live log remain populated instead of clearing after a few seconds.
 - **Live log stability.** The live diagnostics panel keeps the prior message data visible until the next stream produces detections, so it no longer flickers "Awaiting detections" while idle.
+- **Scene panel hide toggle.** Hiding the command center now removes the panel entirely so no translucent shell remains on screen.
 
 ## v3.5.0
 
