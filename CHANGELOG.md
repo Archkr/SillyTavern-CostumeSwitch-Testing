@@ -4,6 +4,8 @@
 
 ### Added
 - **Scene panel command center.** Polished the side panel with a branded header, roster manager drawer, log viewer, auto-pin highlight toggle, and quick focus-lock controls so every button delivers meaningful actions.
+- **Summon toggle for the scene panel.** Hide the panel completely and bring it back with a floating summon button so the chat column can reclaim the full width when you need extra room.
+- **Inline scene roster settings.** The footer button now opens an in-panel settings sheet with quick toggles for auto-open behavior, section visibility, and roster avatars.
 
 ### Fixed
 - **Scene panel analytics remapping.** Detection events recorded during streaming now follow the rendered message key, restoring roster/results feeds that previously appeared empty after generation finished.

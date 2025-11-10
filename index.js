@@ -1674,8 +1674,8 @@ function rerenderScenePanelLayer() {
         renderSceneLogLayer();
         return;
     }
-    if (scenePanelLayerMode === "settings-help") {
-        renderSceneSettingsHelpLayer();
+    if (scenePanelLayerMode === "settings") {
+        renderSceneSettingsLayer();
     }
 }
 
@@ -1878,28 +1878,129 @@ function renderSceneLogLayer() {
     body.appendChild(list);
 }
 
-function renderSceneSettingsHelpLayer() {
+function renderSceneSettingsLayer() {
     const body = getScenePanelLayerBodyElement();
     if (!body) {
         return;
     }
     body.textContent = "";
+    const settings = ensureScenePanelSettings(getSettings?.() || {});
+    const sections = settings.sections || {};
+
+    const container = document.createElement("div");
+    container.className = "cs-scene-settings";
+
     const intro = document.createElement("p");
-    intro.className = "cs-scene-layer__copy";
-    intro.textContent = "Open the Costume Switcher drawer to adjust auto-open, section visibility, and roster avatar settings.";
-    body.appendChild(intro);
-    const steps = document.createElement("ol");
-    steps.className = "cs-scene-layer__steps";
-    [
-        "Click the Extensions menu in SillyTavern.",
-        "Select \"Costume Switcher\" from the drawer.",
-        "Switch to the Detection & Timing tab to find the scene panel options.",
-    ].forEach((instruction) => {
-        const item = document.createElement("li");
-        item.textContent = instruction;
-        steps.appendChild(item);
-    });
-    body.appendChild(steps);
+    intro.className = "cs-scene-settings__intro";
+    intro.textContent = "Tune the scene panel layout without leaving chat. Changes save automatically.";
+    container.appendChild(intro);
+
+    const createToggle = ({ id, label, description, checked, onChange }) => {
+        const wrapper = document.createElement("label");
+        wrapper.className = "cs-scene-settings__toggle";
+        wrapper.setAttribute("for", id);
+        const input = document.createElement("input");
+        input.id = id;
+        input.type = "checkbox";
+        input.className = "cs-scene-settings__checkbox";
+        input.checked = Boolean(checked);
+        input.addEventListener("change", (event) => {
+            try {
+                onChange(Boolean(event.target?.checked));
+            } catch (err) {
+                console.warn(`${logPrefix} Failed to update scene panel setting from in-panel controls.`, err);
+            }
+        });
+        wrapper.appendChild(input);
+        const copy = document.createElement("div");
+        copy.className = "cs-scene-settings__toggle-copy";
+        const title = document.createElement("span");
+        title.className = "cs-scene-settings__toggle-label";
+        title.textContent = label;
+        copy.appendChild(title);
+        if (description) {
+            const detail = document.createElement("span");
+            detail.className = "cs-scene-settings__toggle-description";
+            detail.textContent = description;
+            copy.appendChild(detail);
+        }
+        wrapper.appendChild(copy);
+        return wrapper;
+    };
+
+    const behaviorGroup = document.createElement("div");
+    behaviorGroup.className = "cs-scene-settings__group";
+    const behaviorTitle = document.createElement("h5");
+    behaviorTitle.className = "cs-scene-settings__group-title";
+    behaviorTitle.textContent = "Auto-open behavior";
+    behaviorGroup.appendChild(behaviorTitle);
+    behaviorGroup.appendChild(createToggle({
+        id: "cs-scene-settings-auto-stream",
+        label: "Open when streaming starts",
+        description: "Expand the side panel whenever a new generation begins streaming.",
+        checked: settings.autoOpenOnStream,
+        onChange: (checked) => applyScenePanelAutoOpenOnStreamSetting(checked),
+    }));
+    behaviorGroup.appendChild(createToggle({
+        id: "cs-scene-settings-auto-results",
+        label: "Open for new results",
+        description: "Pop the panel open whenever detection results arrive.",
+        checked: settings.autoOpenOnResults,
+        onChange: (checked) => applyScenePanelAutoOpenResultsSetting(checked),
+    }));
+    container.appendChild(behaviorGroup);
+
+    const contentGroup = document.createElement("div");
+    contentGroup.className = "cs-scene-settings__group";
+    const contentTitle = document.createElement("h5");
+    contentTitle.className = "cs-scene-settings__group-title";
+    contentTitle.textContent = "Panel content";
+    contentGroup.appendChild(contentTitle);
+    contentGroup.appendChild(createToggle({
+        id: "cs-scene-settings-section-roster",
+        label: "Show roster section",
+        description: "Keep the roster list visible next to chat.",
+        checked: sections.roster !== false,
+        onChange: (checked) => applyScenePanelSectionSetting("roster", checked),
+    }));
+    contentGroup.appendChild(createToggle({
+        id: "cs-scene-settings-section-active",
+        label: "Show active characters section",
+        description: "Display focus lock controls and current participants.",
+        checked: sections.activeCharacters !== false,
+        onChange: (checked) => applyScenePanelSectionSetting("activeCharacters", checked),
+    }));
+    contentGroup.appendChild(createToggle({
+        id: "cs-scene-settings-section-log",
+        label: "Show live log section",
+        description: "Include the live detection event feed inside the panel.",
+        checked: sections.liveLog !== false,
+        onChange: (checked) => applyScenePanelSectionSetting("liveLog", checked),
+    }));
+    contentGroup.appendChild(createToggle({
+        id: "cs-scene-settings-auto-pin",
+        label: "Auto-pin top active character",
+        description: "Keep the most recent match highlighted for quick review.",
+        checked: settings.autoPinActive !== false,
+        onChange: (checked) => applyScenePanelAutoPinSetting(checked),
+    }));
+    contentGroup.appendChild(createToggle({
+        id: "cs-scene-settings-show-avatars",
+        label: "Show roster avatars",
+        description: "Use character thumbnails in the roster when available.",
+        checked: settings.showRosterAvatars,
+        onChange: (checked) => applyScenePanelShowAvatarsSetting(checked),
+    }));
+    container.appendChild(contentGroup);
+
+    const openFullSettings = document.createElement("button");
+    openFullSettings.id = "cs-scene-panel-settings-open-extension";
+    openFullSettings.type = "button";
+    openFullSettings.className = "cs-scene-panel__text-button cs-scene-settings__link";
+    openFullSettings.textContent = "Open full extension settings";
+    container.appendChild(openFullSettings);
+
+    body.appendChild(container);
 }
 
 function syncSceneRosterFromMembership({ message } = {}) {
@@ -2114,14 +2215,10 @@ function openExtensionSettingsView() {
 
 function handleScenePanelOpenSettings(event) {
     event?.preventDefault?.();
-    if (openExtensionSettingsView()) {
-        showStatus("Opening Costume Switcher settings…", "info");
-        return;
-    }
     openScenePanelLayer({
-        mode: "settings-help",
-        title: "Find the scene panel settings",
-        description: "Follow these steps to reach the configuration panel inside SillyTavern.",
+        mode: "settings",
+        title: "Scene roster settings",
+        description: "Adjust auto-open behavior and choose which sections appear in the side panel.",
     });
 }
 
@@ -3165,6 +3262,18 @@ function applyScenePanelAutoPinSetting(enabled, { message } = {}) {
     const fallbackMessage = panelSettings.autoPinActive
         ? "Auto-pin highlight enabled."
         : "Auto-pin highlight disabled.";
+    persistSettings(message || fallbackMessage, "info");
+}
+
+function applyScenePanelShowAvatarsSetting(showAvatars, { message } = {}) {
+    const settings = getSettings();
+    const panelSettings = ensureScenePanelSettings(settings);
+    panelSettings.showRosterAvatars = Boolean(showAvatars);
+    updateScenePanelSettingControls(panelSettings);
+    requestScenePanelRender("avatar-toggle", { immediate: true });
+    const fallbackMessage = panelSettings.showRosterAvatars
+        ? "Roster avatars enabled."
+        : "Roster avatars hidden.";
     persistSettings(message || fallbackMessage, "info");
 }
 
@@ -6344,11 +6453,9 @@ function wireUI() {
         const notice = this?.dataset?.changeNotice
             || `Roster avatars will ${showAvatars ? 'be shown' : 'be hidden'} in the scene panel.`;
         announceAutoSaveIntent(this, null, notice, 'cs-scene-show-avatars');
-        const scenePanelSettings = ensureScenePanelSettings(settings);
-        scenePanelSettings.showRosterAvatars = showAvatars;
-        updateScenePanelSettingControls(scenePanelSettings);
-        requestScenePanelRender("avatar-toggle", { immediate: true });
-        persistSettings(showAvatars ? 'Roster avatars enabled.' : 'Roster avatars hidden.', 'info');
+        applyScenePanelShowAvatarsSetting(showAvatars, {
+            message: showAvatars ? 'Roster avatars enabled.' : 'Roster avatars hidden.',
+        });
     });
     $(document).on('change', '#cs-scene-auto-pin', function() {
         const enabled = $(this).prop('checked');
@@ -6357,6 +6464,13 @@ function wireUI() {
         announceAutoSaveIntent(this, null, notice, 'cs-scene-auto-pin');
         applyScenePanelAutoPinSetting(enabled, {
             message: enabled ? 'Auto-pin highlight enabled.' : 'Auto-pin highlight disabled.',
+        });
+    });
+    $(document).on('click', '#cs-scene-panel-summon', function(event) {
+        event.preventDefault();
+        setScenePanelCollapsed(false);
+        applyScenePanelEnabledSetting(true, {
+            message: 'Scene panel enabled.',
         });
     });
     $(document).on('click', '#cs-scene-panel-toggle', function(event) {
@@ -6403,6 +6517,15 @@ function wireUI() {
                 ? 'Scene panel will auto-open on new results.'
                 : 'Scene panel will stay collapsed after new results.',
         });
+    });
+    $(document).on('click', '#cs-scene-panel-settings-open-extension', function(event) {
+        event.preventDefault();
+        if (openExtensionSettingsView()) {
+            showStatus('Opening Costume Switcher settings…', 'info');
+            closeScenePanelLayer();
+        } else {
+            showStatus('Open the Extensions drawer to access the full Costume Switcher settings.', 'warning');
+        }
     });
     $(document).on('click', '#cs-scene-manage-roster', handleScenePanelManageRoster);
     $(document).on('click', '#cs-scene-clear-roster', handleScenePanelClearRoster);
