@@ -490,6 +490,7 @@ const state = {
     perMessageBuffers: new Map(),
     perMessageStates: new Map(),
     messageStats: new Map(), // For statistical logging
+    messageMatches: new Map(),
     eventHandlers: {},
     integrationHandlers: null,
     compiledRegexes: {},
@@ -805,6 +806,7 @@ function pruneMessageCaches(limit = MAX_TRACKED_MESSAGES) {
         state.perMessageBuffers?.delete(oldest);
         state.perMessageStates?.delete(oldest);
         state.messageStats?.delete(oldest);
+        state.messageMatches?.delete(oldest);
         if (state.topSceneRanking instanceof Map) {
             state.topSceneRanking.delete(oldest);
         }
@@ -1202,6 +1204,7 @@ let scenePanelRenderPending = false;
 let scenePanelUiWired = false;
 let scenePanelLayerMode = null;
 let scenePanelLayerReturnFocus = null;
+let scenePanelUpdateCueTimer = null;
 
 function isScenePanelCollapsed() {
     const container = getScenePanelContainer?.();
@@ -1234,11 +1237,49 @@ function setScenePanelCollapsed(collapsed) {
         toggle[0].setAttribute("aria-expanded", collapsed ? "false" : "true");
         toggle[0].setAttribute("title", collapsed ? "Expand scene roster" : "Collapse scene roster");
     }
+    if (!collapsed) {
+        const element = toggle?.[0] || toggle;
+        if (element?.classList) {
+            element.classList.remove("cs-scene-panel__collapse-toggle--notify");
+        }
+        if (scenePanelUpdateCueTimer) {
+            clearTimeout(scenePanelUpdateCueTimer);
+            scenePanelUpdateCueTimer = null;
+        }
+    }
     requestScenePanelRender("collapse", { immediate: true });
 }
 
 function toggleScenePanelCollapsed() {
     setScenePanelCollapsed(!isScenePanelCollapsed());
+}
+
+function triggerScenePanelUpdateCue() {
+    if (!isScenePanelCollapsed()) {
+        return;
+    }
+    const toggle = getSceneCollapseToggle?.();
+    const element = toggle?.[0] || toggle;
+    if (!element || !element.classList) {
+        return;
+    }
+    element.classList.remove("cs-scene-panel__collapse-toggle--notify");
+    // Force reflow to restart animation when updates happen rapidly.
+    void element.offsetWidth; // eslint-disable-line no-void
+    element.classList.add("cs-scene-panel__collapse-toggle--notify");
+    const cleanup = () => {
+        element.classList.remove("cs-scene-panel__collapse-toggle--notify");
+        element.removeEventListener("animationend", cleanup);
+        if (scenePanelUpdateCueTimer) {
+            clearTimeout(scenePanelUpdateCueTimer);
+            scenePanelUpdateCueTimer = null;
+        }
+    };
+    element.addEventListener("animationend", cleanup);
+    if (scenePanelUpdateCueTimer) {
+        clearTimeout(scenePanelUpdateCueTimer);
+    }
+    scenePanelUpdateCueTimer = setTimeout(cleanup, 2500);
 }
 
 function maybeAutoExpandScenePanel(reason = "result") {
@@ -1422,6 +1463,9 @@ function collectScenePanelState() {
     const stats = activeKey && state.messageStats instanceof Map
         ? state.messageStats.get(activeKey) || null
         : null;
+    const matches = activeKey && state.messageMatches instanceof Map
+        ? state.messageMatches.get(activeKey) || []
+        : [];
     const rankingForMessage = activeKey && state.topSceneRanking instanceof Map
         ? state.topSceneRanking.get(activeKey) || []
         : [];
@@ -1501,6 +1545,7 @@ function collectScenePanelState() {
             stats,
             ranking: rankingForMessage,
             events,
+            matches,
             updatedAt,
         },
         now: Date.now(),
@@ -1530,6 +1575,9 @@ function requestScenePanelRender(reason = "update", { immediate = false } = {}) 
         return;
     }
     const shouldImmediate = immediate || reason === "mount" || reason === "collapse";
+    if (reason !== "collapse" && reason !== "mount") {
+        triggerScenePanelUpdateCue();
+    }
     if (shouldImmediate) {
         if (scenePanelRenderTimer) {
             clearTimeout(scenePanelRenderTimer);
@@ -2009,6 +2057,13 @@ function syncSceneRosterFromMembership({ message } = {}) {
         : null;
     const members = Array.isArray(membership?.members) ? membership.members : [];
     const activeMembers = members.filter((member) => member && member.active);
+    let turnsRemaining = null;
+    activeMembers.forEach((member) => {
+        if (Number.isFinite(member.turnsRemaining)) {
+            const remaining = Math.max(0, Math.floor(member.turnsRemaining));
+            turnsRemaining = turnsRemaining == null ? remaining : Math.min(turnsRemaining, remaining);
+        }
+    });
     const rosterNames = activeMembers.map((member) => member.name || member.normalized).filter(Boolean);
     const displayNames = new Map();
     activeMembers.forEach((member) => {
@@ -2027,6 +2082,7 @@ function syncSceneRosterFromMembership({ message } = {}) {
         displayNames,
         lastMatch: scene.lastEvent,
         updatedAt: Date.now(),
+        turnsRemaining,
     });
     requestScenePanelRender("roster-manager", { immediate: true });
     if (message) {
@@ -2040,32 +2096,185 @@ function buildSceneLogCopy(panelState = collectScenePanelState()) {
     }
     const analytics = panelState.analytics || {};
     const events = Array.isArray(analytics.events) ? analytics.events : [];
-    if (!events.length) {
-        return "No live events recorded yet.";
-    }
+    const matches = Array.isArray(analytics.matches) ? analytics.matches : [];
+    const stats = analytics.stats instanceof Map ? analytics.stats : null;
+    const ranking = Array.isArray(analytics.ranking) ? analytics.ranking : [];
+    const rosterEntries = Array.isArray(panelState.scene?.roster) ? panelState.scene.roster : [];
+    const membership = Array.isArray(panelState.membership?.members) ? panelState.membership.members : [];
     const lines = [];
-    events.forEach((event) => {
-        if (!event || typeof event !== "object") {
-            return;
+
+    lines.push("Scene Panel Report");
+    const updatedAt = Number.isFinite(analytics.updatedAt) ? analytics.updatedAt : null;
+    if (updatedAt) {
+        lines.push(`Updated: ${new Date(updatedAt).toLocaleString()}`);
+    }
+    if (analytics.messageKey) {
+        lines.push(`Message key: ${analytics.messageKey}`);
+    }
+    lines.push("");
+
+    const buffer = typeof analytics.buffer === "string" ? analytics.buffer : "";
+    lines.push("Analyzed Buffer:");
+    lines.push(buffer ? buffer : "(empty)");
+    lines.push("");
+
+    const now = Number.isFinite(panelState.now) ? panelState.now : Date.now();
+    const activeMembers = rosterEntries.map((entry) => ({
+        name: entry.name || entry.normalized || "Unknown",
+        active: entry.active !== false,
+        joinedAt: Number.isFinite(entry.joinedAt) ? entry.joinedAt : null,
+        lastSeenAt: Number.isFinite(entry.lastSeenAt) ? entry.lastSeenAt : null,
+        turnsRemaining: Number.isFinite(entry.turnsRemaining) ? Math.max(0, entry.turnsRemaining) : null,
+    }));
+    const inactiveMembers = membership
+        .filter((member) => member && member.active === false)
+        .map((member) => ({
+            name: member.name || member.normalized || "Unknown",
+            lastLeftAt: Number.isFinite(member.lastLeftAt) ? member.lastLeftAt : null,
+        }));
+
+    lines.push(`Scene Roster (${activeMembers.length}):`);
+    if (activeMembers.length) {
+        activeMembers.forEach((entry, idx) => {
+            const joined = entry.joinedAt ? formatRelativeTime(entry.joinedAt, now) : null;
+            const seen = entry.lastSeenAt ? formatRelativeTime(entry.lastSeenAt, now) : null;
+            const ttl = entry.turnsRemaining != null
+                ? `${entry.turnsRemaining} message${entry.turnsRemaining === 1 ? "" : "s"} left`
+                : "TTL unknown";
+            const metaParts = [];
+            if (joined) metaParts.push(`joined ${joined}`);
+            if (seen) metaParts.push(`seen ${seen}`);
+            metaParts.push(ttl);
+            lines.push(`  ${idx + 1}. ${entry.name} – ${metaParts.join(", ")}`);
+        });
+    } else {
+        lines.push("  (empty)");
+    }
+    if (inactiveMembers.length) {
+        lines.push("");
+        lines.push(`Inactive members (${inactiveMembers.length}):`);
+        inactiveMembers.forEach((entry, idx) => {
+            const left = entry.lastLeftAt ? formatRelativeTime(entry.lastLeftAt, now) : "time unknown";
+            lines.push(`  ${idx + 1}. ${entry.name} – left ${left}`);
+        });
+    }
+    lines.push("");
+
+    const mergedDetections = mergeDetectionsForReport({ matches, events });
+    const detectionSummary = summarizeDetections(mergedDetections);
+    lines.push("Detection Summary:");
+    if (detectionSummary.length) {
+        detectionSummary.forEach((item) => {
+            const kindBreakdown = Object.entries(item.kinds)
+                .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+                .map(([kind, count]) => `${kind}:${count}`)
+                .join(", ");
+            const priorityInfo = item.highestPriority != null ? `, highest priority ${item.highestPriority}` : "";
+            const rangeInfo = item.earliest != null
+                ? item.latest != null && item.latest !== item.earliest
+                    ? `, chars ${item.earliest}-${item.latest}`
+                    : `, char ${item.earliest}`
+                : "";
+            lines.push(`  - ${item.name}: ${item.total} detections (${kindBreakdown || "none"}${priorityInfo}${rangeInfo})`);
+        });
+    } else {
+        lines.push("  (none)");
+    }
+    lines.push("");
+
+    lines.push("Switch & Event Timeline:");
+    if (events.length) {
+        events.forEach((event, idx) => {
+            const timestamp = Number.isFinite(event.timestamp)
+                ? new Date(event.timestamp).toLocaleString()
+                : "Timestamp unavailable";
+            const charPos = Number.isFinite(event.charIndex) ? event.charIndex + 1 : "?";
+            if (event.type === "switch") {
+                const detail = event.matchKind ? ` via ${event.matchKind}` : "";
+                const score = Number.isFinite(event.score) ? `, score ${event.score}` : "";
+                const outfitSummary = summarizeOutfitDecision(event.outfit, { separator: "; ", includeFolder: false });
+                const outfitNote = outfitSummary ? ` [${outfitSummary}]` : "";
+                lines.push(`  ${idx + 1}. [${timestamp}] SWITCH → ${event.folder || event.name}${detail} @ char ${charPos}${score}${outfitNote}`);
+            } else if (event.type === "veto") {
+                lines.push(`  ${idx + 1}. [${timestamp}] VETO – matched "${event.match}" @ char ${charPos}`);
+            } else {
+                const reason = describeSkipReason(event.reason);
+                const outfitSummary = summarizeOutfitDecision(event.outfit, { separator: "; ", includeFolder: false });
+                const outfitNote = outfitSummary ? ` [${outfitSummary}]` : "";
+                lines.push(`  ${idx + 1}. [${timestamp}] SKIP – ${event.name} (${event.matchKind || "unknown"}) because ${reason}${outfitNote}`);
+            }
+        });
+    } else {
+        lines.push("  (no recorded events)");
+    }
+    lines.push("");
+
+    const switchSummary = summarizeSwitchesForReport(events);
+    lines.push("Switch Summary:");
+    lines.push(`  Total switches: ${switchSummary.total}`);
+    if (switchSummary.uniqueCount > 0) {
+        lines.push(`  Unique costumes: ${switchSummary.uniqueCount} (${switchSummary.uniqueFolders.join(", ")})`);
+    } else {
+        lines.push("  Unique costumes: 0");
+    }
+    if (switchSummary.lastSwitch) {
+        const last = switchSummary.lastSwitch;
+        const charPos = Number.isFinite(last.charIndex) ? last.charIndex + 1 : "?";
+        const detail = last.matchKind ? ` via ${last.matchKind}` : "";
+        const score = Number.isFinite(last.score) ? `, score ${last.score}` : "";
+        const outfitSummary = summarizeOutfitDecision(last.outfit, { separator: "; ", includeFolder: false });
+        const outfitNote = outfitSummary ? ` [${outfitSummary}]` : "";
+        lines.push(`  Last switch: ${last.folder || last.name || "(unknown)"}${detail} @ char ${charPos}${score}${outfitNote}`);
+    } else {
+        lines.push("  Last switch: (none)");
+    }
+    if (switchSummary.topScores.length) {
+        lines.push("  Top switch scores:");
+        switchSummary.topScores.forEach((event, idx) => {
+            const charPos = Number.isFinite(event.charIndex) ? event.charIndex + 1 : "?";
+            const detail = event.matchKind ? ` via ${event.matchKind}` : "";
+            const outfitSummary = summarizeOutfitDecision(event.outfit, { separator: "; ", includeFolder: false });
+            const outfitNote = outfitSummary ? ` [${outfitSummary}]` : "";
+            lines.push(`    ${idx + 1}. ${event.folder || event.name || "(unknown)"} – ${event.score} (trigger: ${event.name}${detail}, char ${charPos})${outfitNote}`);
+        });
+    }
+    lines.push("");
+
+    const skipSummary = summarizeSkipReasonsForReport(events);
+    lines.push("Skip Reasons:");
+    if (skipSummary.length) {
+        skipSummary.forEach((item) => {
+            lines.push(`  - ${describeSkipReason(item.code)} (${item.code}): ${item.count}`);
+        });
+    } else {
+        lines.push("  (none)");
+    }
+    lines.push("");
+
+    if (stats && typeof stats.forEach === "function") {
+        const statEntries = Array.from(stats.entries ? stats.entries() : stats);
+        statEntries.sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), undefined, { sensitivity: "base" }));
+        lines.push("Detection Counts:");
+        if (statEntries.length) {
+            statEntries.forEach(([name, count]) => {
+                lines.push(`  - ${name}: ${count}`);
+            });
+        } else {
+            lines.push("  (none)");
         }
-        const timestamp = Number.isFinite(event.timestamp)
-            ? new Date(event.timestamp).toLocaleString()
-            : "Timestamp unavailable";
-        const parts = [`[${timestamp}]`, event.type ? event.type.toUpperCase() : "EVENT"];
-        if (event.name) {
-            parts.push(`Name: ${event.name}`);
-        }
-        if (event.matchKind) {
-            parts.push(`Match: ${event.matchKind}`);
-        }
-        if (event.reason) {
-            parts.push(`Reason: ${describeSkipReason(event.reason)}`);
-        }
-        if (event.outfit?.folder) {
-            parts.push(`Outfit: ${event.outfit.folder}`);
-        }
-        lines.push(parts.join(" | "));
-    });
+        lines.push("");
+    }
+
+    if (ranking.length) {
+        lines.push("Top Characters:");
+        ranking.slice(0, 4).forEach((entry, idx) => {
+            const rosterTag = entry.inSceneRoster ? " [scene roster]" : "";
+            const scorePart = Number.isFinite(entry.score) ? ` (score ${entry.score})` : "";
+            lines.push(`  ${idx + 1}. ${entry.name} – ${entry.count ?? 0} detections${rosterTag}${scorePart}`);
+        });
+        lines.push("");
+    }
+
     return lines.join("\n");
 }
 
@@ -6126,6 +6335,7 @@ function simulateTesterStream(combined, profile, bufKey) {
                     charIndex: absoluteIndex,
                 },
                 updatedAt: now,
+                turnsRemaining: Number.isFinite(msgState.rosterTTL) ? msgState.rosterTTL : null,
             });
             requestScenePanelRender("stream-roster");
         }
@@ -7203,6 +7413,10 @@ function updateMessageAnalytics(bufKey, text, { rosterSet, updateSession = true,
     const stats = summarizeMatches(matches);
 
     state.messageStats.set(bufKey, stats);
+    if (!(state.messageMatches instanceof Map)) {
+        state.messageMatches = new Map();
+    }
+    state.messageMatches.set(bufKey, matches.map((match) => ({ ...match })));
 
     const ranking = rankSceneCharacters(matches, {
         rosterSet,
@@ -7394,6 +7608,10 @@ function captureSceneOutcomeForMessage(reference) {
     const displayNames = collectDisplayNameMap(roster, events, existingOutcome?.displayNames);
     const stats = state.messageStats instanceof Map ? state.messageStats.get(normalizedKey) : null;
     const timestamp = Date.now();
+    const turnsRemaining = Number.isFinite(msgState?.rosterTTL) ? Math.max(0, Math.floor(msgState.rosterTTL)) : null;
+    const matches = state.messageMatches instanceof Map
+        ? state.messageMatches.get(normalizedKey) || []
+        : [];
 
     replaceLiveTesterOutputs(events, {
         roster,
@@ -7408,6 +7626,7 @@ function captureSceneOutcomeForMessage(reference) {
         displayNames,
         lastMatch: events.length ? { ...events[events.length - 1] } : null,
         updatedAt: timestamp,
+        turnsRemaining,
     });
 
     const buffer = state.perMessageBuffers instanceof Map ? state.perMessageBuffers.get(normalizedKey) || "" : "";
@@ -7423,6 +7642,8 @@ function captureSceneOutcomeForMessage(reference) {
         text: message?.mes || "",
         updatedAt: timestamp,
         lastEvent: events.length ? { ...events[events.length - 1] } : null,
+        turnsRemaining,
+        matches: matches.map((match) => ({ ...match })),
     };
 
     if (message) {
@@ -7508,6 +7729,16 @@ function restoreSceneOutcomeForMessage(message, { immediateRender = true } = {})
     });
 
     const resolvedId = Number.isFinite(stored?.messageId) ? stored.messageId : message.mesId;
+    const turnsRemaining = Number.isFinite(stored?.turnsRemaining)
+        ? Math.max(0, Math.floor(stored.turnsRemaining))
+        : null;
+    if (!(state.messageMatches instanceof Map)) {
+        state.messageMatches = new Map();
+    }
+    const storedMatches = Array.isArray(stored?.matches)
+        ? stored.matches.map((match) => ({ ...match }))
+        : [];
+    state.messageMatches.set(messageKey, storedMatches);
 
     applySceneRosterUpdate({
         key: messageKey,
@@ -7516,6 +7747,7 @@ function restoreSceneOutcomeForMessage(message, { immediateRender = true } = {})
         displayNames,
         lastMatch: stored?.lastEvent ? { ...stored.lastEvent } : (events.length ? { ...events[events.length - 1] } : null),
         updatedAt: timestamp,
+        turnsRemaining,
     });
 
     if (immediateRender) {
@@ -7736,6 +7968,7 @@ function createMessageState(profile, bufKey) {
             key: bufKey,
             messageId: extractMessageIdFromKey(bufKey),
             roster: Array.from(newState.sceneRoster || []),
+            turnsRemaining: Number.isFinite(newState.rosterTTL) ? newState.rosterTTL : null,
             updatedAt: Date.now(),
         });
         requestScenePanelRender("roster-prime");
@@ -7760,6 +7993,7 @@ function remapMessageKey(oldKey, newKey) {
     moveEntry(state.perMessageBuffers);
     moveEntry(state.perMessageStates);
     moveEntry(state.messageStats);
+    moveEntry(state.messageMatches);
 
     if (state.topSceneRanking instanceof Map) {
         moveEntry(state.topSceneRanking);

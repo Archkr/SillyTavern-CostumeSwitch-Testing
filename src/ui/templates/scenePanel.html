@@ -44,41 +44,43 @@
                 </label>
             </div>
         </header>
-        <section class="cs-scene-panel__section" data-scene-panel="roster">
-            <header class="cs-scene-panel__section-header">
-                <h4>Scene roster</h4>
-                <div class="cs-scene-panel__section-actions">
-                    <button id="cs-scene-manage-roster" class="cs-scene-panel__text-button" type="button" data-scene-panel="manage-roster">Manage</button>
-                    <button id="cs-scene-clear-roster" class="cs-scene-panel__text-button" type="button" data-scene-panel="clear-roster">Clear</button>
+        <div class="cs-scene-panel__sections" data-scene-panel="sections">
+            <section class="cs-scene-panel__section" data-scene-panel="roster">
+                <header class="cs-scene-panel__section-header">
+                    <h4>Scene roster</h4>
+                    <div class="cs-scene-panel__section-actions">
+                        <button id="cs-scene-manage-roster" class="cs-scene-panel__text-button" type="button" data-scene-panel="manage-roster">Manage</button>
+                        <button id="cs-scene-clear-roster" class="cs-scene-panel__text-button" type="button" data-scene-panel="clear-roster">Clear</button>
+                    </div>
+                </header>
+                <div id="cs-scene-roster-list" class="cs-scene-panel__scrollable" data-scene-panel="roster-list">
+                    <!-- Scene roster entries will be rendered here -->
                 </div>
-            </header>
-            <div id="cs-scene-roster-list" class="cs-scene-panel__scrollable" data-scene-panel="roster-list">
-                <!-- Scene roster entries will be rendered here -->
-            </div>
-        </section>
-        <section class="cs-scene-panel__section" data-scene-panel="active-characters">
-            <header class="cs-scene-panel__section-header">
-                <h4>Active characters</h4>
-                <div class="cs-scene-panel__section-actions">
-                    <button id="cs-scene-focus-toggle" class="cs-scene-panel__text-button" type="button" data-scene-panel="focus-toggle">Toggle focus lock</button>
+            </section>
+            <section class="cs-scene-panel__section" data-scene-panel="active-characters">
+                <header class="cs-scene-panel__section-header">
+                    <h4>Active characters</h4>
+                    <div class="cs-scene-panel__section-actions">
+                        <button id="cs-scene-focus-toggle" class="cs-scene-panel__text-button" type="button" data-scene-panel="focus-toggle">Toggle focus lock</button>
+                    </div>
+                </header>
+                <div id="cs-scene-active-characters" class="cs-scene-panel__card-list" data-scene-panel="active-cards">
+                    <!-- Active character cards will be rendered here -->
                 </div>
-            </header>
-            <div id="cs-scene-active-characters" class="cs-scene-panel__card-list" data-scene-panel="active-cards">
-                <!-- Active character cards will be rendered here -->
-            </div>
-        </section>
-        <section class="cs-scene-panel__section" data-scene-panel="live-log">
-            <header class="cs-scene-panel__section-header">
-                <h4>Live result log</h4>
-                <div class="cs-scene-panel__section-actions">
-                    <button id="cs-scene-log-expand" class="cs-scene-panel__text-button" type="button" data-scene-panel="log-expand">Expand</button>
-                    <button id="cs-scene-log-copy" class="cs-scene-panel__text-button" type="button" data-scene-panel="log-copy">Copy</button>
+            </section>
+            <section class="cs-scene-panel__section" data-scene-panel="live-log">
+                <header class="cs-scene-panel__section-header">
+                    <h4>Live result log</h4>
+                    <div class="cs-scene-panel__section-actions">
+                        <button id="cs-scene-log-expand" class="cs-scene-panel__text-button" type="button" data-scene-panel="log-expand">Expand</button>
+                        <button id="cs-scene-log-copy" class="cs-scene-panel__text-button" type="button" data-scene-panel="log-copy">Copy</button>
+                    </div>
+                </header>
+                <div id="cs-scene-live-log" class="cs-scene-panel__log" data-scene-panel="log-viewport">
+                    <!-- Live detection results will be appended here -->
                 </div>
-            </header>
-            <div id="cs-scene-live-log" class="cs-scene-panel__log" data-scene-panel="log-viewport">
-                <!-- Live detection results will be appended here -->
-            </div>
-        </section>
+            </section>
+        </div>
         <footer class="cs-scene-panel__footer" data-scene-panel="footer">
             <button id="cs-scene-open-settings" class="cs-scene-panel__footer-button" type="button" data-scene-panel="open-settings">
                 <i class="fa-solid fa-sliders" aria-hidden="true"></i>

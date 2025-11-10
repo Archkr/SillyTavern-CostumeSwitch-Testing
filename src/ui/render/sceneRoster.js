@@ -119,6 +119,10 @@ function renderRosterRow(entry, { displayNames, showAvatars, now }) {
     if (entry.isLatest) {
         container.dataset.latest = "true";
     }
+    const turnsRemaining = Number.isFinite(entry.turnsRemaining) ? Math.max(0, entry.turnsRemaining) : null;
+    if (turnsRemaining != null) {
+        container.dataset.turnsRemaining = String(turnsRemaining);
+    }
     const displayName = buildDisplayName(entry.normalized, entry.name, displayNames);
     const avatar = resolveAvatarElement(displayName, showAvatars);
     if (avatar) {
@@ -152,6 +156,19 @@ function renderRosterRow(entry, { displayNames, showAvatars, now }) {
         if (badge) {
             badge.textContent = "Latest match";
             nameRow.appendChild(badge);
+        }
+    }
+    if (turnsRemaining != null) {
+        const ttl = createElement("span", "cs-scene-roster__ttl");
+        if (ttl) {
+            ttl.textContent = `${turnsRemaining} message${turnsRemaining === 1 ? "" : "s"} left`;
+            ttl.title = turnsRemaining === 0
+                ? "Will expire before the next message."
+                : `Roster slot expires after ${turnsRemaining} more message${turnsRemaining === 1 ? "" : "s"}.`;
+            if (turnsRemaining <= 1) {
+                ttl.classList.add("cs-scene-roster__ttl--warning");
+            }
+            nameRow.appendChild(ttl);
         }
     }
     body.appendChild(nameRow);
@@ -195,6 +212,7 @@ function normalizeMember(member) {
         lastSeenAt: Number.isFinite(member.lastSeenAt) ? member.lastSeenAt : null,
         lastLeftAt: Number.isFinite(member.lastLeftAt) ? member.lastLeftAt : null,
         active: Boolean(member.active),
+        turnsRemaining: Number.isFinite(member.turnsRemaining) ? member.turnsRemaining : null,
     };
 }
 
@@ -223,6 +241,11 @@ function mergeRosterData(scene, membership, testers, now) {
             }
             if (Number.isFinite(normalized.joinedAt)) {
                 existing.joinedAt = existing.joinedAt || normalized.joinedAt;
+            }
+            if (Number.isFinite(normalized.turnsRemaining)) {
+                existing.turnsRemaining = Number.isFinite(existing.turnsRemaining)
+                    ? Math.min(existing.turnsRemaining, normalized.turnsRemaining)
+                    : normalized.turnsRemaining;
             }
             map.set(normalized.normalized, existing);
         });

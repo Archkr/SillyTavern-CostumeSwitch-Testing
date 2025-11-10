@@ -86,6 +86,7 @@ function cloneRosterEntry(entry) {
         normalized: entry.normalized,
         joinedAt: entry.joinedAt,
         lastSeenAt: entry.lastSeenAt,
+        turnsRemaining: Number.isFinite(entry.turnsRemaining) ? entry.turnsRemaining : null,
     };
 }
 
@@ -97,6 +98,7 @@ function cloneRosterMember(member) {
         lastSeenAt: member.lastSeenAt,
         lastLeftAt: member.lastLeftAt,
         active: member.active,
+        turnsRemaining: Number.isFinite(member.turnsRemaining) ? member.turnsRemaining : null,
     };
 }
 
@@ -136,10 +138,12 @@ export function applySceneRosterUpdate({
     displayNames = null,
     lastMatch = null,
     updatedAt = Date.now(),
+    turnsRemaining = null,
 } = {}) {
     const normalizedDisplayNames = normalizeDisplayNameMap(displayNames);
     const activeSet = new Set();
     const rosterEntries = [];
+    const sanitizedTurns = Number.isFinite(turnsRemaining) ? Math.max(0, Math.floor(turnsRemaining)) : null;
 
     const values = Array.isArray(roster) ? roster : [];
     values.forEach((value) => {
@@ -156,6 +160,7 @@ export function applySceneRosterUpdate({
             normalized,
             joinedAt,
             lastSeenAt: updatedAt,
+            turnsRemaining: sanitizedTurns,
         });
     });
 
@@ -165,6 +170,7 @@ export function applySceneRosterUpdate({
                 ...member,
                 active: false,
                 lastLeftAt: updatedAt,
+                turnsRemaining: null,
             });
         }
     }
@@ -177,6 +183,7 @@ export function applySceneRosterUpdate({
             lastSeenAt: entry.lastSeenAt,
             lastLeftAt: null,
             active: true,
+            turnsRemaining: entry.turnsRemaining,
         });
     });
 
@@ -213,6 +220,11 @@ export function setRosterMember(name, data = {}) {
     }
     const now = Date.now();
     const existing = rosterMembers.get(normalized);
+    const turnsRemaining = Number.isFinite(data.turnsRemaining)
+        ? Math.max(0, Math.floor(data.turnsRemaining))
+        : Number.isFinite(existing?.turnsRemaining)
+            ? existing.turnsRemaining
+            : null;
     const entry = {
         name: typeof data.name === "string" && data.name.trim() ? data.name.trim() : existing?.name || normalized,
         normalized,
@@ -220,9 +232,11 @@ export function setRosterMember(name, data = {}) {
         lastSeenAt: Number.isFinite(data.lastSeenAt) ? data.lastSeenAt : existing?.lastSeenAt ?? now,
         lastLeftAt: Number.isFinite(data.lastLeftAt) ? data.lastLeftAt : existing?.lastLeftAt ?? null,
         active: typeof data.active === "boolean" ? data.active : existing?.active ?? true,
+        turnsRemaining,
     };
     if (!entry.active && entry.lastLeftAt == null) {
         entry.lastLeftAt = entry.lastSeenAt;
+        entry.turnsRemaining = null;
     }
     rosterMembers.set(normalized, entry);
     rosterUpdatedAt = now;
