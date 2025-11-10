@@ -494,6 +494,7 @@ const state = {
     lastVetoMatch: null,
     buildMeta: null,
     topSceneRanking: new Map(),
+    topSceneRankingUpdatedAt: new Map(),
     latestTopRanking: { bufKey: null, ranking: [], fullRanking: [], updatedAt: 0 },
     currentGenerationKey: null,
     mappingLookup: new Map(),
@@ -801,6 +802,9 @@ function pruneMessageCaches(limit = MAX_TRACKED_MESSAGES) {
         if (state.topSceneRanking instanceof Map) {
             state.topSceneRanking.delete(oldest);
         }
+        if (state.topSceneRankingUpdatedAt instanceof Map) {
+            state.topSceneRankingUpdatedAt.delete(oldest);
+        }
     }
 }
 
@@ -1093,7 +1097,7 @@ function ensureSessionData() {
     return settings.session;
 }
 
-function updateSessionTopCharacters(bufKey, ranking) {
+function updateSessionTopCharacters(bufKey, ranking, timestamp = Date.now()) {
     const session = ensureSessionData();
     if (!session) return;
 
@@ -1114,13 +1118,13 @@ function updateSessionTopCharacters(bufKey, ranking) {
     session.topCharactersString = names.join(', ');
     session.topCharacterDetails = details;
     session.lastMessageKey = bufKey || null;
-    session.lastUpdated = Date.now();
+    session.lastUpdated = timestamp;
 
     state.latestTopRanking = {
         bufKey: bufKey || null,
         ranking: topRanking,
         fullRanking: Array.isArray(ranking) ? ranking : [],
-        updatedAt: session.lastUpdated,
+        updatedAt: timestamp,
     };
 }
 
@@ -1133,6 +1137,12 @@ function clearSessionTopCharacters() {
     session.topCharacterDetails = [];
     session.lastMessageKey = null;
     session.lastUpdated = Date.now();
+
+    if (state.topSceneRankingUpdatedAt instanceof Map) {
+        state.topSceneRankingUpdatedAt.clear();
+    } else {
+        state.topSceneRankingUpdatedAt = new Map();
+    }
 
     state.latestTopRanking = {
         bufKey: null,
@@ -1288,8 +1298,76 @@ function buildDisplayNameMap(scene, membership, testers) {
     return map;
 }
 
+function getRankingUpdatedAtForKey(bufKey) {
+    const normalizedKey = normalizeMessageKey(bufKey);
+    if (!normalizedKey) {
+        return null;
+    }
+    if (!(state.topSceneRankingUpdatedAt instanceof Map)) {
+        return null;
+    }
+    const timestamp = state.topSceneRankingUpdatedAt.get(normalizedKey);
+    return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function computeAnalyticsUpdatedAt({
+    events = [],
+    rankingUpdatedAt = null,
+    scene = null,
+    membership = null,
+    testers = null,
+} = {}) {
+    const candidates = [];
+    const addCandidate = (value) => {
+        if (Number.isFinite(value)) {
+            candidates.push(value);
+        }
+    };
+
+    if (Array.isArray(events)) {
+        events.forEach((event) => {
+            if (event && typeof event === "object") {
+                addCandidate(event.timestamp);
+            }
+        });
+    }
+
+    if (scene && typeof scene === "object") {
+        addCandidate(scene.updatedAt);
+        if (scene.lastEvent && typeof scene.lastEvent === "object") {
+            addCandidate(scene.lastEvent.timestamp);
+        }
+    }
+
+    if (membership && typeof membership === "object") {
+        addCandidate(membership.updatedAt);
+    }
+
+    if (testers && typeof testers === "object") {
+        addCandidate(testers.updatedAt);
+        if (Array.isArray(testers.entries)) {
+            testers.entries.forEach((entry) => {
+                if (!entry || typeof entry !== "object") {
+                    return;
+                }
+                addCandidate(entry.updatedAt);
+                if (entry.lastEvent && typeof entry.lastEvent === "object") {
+                    addCandidate(entry.lastEvent.timestamp);
+                }
+            });
+        }
+    }
+
+    addCandidate(rankingUpdatedAt);
+
+    if (!candidates.length) {
+        return 0;
+    }
+
+    return Math.max(...candidates);
+}
+
 function collectScenePanelState() {
-    const now = Date.now();
     const settings = getSettings?.();
     const panelSettings = ensureScenePanelSettings(settings || {});
     const scene = getCurrentSceneSnapshot();
@@ -1329,6 +1407,21 @@ function collectScenePanelState() {
         })
         : [];
 
+    const latestRankingUpdatedAt = Number.isFinite(state.latestTopRanking?.updatedAt)
+        ? state.latestTopRanking.updatedAt
+        : null;
+    const activeRankingUpdatedAt = ranking.length
+        ? latestRankingUpdatedAt
+        : getRankingUpdatedAtForKey(activeKey) ?? latestRankingUpdatedAt;
+
+    const updatedAt = computeAnalyticsUpdatedAt({
+        events,
+        rankingUpdatedAt: activeRankingUpdatedAt,
+        scene,
+        membership,
+        testers,
+    });
+
     return {
         scene,
         membership,
@@ -1342,9 +1435,9 @@ function collectScenePanelState() {
             stats,
             ranking: rankingForMessage,
             events,
-            updatedAt: now,
+            updatedAt,
         },
-        now,
+        now: Date.now(),
         isStreaming: Boolean(state.currentGenerationKey),
         collapsed: isScenePanelCollapsed(),
     };
@@ -6256,8 +6349,17 @@ function updateMessageAnalytics(bufKey, text, { rosterSet, updateSession = true,
     });
     state.topSceneRanking.set(bufKey, ranking);
 
+    const timestamp = Date.now();
+    const normalizedKey = normalizeMessageKey(bufKey) || bufKey;
+    if (!(state.topSceneRankingUpdatedAt instanceof Map)) {
+        state.topSceneRankingUpdatedAt = new Map();
+    }
+    state.topSceneRankingUpdatedAt.set(normalizedKey, timestamp);
+
     if (updateSession !== false) {
-        updateSessionTopCharacters(bufKey, ranking);
+        updateSessionTopCharacters(bufKey, ranking, timestamp);
+    } else if (state.latestTopRanking?.bufKey && normalizeMessageKey(state.latestTopRanking.bufKey) === normalizedKey) {
+        state.latestTopRanking.updatedAt = timestamp;
     }
 
     requestScenePanelRender("analytics-update");
@@ -6799,6 +6901,19 @@ function remapMessageKey(oldKey, newKey) {
         moveEntry(state.topSceneRanking);
     }
 
+    if (state.topSceneRankingUpdatedAt instanceof Map) {
+        if (normalizedOld && state.topSceneRankingUpdatedAt.has(normalizedOld)) {
+            const value = state.topSceneRankingUpdatedAt.get(normalizedOld);
+            state.topSceneRankingUpdatedAt.delete(normalizedOld);
+            const targetKey = normalizedNew || newKey;
+            if (targetKey) {
+                state.topSceneRankingUpdatedAt.set(targetKey, value);
+            }
+        } else {
+            moveEntry(state.topSceneRankingUpdatedAt);
+        }
+    }
+
     if (state.latestTopRanking?.bufKey === oldKey) {
         state.latestTopRanking.bufKey = newKey;
     }
@@ -7250,6 +7365,7 @@ const resetGlobalState = () => {
         perMessageStates: new Map(),
         messageStats: new Map(),
         topSceneRanking: new Map(),
+        topSceneRankingUpdatedAt: new Map(),
         latestTopRanking: { bufKey: null, ranking: [], fullRanking: [], updatedAt: Date.now() },
         currentGenerationKey: null,
         messageKeyQueue: [],
@@ -7276,6 +7392,8 @@ export {
     handleStream,
     remapMessageKey,
     restoreSceneOutcomeForMessage,
+    collectScenePanelState,
+    computeAnalyticsUpdatedAt,
 };
 
 async function mountScenePanelTemplate() {

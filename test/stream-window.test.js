@@ -7,7 +7,14 @@ await register(new URL("./module-mock-loader.js", import.meta.url));
 const extensionSettingsStore = {};
 globalThis.__extensionSettingsStore = extensionSettingsStore;
 
-const { getWinner, extensionName, adjustWindowForTrim, handleStream, remapMessageKey, state } = await import("../index.js");
+const { getWinner, extensionName, adjustWindowForTrim, handleStream, remapMessageKey, state, collectScenePanelState } = await import("../index.js");
+
+const {
+    applySceneRosterUpdate,
+    replaceLiveTesterOutputs,
+    clearLiveTesterOutputs,
+    resetSceneState,
+} = await import("../src/core/state.js");
 
 extensionSettingsStore[extensionName] = {
     enabled: true,
@@ -198,6 +205,55 @@ test("handleStream records veto phrase and recent events", () => {
     const vetoEvents = state.recentDecisionEvents.filter(event => event.type === "veto");
     assert.equal(vetoEvents.length > 0, true, "expected veto event to be recorded");
     assert.equal(vetoEvents[vetoEvents.length - 1].match, "OOC:");
+});
+
+test("collectScenePanelState analytics updatedAt reflects latest scene activity", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    state.recentDecisionEvents = [];
+    state.topSceneRanking = new Map();
+    state.topSceneRankingUpdatedAt = new Map();
+    state.messageStats = new Map();
+    state.perMessageBuffers = new Map();
+    state.perMessageStates = new Map();
+    state.latestTopRanking = { bufKey: null, ranking: [], fullRanking: [], updatedAt: 0 };
+    state.currentGenerationKey = null;
+
+    const messageKey = "m1";
+    const rankingTimestamp = 4200;
+    const testerTimestamp = 4800;
+    const eventTimestamp = 5100;
+    const rankingEntry = {
+        name: "Kotori",
+        normalized: "kotori",
+        count: 3,
+        bestPriority: 1,
+        inSceneRoster: true,
+        score: 100,
+    };
+
+    state.topSceneRanking.set(messageKey, [rankingEntry]);
+    state.topSceneRankingUpdatedAt.set(messageKey, rankingTimestamp);
+    state.latestTopRanking = {
+        bufKey: messageKey,
+        ranking: [rankingEntry],
+        fullRanking: [rankingEntry],
+        updatedAt: rankingTimestamp,
+    };
+    state.messageStats.set(messageKey, new Map([["kotori", 3]]));
+    state.perMessageBuffers.set(messageKey, "Kotori waves.");
+    state.recentDecisionEvents = [{ type: "switch", messageKey, timestamp: eventTimestamp }];
+
+    applySceneRosterUpdate({ key: messageKey, roster: ["Kotori"], updatedAt: rankingTimestamp - 500 });
+    replaceLiveTesterOutputs([], { roster: ["Kotori"], timestamp: testerTimestamp });
+
+    const panelState = collectScenePanelState();
+    assert.equal(panelState.analytics.updatedAt, eventTimestamp);
+
+    state.recentDecisionEvents = [];
+    const panelWithoutEvents = collectScenePanelState();
+    assert.equal(panelWithoutEvents.analytics.updatedAt, testerTimestamp);
 });
 
 test("remapMessageKey retargets recent decision events for rendered messages", () => {
