@@ -8035,6 +8035,16 @@ function createMessageState(profile, bufKey) {
         }
     }
 
+    const profileTTL = Number.isFinite(profile.sceneRosterTTL)
+        ? profile.sceneRosterTTL
+        : PROFILE_DEFAULTS.sceneRosterTTL;
+    const baseRosterTTL = Number.isFinite(oldState?.rosterTTL)
+        ? oldState.rosterTTL
+        : (Number.isFinite(profileTTL) ? profileTTL : null);
+    const baseOutfitTTL = Number.isFinite(oldState?.outfitTTL)
+        ? oldState.outfitTTL
+        : (Number.isFinite(profileTTL) ? profileTTL : null);
+
     const newState = {
         lastAcceptedName: null,
         lastAcceptedTs: 0,
@@ -8045,23 +8055,24 @@ function createMessageState(profile, bufKey) {
         pendingSubjectNormalized,
         sceneRoster: new Set(oldState?.sceneRoster || []),
         outfitRoster: new Map(oldState?.outfitRoster || []),
-        rosterTTL: profile.sceneRosterTTL,
-        outfitTTL: profile.sceneRosterTTL,
+        rosterTTL: baseRosterTTL,
+        outfitTTL: baseOutfitTTL,
         processedLength: 0,
         lastAcceptedIndex: -1,
         bufferOffset: 0,
     };
 
-    if (newState.sceneRoster.size > 0) {
-        newState.rosterTTL--;
+    if (newState.sceneRoster.size > 0 && Number.isFinite(newState.rosterTTL)) {
+        newState.rosterTTL -= 1;
         if (newState.rosterTTL <= 0) {
             debugLog("Scene roster TTL expired, clearing roster.");
             newState.sceneRoster.clear();
         }
+        newState.rosterTTL = Math.max(0, newState.rosterTTL);
     }
 
-    if (newState.outfitRoster.size > 0) {
-        newState.outfitTTL--;
+    if (newState.outfitRoster.size > 0 && Number.isFinite(newState.outfitTTL)) {
+        newState.outfitTTL -= 1;
         if (newState.outfitTTL <= 0) {
             const expired = Array.from(newState.outfitRoster.keys());
             debugLog("Outfit roster TTL expired, clearing tracked outfits:", expired.join(', '));
@@ -8069,6 +8080,7 @@ function createMessageState(profile, bufKey) {
             const cache = ensureCharacterOutfitCache(state);
             expired.forEach(key => cache.delete(key));
         }
+        newState.outfitTTL = Math.max(0, newState.outfitTTL);
     }
 
     state.perMessageStates.set(bufKey, newState);
@@ -8088,6 +8100,8 @@ function createMessageState(profile, bufKey) {
 
     return newState;
 }
+
+__testables.createMessageState = createMessageState;
 
 function remapMessageKey(oldKey, newKey) {
     if (!oldKey || !newKey || oldKey === newKey) return;

@@ -146,6 +146,34 @@ test("handleStream logs focus lock status when locked", () => {
     assert.equal(noticeSnapshot.event.matchKind, "focus-lock");
 });
 
+test("createMessageState carries roster TTL forward between messages", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    state.perMessageStates = new Map();
+    state.perMessageBuffers = new Map();
+    state.currentGenerationKey = null;
+
+    const profile = { sceneRosterTTL: 5 };
+    const previousState = {
+        lastSubject: null,
+        pendingSubject: null,
+        pendingSubjectNormalized: null,
+        sceneRoster: new Set(["kotori"]),
+        outfitRoster: new Map([["kotori", { outfit: "casual" }]]),
+        rosterTTL: 3,
+        outfitTTL: 2,
+    };
+
+    state.perMessageStates.set("m0", previousState);
+
+    const newState = __testables.createMessageState(profile, "m1");
+
+    assert.equal(newState.rosterTTL, 2, "roster TTL should decrement from previous message");
+    assert.equal(newState.outfitTTL, 1, "outfit TTL should decrement from previous message");
+    assert.deepEqual(Array.from(newState.sceneRoster), ["kotori"]);
+});
+
 test("handleStream infers message key from token event payloads", () => {
     resetSceneState();
     clearLiveTesterOutputs();
