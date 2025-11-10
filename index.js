@@ -5362,6 +5362,37 @@ const RELEVANT_SKIP_CODES = new Set([
 
 const MAX_RECENT_DECISION_EVENTS = 25;
 
+function trimDecisionEvents(events, max = MAX_RECENT_DECISION_EVENTS) {
+    if (!Array.isArray(events)) {
+        return [];
+    }
+    if (events.length <= max) {
+        return events.slice();
+    }
+
+    const preservedTypes = new Set(["switch", "veto"]);
+    const queue = events.slice();
+    while (queue.length > max) {
+        const dropIndex = queue.findIndex((event) => {
+            if (!event || typeof event !== "object") {
+                return true;
+            }
+            return !preservedTypes.has(event.type);
+        });
+        if (dropIndex === -1) {
+            queue.splice(0, queue.length - max);
+        } else {
+            queue.splice(dropIndex, 1);
+        }
+    }
+    return queue;
+}
+
+const __testables = {
+    trimDecisionEvents,
+    recordDecisionEvent,
+};
+
 function recordLastVetoMatch(match, { source = 'live', persist = true } = {}) {
     const phrase = String(match ?? '').trim() || '(unknown veto phrase)';
     const entry = { phrase, source, at: Date.now() };
@@ -5444,9 +5475,7 @@ function overwriteRecentDecisionEvents(messageKey, events) {
         });
     }
 
-    const limited = prepared.length > MAX_RECENT_DECISION_EVENTS
-        ? prepared.slice(-MAX_RECENT_DECISION_EVENTS)
-        : prepared;
+    const limited = trimDecisionEvents(prepared, MAX_RECENT_DECISION_EVENTS);
 
     state.recentDecisionEvents = limited;
 
@@ -5487,9 +5516,7 @@ function recordDecisionEvent(event) {
         state.recentDecisionEvents = [];
     }
     state.recentDecisionEvents.push(entry);
-    if (state.recentDecisionEvents.length > MAX_RECENT_DECISION_EVENTS) {
-        state.recentDecisionEvents.splice(0, state.recentDecisionEvents.length - MAX_RECENT_DECISION_EVENTS);
-    }
+    state.recentDecisionEvents = trimDecisionEvents(state.recentDecisionEvents, MAX_RECENT_DECISION_EVENTS);
 
     const session = ensureSessionData();
     if (session) {
@@ -5497,9 +5524,7 @@ function recordDecisionEvent(event) {
             session.recentDecisionEvents = [];
         }
         session.recentDecisionEvents.push(entry);
-        if (session.recentDecisionEvents.length > MAX_RECENT_DECISION_EVENTS) {
-            session.recentDecisionEvents.splice(0, session.recentDecisionEvents.length - MAX_RECENT_DECISION_EVENTS);
-        }
+        session.recentDecisionEvents = trimDecisionEvents(session.recentDecisionEvents, MAX_RECENT_DECISION_EVENTS);
     }
 
     updateSkipReasonSummaryDisplay();
@@ -8639,6 +8664,7 @@ export {
     restoreSceneOutcomeForMessage,
     collectScenePanelState,
     computeAnalyticsUpdatedAt,
+    __testables,
 };
 
 async function mountScenePanelTemplate() {

@@ -9,7 +9,7 @@ await register(new URL("./module-mock-loader.js", import.meta.url));
 const extensionSettingsStore = {};
 globalThis.__extensionSettingsStore = extensionSettingsStore;
 
-const { getWinner, extensionName, adjustWindowForTrim, handleStream, remapMessageKey, state, collectScenePanelState } = await import("../index.js");
+const { getWinner, extensionName, adjustWindowForTrim, handleStream, remapMessageKey, state, collectScenePanelState, __testables } = await import("../index.js");
 
 const {
     applySceneRosterUpdate,
@@ -534,4 +534,44 @@ test("collectScenePanelState attaches recent events for active character renderi
             globalThis.document = previousDocument;
         }
     }
+});
+
+test("recordDecisionEvent retains switch events when skip flood occurs", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    const { recordDecisionEvent } = __testables;
+
+    state.recentDecisionEvents = [];
+    state.currentGenerationKey = "m777";
+
+    const baseTimestamp = Date.now();
+    recordDecisionEvent({
+        type: "switch",
+        name: "Kotori",
+        folder: "Kotori",
+        timestamp: baseTimestamp,
+    });
+    recordDecisionEvent({
+        type: "switch",
+        name: "Tohka",
+        folder: "Tohka",
+        timestamp: baseTimestamp + 1,
+    });
+
+    for (let index = 0; index < 40; index += 1) {
+        recordDecisionEvent({
+            type: "skipped",
+            name: `Skip${index}`,
+            reason: "repeat-suppression",
+            timestamp: baseTimestamp + 2 + index,
+        });
+    }
+
+    const switchEvents = state.recentDecisionEvents.filter((event) => event?.type === "switch");
+    assert.equal(switchEvents.length, 2);
+    assert.ok(state.recentDecisionEvents.length <= 25);
+    const names = switchEvents.map((event) => event?.name).filter(Boolean);
+    assert.ok(names.includes("Kotori"));
+    assert.ok(names.includes("Tohka"));
 });
