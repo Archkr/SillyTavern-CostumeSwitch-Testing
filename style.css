@@ -1631,7 +1631,9 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 }
 
 .cs-scene-panel[data-cs-disabled="true"] {
-    opacity: 0.82;
+    display: none;
+    pointer-events: none;
+    visibility: hidden;
 }
 
 .cs-toggle-row {
@@ -1982,12 +1984,22 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 
+.cs-scene-panel__summon[data-panel-visible="true"] {
+    opacity: 0.72;
+    right: calc(var(--cs-scene-panel-gap, 12px) + var(--cs-scene-panel-width, 24rem) + 16px);
+}
+
+.cs-scene-panel__summon[data-panel-visible="true"][data-panel-collapsed="true"] {
+    right: calc(var(--cs-scene-panel-gap, 12px) + var(--cs-scene-panel-collapsed-width, 3rem) + 16px);
+}
+
 .cs-scene-panel__summon:hover,
 .cs-scene-panel__summon:focus-visible {
     background: rgba(156, 125, 255, 0.34);
     color: #ffffff;
     transform: translateY(-2px);
     box-shadow: 0 26px 50px rgba(26, 12, 58, 0.6);
+    opacity: 1;
 }
 
 .cs-scene-panel__summon[hidden] {
@@ -2402,6 +2414,10 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
         border-radius: 12px;
     }
 
+    .cs-scene-panel__summon[data-panel-visible="true"] {
+        right: calc(16px + min(380px, 88vw));
+    }
+
 }
 
 @media (max-width: 900px) {
@@ -2414,5 +2430,10 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
     .cs-scene-panel__content {
         padding: 16px;
+    }
+
+    .cs-scene-panel__summon[data-panel-visible="true"] {
+        right: 4vw;
+        bottom: 4vw;
     }
 }
