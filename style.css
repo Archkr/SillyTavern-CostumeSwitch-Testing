@@ -1737,13 +1737,18 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 }
 
 .cs-scene-panel__section[data-scene-panel="roster"] {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .cs-scene-panel__section[data-scene-panel="roster"] > .cs-scene-panel__scrollable {
-    max-height: min(420px, 45vh);
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
     padding-right: 6px;
+    overflow-y: auto;
 }
 
 .cs-scene-panel__card-list {
