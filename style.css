@@ -545,15 +545,31 @@
 }
 
 #costume-switcher-settings.cs-theme .cs-header-card {
-  flex-direction: row;
-  align-items: stretch;
-  gap: 20px;
-  padding: 20px 24px;
-  background: linear-gradient(135deg, rgba(108, 92, 231, 0.26), rgba(46, 213, 115, 0.18));
-  background: linear-gradient(135deg,
-      color-mix(in srgb, var(--accent) 35%, transparent),
-      color-mix(in srgb, var(--accent-secondary) 24%, transparent));
-  color: var(--header-text);
+    flex-direction: row;
+    align-items: stretch;
+    gap: 20px;
+    padding: 20px 24px;
+    min-height: clamp(220px, 28vw, 280px);
+    background: transparent;
+    color: var(--header-text);
+}
+
+#costume-switcher-settings.cs-theme .cs-header-ambient {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+
+#costume-switcher-settings.cs-theme .cs-header-ambient.organic-flow {
+    background: linear-gradient(135deg, #1a2a3a, #2d1b3d, #3d2b4d);
+}
+
+#costume-switcher-settings.cs-theme .cs-header-intro,
+#costume-switcher-settings.cs-theme .cs-header-meta {
+  position: relative;
+  z-index: 3;
 }
 
 #costume-switcher-settings.cs-theme .cs-tabs {
@@ -626,6 +642,51 @@
 
 #costume-switcher-settings.cs-theme .cs-header-card::before {
   border-color: rgba(255, 255, 255, 0.18);
+  z-index: 2;
+}
+
+#costume-switcher-settings.cs-theme .cs-header-ambient .flow-element {
+    position: absolute;
+    border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+    background: linear-gradient(45deg, rgba(255, 255, 255, 0.15), transparent);
+    animation: organic-morph 8s infinite ease-in-out;
+    transform: translate(-50%, -50%);
+}
+
+#costume-switcher-settings.cs-theme .cs-header-ambient .flow-element::before {
+    content: "";
+    position: absolute;
+    inset: 20%;
+    background: inherit;
+    border-radius: inherit;
+    animation: organic-morph-inner 6s infinite ease-in-out reverse;
+}
+
+@keyframes organic-morph {
+  0%,
+  100% {
+    border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    border-radius: 70% 30% 40% 60% / 60% 40% 50% 40%;
+    transform: translate(50px, -30px) scale(1.2) rotate(120deg);
+  }
+  66% {
+    border-radius: 30% 70% 60% 40% / 50% 60% 40% 60%;
+    transform: translate(-30px, 50px) scale(0.8) rotate(240deg);
+  }
+}
+
+@keyframes organic-morph-inner {
+  0%,
+  100% {
+    border-radius: inherit;
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.3);
+  }
 }
 
 #costume-switcher-settings.cs-theme .cs-header-intro {

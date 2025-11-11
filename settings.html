@@ -7,6 +7,7 @@
     <div class="inline-drawer-content">
       <div class="cs-shell">
     <section class="cs-card cs-header-card">
+      <div class="cs-header-ambient organic-flow" aria-hidden="true"></div>
       <div class="cs-header-intro">
         <h2 class="cs-title">Costume Switcher</h2>
       </div>
@@ -628,3 +629,58 @@
     </div>
   </div>
 </div>
+
+<script>
+    (function generateOrganicFlowAmbient() {
+        const ambient = document.querySelector("#costume-switcher-settings.cs-theme .cs-header-ambient");
+
+        if (!ambient || ambient.dataset.flowInitialized === "true") {
+            return;
+        }
+
+        ambient.dataset.flowInitialized = "true";
+
+        const randomBetween = (min, max) => Math.random() * (max - min) + min;
+        const flowCount = 8;
+        let resizeFrameId = 0;
+
+        const populateAmbient = () => {
+            ambient.innerHTML = "";
+
+            const referenceHeight = ambient.offsetHeight || 240;
+            const minSize = Math.max(referenceHeight * 0.7, 200);
+            const maxSize = Math.max(referenceHeight * 1.2, 340);
+
+            for (let index = 0; index < flowCount; index += 1) {
+                const flow = document.createElement("div");
+                flow.className = "flow-element";
+
+                const size = randomBetween(minSize, maxSize);
+                flow.style.width = `${size}px`;
+                flow.style.height = `${size}px`;
+                flow.style.left = `${randomBetween(0, 100)}%`;
+                flow.style.top = `${randomBetween(-10, 110)}%`;
+                flow.style.animationDelay = `${randomBetween(0, 8)}s`;
+
+                ambient.appendChild(flow);
+            }
+        };
+
+        const schedulePopulate = () => {
+            if (resizeFrameId) {
+                cancelAnimationFrame(resizeFrameId);
+            }
+
+            resizeFrameId = requestAnimationFrame(populateAmbient);
+        };
+
+        populateAmbient();
+
+        if (typeof ResizeObserver === "function") {
+            const observer = new ResizeObserver(schedulePopulate);
+            observer.observe(ambient);
+        } else {
+            window.addEventListener("resize", schedulePopulate, { passive: true });
+        }
+    })();
+</script>
