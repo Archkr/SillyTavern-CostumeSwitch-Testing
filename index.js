@@ -814,6 +814,16 @@ function initHeaderParticlesEffect() {
             this.size = Math.random() * 3;
             this.speed = Math.random() * 0.5 + 0.1;
             this.color = `hsl(${Math.random() * 360}, 70%, 70%)`;
+            this.scale = 1;
+            this.screenX = this.x;
+            this.screenY = this.y;
+        }
+
+        project() {
+            const perspective = 200;
+            this.scale = perspective / (this.z + perspective);
+            this.screenX = (this.x - canvas.width / 2) * this.scale + canvas.width / 2;
+            this.screenY = (this.y - canvas.height / 2) * this.scale + canvas.height / 2;
         }
 
         update() {
@@ -823,19 +833,17 @@ function initHeaderParticlesEffect() {
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height;
             }
+            this.project();
         }
 
         draw() {
-            const scale = 200 / (this.z + 200);
-            const x = (this.x - canvas.width / 2) * scale + canvas.width / 2;
-            const y = (this.y - canvas.height / 2) * scale + canvas.height / 2;
-            const size = this.size * scale;
+            const size = this.size * this.scale;
 
             ctx.fillStyle = this.color;
             ctx.shadowBlur = 10;
             ctx.shadowColor = this.color;
             ctx.beginPath();
-            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.arc(this.screenX, this.screenY, size, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.shadowBlur = 20;
@@ -856,16 +864,21 @@ function initHeaderParticlesEffect() {
             for (let j = i + 1; j < particles.length; j += 1) {
                 const p1 = particles[i];
                 const p2 = particles[j];
-                const distance = Math.sqrt(
-                    Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2),
-                );
-                if (distance < 150) {
-                    const opacity = (150 - distance) / 150 * 0.3;
+                const averageScale = (p1.scale + p2.scale) / 2;
+                const maxDistance = 160 * Math.max(averageScale, 0.35);
+                const dx = p1.screenX - p2.screenX;
+                const dy = p1.screenY - p2.screenY;
+                const distance = Math.sqrt((dx * dx) + (dy * dy));
+                if (distance < maxDistance) {
+                    const opacity = ((maxDistance - distance) / maxDistance) * (0.35 * averageScale);
+                    if (opacity <= 0) {
+                        continue;
+                    }
                     ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
-                    ctx.lineWidth = 0.5;
+                    ctx.lineWidth = Math.max(0.2, 0.6 * averageScale);
                     ctx.beginPath();
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(p2.x, p2.y);
+                    ctx.moveTo(p1.screenX, p1.screenY);
+                    ctx.lineTo(p2.screenX, p2.screenY);
                     ctx.stroke();
                 }
             }
