@@ -91,7 +91,6 @@ const logPrefix = "[CostumeSwitch]";
 const NO_EFFECTIVE_PATTERNS_MESSAGE = "All detection patterns were filtered out by ignored names. No detectors can run until you restore at least one allowed pattern.";
 const FOCUS_LOCK_NOTICE_INTERVAL = 2500;
 const MESSAGE_OUTCOME_STORAGE_KEY = "cs_scene_outcomes";
-let headerParticlesInitialized = false;
 
 function createFocusLockNotice() {
     return { at: 0, character: null, displayName: null, message: null, event: null };
@@ -767,165 +766,6 @@ function initTabNavigation() {
             activateTab(nextButton.dataset.tab, { focusButton: true });
         }
     });
-}
-
-function initHeaderParticlesEffect() {
-    if (headerParticlesInitialized) {
-        return;
-    }
-
-    const container = document.querySelector("#costume-switcher-settings.cs-theme .cs-header-card");
-    if (!container) {
-        return;
-    }
-
-    const canvas = container.querySelector("#particlesCanvas");
-    if (!canvas) {
-        return;
-    }
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-        return;
-    }
-
-    headerParticlesInitialized = true;
-
-    const particles = [];
-    const particleCount = 100;
-    const animationSpeed = 1;
-    const isPaused = false;
-
-    function resizeCanvas() {
-        const width = container.offsetWidth;
-        const height = container.offsetHeight;
-        if (!width || !height) {
-            return;
-        }
-        canvas.width = width;
-        canvas.height = height;
-    }
-
-    class Particle {
-        constructor() {
-            this.x = Math.random() * canvas.width;
-            this.y = Math.random() * canvas.height;
-            this.z = Math.random() * 1000;
-            this.size = Math.random() * 3;
-            this.speed = Math.random() * 0.5 + 0.1;
-            this.color = `hsl(${Math.random() * 360}, 70%, 70%)`;
-            this.scale = 1;
-            this.screenX = this.x;
-            this.screenY = this.y;
-        }
-
-        project() {
-            const perspective = 200;
-            this.scale = perspective / (this.z + perspective);
-            this.screenX = (this.x - canvas.width / 2) * this.scale + canvas.width / 2;
-            this.screenY = (this.y - canvas.height / 2) * this.scale + canvas.height / 2;
-        }
-
-        update() {
-            this.z -= this.speed * animationSpeed;
-            if (this.z <= 0) {
-                this.z = 1000;
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-            }
-            this.project();
-        }
-
-        draw() {
-            const size = this.size * this.scale;
-
-            ctx.fillStyle = this.color;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = this.color;
-            ctx.beginPath();
-            ctx.arc(this.screenX, this.screenY, size, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.shadowBlur = 20;
-            ctx.fill();
-            ctx.shadowBlur = 0;
-        }
-    }
-
-    function createParticles() {
-        particles.length = 0;
-        for (let i = 0; i < particleCount; i += 1) {
-            particles.push(new Particle());
-        }
-    }
-
-    function drawConnections() {
-        for (let i = 0; i < particles.length; i += 1) {
-            for (let j = i + 1; j < particles.length; j += 1) {
-                const p1 = particles[i];
-                const p2 = particles[j];
-                const averageScale = (p1.scale + p2.scale) / 2;
-                const maxDistance = 160 * Math.max(averageScale, 0.35);
-                const dx = p1.screenX - p2.screenX;
-                const dy = p1.screenY - p2.screenY;
-                const distance = Math.sqrt((dx * dx) + (dy * dy));
-                if (distance < maxDistance) {
-                    const opacity = ((maxDistance - distance) / maxDistance) * (0.35 * averageScale);
-                    if (opacity <= 0) {
-                        continue;
-                    }
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
-                    ctx.lineWidth = Math.max(0.2, 0.6 * averageScale);
-                    ctx.beginPath();
-                    ctx.moveTo(p1.screenX, p1.screenY);
-                    ctx.lineTo(p2.screenX, p2.screenY);
-                    ctx.stroke();
-                }
-            }
-        }
-    }
-
-    function animate() {
-        if (!isPaused) {
-            ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            particles.forEach((particle) => {
-                particle.update();
-                particle.draw();
-            });
-
-            drawConnections();
-        }
-
-        window.requestAnimationFrame(animate);
-    }
-
-    resizeCanvas();
-    createParticles();
-    animate();
-
-    if (typeof ResizeObserver === "function") {
-        const resizeObserver = new ResizeObserver(() => {
-            const previousWidth = canvas.width;
-            const previousHeight = canvas.height;
-            resizeCanvas();
-            if (canvas.width !== previousWidth || canvas.height !== previousHeight) {
-                createParticles();
-            }
-        });
-        resizeObserver.observe(container);
-    } else {
-        const handleResize = () => {
-            const previousWidth = canvas.width;
-            const previousHeight = canvas.height;
-            resizeCanvas();
-            if (canvas.width !== previousWidth || canvas.height !== previousHeight) {
-                createParticles();
-            }
-        };
-        window.addEventListener("resize", handleResize, { passive: true });
-    }
 }
 
 function ensureMessageQueue() {
@@ -9032,7 +8872,6 @@ if (typeof window !== "undefined" && typeof jQuery === "function") {
 
             const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
             $("#extensions_settings").append(settingsHtml);
-            initHeaderParticlesEffect();
 
             await mountScenePanelTemplate();
 
