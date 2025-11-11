@@ -647,9 +647,12 @@
         const populateAmbient = () => {
             ambient.innerHTML = "";
 
-            const referenceHeight = ambient.offsetHeight || 240;
-            const minSize = Math.max(referenceHeight * 0.7, 200);
-            const maxSize = Math.max(referenceHeight * 1.2, 340);
+            const { width, height } = ambient.getBoundingClientRect();
+            const fallbackMetrics = ambient.parentElement?.getBoundingClientRect() ?? { width: 640, height: 240 };
+            const effectiveWidth = width || fallbackMetrics.width || 640;
+            const effectiveHeight = height || fallbackMetrics.height || 240;
+            const minSize = Math.max(90, Math.min(effectiveHeight * 0.45, effectiveWidth * 0.28));
+            const maxSize = Math.max(130, Math.min(effectiveHeight * 0.65, effectiveWidth * 0.38));
 
             for (let index = 0; index < flowCount; index += 1) {
                 const flow = document.createElement("div");
@@ -658,8 +661,8 @@
                 const size = randomBetween(minSize, maxSize);
                 flow.style.width = `${size}px`;
                 flow.style.height = `${size}px`;
-                flow.style.left = `${randomBetween(0, 100)}%`;
-                flow.style.top = `${randomBetween(-10, 110)}%`;
+                flow.style.left = `${randomBetween(5, 95)}%`;
+                flow.style.top = `${randomBetween(-5, 105)}%`;
                 flow.style.animationDelay = `${randomBetween(0, 8)}s`;
 
                 ambient.appendChild(flow);
