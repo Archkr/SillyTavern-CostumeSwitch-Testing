@@ -545,15 +545,26 @@
 }
 
 #costume-switcher-settings.cs-theme .cs-header-card {
-  flex-direction: row;
-  align-items: stretch;
-  gap: 20px;
-  padding: 20px 24px;
-  background: linear-gradient(135deg, rgba(108, 92, 231, 0.26), rgba(46, 213, 115, 0.18));
-  background: linear-gradient(135deg,
-      color-mix(in srgb, var(--accent) 35%, transparent),
-      color-mix(in srgb, var(--accent-secondary) 24%, transparent));
-  color: var(--header-text);
+    flex-direction: row;
+    align-items: stretch;
+    gap: 20px;
+    padding: 20px 24px;
+    background: rgba(0, 0, 0, 0.75);
+    color: var(--header-text);
+}
+
+#costume-switcher-settings.cs-theme .cs-header-card .cs-header-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+}
+
+#costume-switcher-settings.cs-theme .cs-header-card > :not(.cs-header-canvas) {
+    position: relative;
+    z-index: 1;
 }
 
 #costume-switcher-settings.cs-theme .cs-tabs {
