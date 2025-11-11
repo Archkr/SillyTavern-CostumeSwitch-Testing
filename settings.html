@@ -650,6 +650,21 @@
             const referenceHeight = ambient.offsetHeight || 240;
             const minSize = Math.max(referenceHeight * 0.45, 120);
             const maxSize = Math.max(referenceHeight * 0.75, 180);
+            const placements = [];
+
+            const scoreCandidate = (leftPercent, topPercent, influenceRadius) => {
+                if (!placements.length) {
+                    return Infinity;
+                }
+
+                return placements.reduce((closest, { left, top, influence }) => {
+                    const dx = leftPercent - left;
+                    const dy = topPercent - top;
+                    const distance = Math.hypot(dx, dy);
+                    const bufferedDistance = distance - Math.max(influenceRadius, influence);
+                    return Math.min(closest, bufferedDistance);
+                }, Infinity);
+            };
 
             for (let index = 0; index < flowCount; index += 1) {
                 const flow = document.createElement("div");
@@ -658,9 +673,40 @@
                 const size = randomBetween(minSize, maxSize);
                 flow.style.width = `${size}px`;
                 flow.style.height = `${size}px`;
-                flow.style.left = `${randomBetween(5, 95)}%`;
-                flow.style.top = `${randomBetween(-5, 105)}%`;
                 flow.style.animationDelay = `${randomBetween(0, 8)}s`;
+
+                const influenceRadius = Math.max(18, (size / Math.max(referenceHeight, 1)) * 55);
+                const maxAttempts = 24;
+                let bestPlacement = null;
+                let bestScore = -Infinity;
+
+                for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                    const leftPercent = randomBetween(8, 92);
+                    const topPercent = randomBetween(-10, 110);
+                    const score = scoreCandidate(leftPercent, topPercent, influenceRadius);
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestPlacement = { leftPercent, topPercent };
+                    }
+
+                    if (score >= influenceRadius) {
+                        break;
+                    }
+                }
+
+                if (!bestPlacement) {
+                    bestPlacement = { leftPercent: randomBetween(12, 88), topPercent: randomBetween(-5, 105) };
+                }
+
+                placements.push({
+                    left: bestPlacement.leftPercent,
+                    top: bestPlacement.topPercent,
+                    influence: influenceRadius,
+                });
+
+                flow.style.left = `${bestPlacement.leftPercent}%`;
+                flow.style.top = `${bestPlacement.topPercent}%`;
 
                 ambient.appendChild(flow);
             }
