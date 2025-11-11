@@ -530,6 +530,8 @@ const state = {
     draftPatternIds: new Set(),
     focusLockNotice: createFocusLockNotice(),
     patternSearchQuery: "",
+    lastSceneSwipeId: null,
+    lastSceneDigest: null,
 };
 
 let nextOutfitCardId = 1;
@@ -7400,6 +7402,83 @@ function normalizeMessageKey(value) {
     return trimmed;
 }
 
+function extractSceneMessageDigest(message) {
+    if (!message || typeof message !== "object") {
+        return null;
+    }
+
+    const parts = [];
+
+    const pushValue = (label, value) => {
+        if (value == null) {
+            return;
+        }
+        if (typeof value === "number" && !Number.isFinite(value)) {
+            return;
+        }
+        if (typeof value === "string") {
+            const trimmed = value.trim();
+            if (!trimmed) {
+                return;
+            }
+            parts.push(`${label}:${trimmed}`);
+            return;
+        }
+        parts.push(`${label}:${value}`);
+    };
+
+    const pushNumber = (label, value) => {
+        if (Number.isFinite(value)) {
+            parts.push(`${label}:${value}`);
+        }
+    };
+
+    pushValue("chat", message.chat_id ?? message.chatId ?? message.conversation_id ?? message.conversationId ?? message.cid ?? null);
+    pushNumber("character", message.character_id ?? message.characterId ?? message.chid);
+    pushNumber("id", message.mesId);
+    pushNumber("swipe", message.swipe_id);
+
+    const textSource = typeof message.mes === "string" && message.mes.length
+        ? message.mes
+        : (typeof message.text === "string" ? message.text : "");
+    if (textSource) {
+        const slice = textSource.length > 64 ? textSource.slice(-64) : textSource;
+        pushValue("text", `${slice.length}:${slice}`);
+    }
+
+    const resolveTimestamp = () => {
+        if (Number.isFinite(message.updatedAt)) return message.updatedAt;
+        if (Number.isFinite(message.lastModified)) return message.lastModified;
+        if (Number.isFinite(message.timestamp)) return message.timestamp;
+        if (message.extra && typeof message.extra === "object") {
+            const extra = message.extra;
+            if (Number.isFinite(extra.updatedAt)) return extra.updatedAt;
+            if (Number.isFinite(extra.last_update)) return extra.last_update;
+            if (Number.isFinite(extra.lastUpdated)) return extra.lastUpdated;
+        }
+        return null;
+    };
+
+    const timestamp = resolveTimestamp();
+    if (timestamp != null) {
+        parts.push(`ts:${timestamp}`);
+    }
+
+    return parts.length ? parts.join("|") : null;
+}
+
+function deriveSceneDigestFromText(text) {
+    if (typeof text !== "string") {
+        return null;
+    }
+    const trimmed = text.trim();
+    if (!trimmed) {
+        return null;
+    }
+    const slice = trimmed.length > 64 ? trimmed.slice(-64) : trimmed;
+    return `text:${slice.length}:${slice}`;
+}
+
 function extractMessageIdFromKey(key) {
     const normalized = normalizeMessageKey(key);
     if (!normalized) return null;
@@ -7742,6 +7821,10 @@ function captureSceneOutcomeForMessage(reference) {
     });
 
     const buffer = state.perMessageBuffers instanceof Map ? state.perMessageBuffers.get(normalizedKey) || "" : "";
+    state.lastSceneSwipeId = Number.isFinite(message?.swipe_id) ? message.swipe_id : null;
+    state.lastSceneDigest = extractSceneMessageDigest(message)
+        || deriveSceneDigestFromText(message?.mes)
+        || deriveSceneDigestFromText(buffer);
     const outcome = {
         version: 1,
         messageKey: normalizedKey,
@@ -7808,6 +7891,10 @@ function restoreSceneOutcomeForMessage(message, { immediateRender = true } = {})
 
     const buffer = typeof stored?.buffer === "string" ? stored.buffer : normalizeStreamText(message.mes || "");
     state.perMessageBuffers.set(messageKey, buffer);
+    state.lastSceneSwipeId = Number.isFinite(message?.swipe_id) ? message.swipe_id : null;
+    state.lastSceneDigest = extractSceneMessageDigest(message)
+        || deriveSceneDigestFromText(stored?.text)
+        || deriveSceneDigestFromText(buffer);
 
     const roster = Array.isArray(stored?.roster) ? stored.roster.filter(Boolean) : [];
     const displayNames = collectDisplayNameMap(roster, [], stored?.displayNames);
@@ -8546,9 +8633,103 @@ function resolveHistoryTargetMessage(args) {
     return target;
 }
 
-const handleChatChanged = () => {
-    resetGlobalState({ immediateRender: false });
-    restoreLatestSceneOutcome({ immediateRender: true });
+function hasForceSceneRefreshFlag(value, depth = 0) {
+    if (value == null) {
+        return false;
+    }
+    if (value === true) {
+        return true;
+    }
+    if (typeof value === "string") {
+        const normalized = value.toLowerCase();
+        if (normalized.includes("chat") && (normalized.includes("load") || normalized.includes("switch"))) {
+            return true;
+        }
+        return false;
+    }
+    if (typeof value !== "object") {
+        return false;
+    }
+    if (value.forceSceneRefresh === true || value.forceScenePanelRefresh === true) {
+        return true;
+    }
+    const inspectString = (candidate) => {
+        if (typeof candidate !== "string") {
+            return false;
+        }
+        const normalized = candidate.toLowerCase();
+        return normalized.includes("chat") && (normalized.includes("load") || normalized.includes("switch"));
+    };
+    if (inspectString(value.type) || inspectString(value.reason) || inspectString(value.name)) {
+        return true;
+    }
+    if (depth < 3) {
+        if (Array.isArray(value) && value.some((entry) => hasForceSceneRefreshFlag(entry, depth + 1))) {
+            return true;
+        }
+        const nestedKeys = ["detail", "payload", "data", "args", "event", "value"];
+        if (nestedKeys.some((key) => hasForceSceneRefreshFlag(value[key], depth + 1))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function shouldForceSceneRefresh(args = []) {
+    return args.some((arg) => hasForceSceneRefreshFlag(arg));
+}
+
+const handleChatChanged = (...args) => {
+    try {
+        const forceRefresh = shouldForceSceneRefresh(args);
+        let ctx = null;
+        if (typeof getContext === "function") {
+            ctx = getContext();
+        } else if (typeof window !== "undefined" && window.SillyTavern && typeof window.SillyTavern.getContext === "function") {
+            ctx = window.SillyTavern.getContext();
+        }
+        const chatLog = ctx?.chat;
+        const latestAssistant = Array.isArray(chatLog) && chatLog.length
+            ? findAssistantMessageBeforeIndex(chatLog.length - 1)
+            : null;
+
+        if (!forceRefresh) {
+            const latestKey = latestAssistant ? normalizeMessageKey(`m${latestAssistant.mesId}`) : null;
+            const latestSwipe = Number.isFinite(latestAssistant?.swipe_id) ? latestAssistant.swipe_id : null;
+            const latestDigest = extractSceneMessageDigest(latestAssistant);
+            const currentScene = typeof getCurrentSceneSnapshot === "function" ? getCurrentSceneSnapshot() : {};
+            const currentKey = normalizeMessageKey(currentScene?.key);
+            const sessionKey = normalizeMessageKey(ensureSessionData()?.lastMessageKey);
+            const lastSwipe = Number.isFinite(state.lastSceneSwipeId) ? state.lastSceneSwipeId : null;
+            const lastDigest = state.lastSceneDigest ?? null;
+
+            if (!latestAssistant && !currentKey) {
+                return;
+            }
+
+            if (latestKey && (latestKey === currentKey || latestKey === sessionKey)) {
+                const swipeMatches = latestSwipe == null || lastSwipe == null || latestSwipe === lastSwipe;
+                const digestMatches = latestDigest === lastDigest;
+                if (swipeMatches && digestMatches) {
+                    return;
+                }
+            }
+        }
+
+        resetGlobalState({ immediateRender: false });
+        if (latestAssistant) {
+            const restored = restoreSceneOutcomeForMessage(latestAssistant, { immediateRender: true });
+            if (!restored) {
+                restoreLatestSceneOutcome({ immediateRender: true });
+            }
+        } else {
+            restoreLatestSceneOutcome({ immediateRender: true });
+        }
+    } catch (error) {
+        console.warn(`${logPrefix} Failed to reconcile chat change:`, error);
+        resetGlobalState({ immediateRender: false });
+        restoreLatestSceneOutcome({ immediateRender: true });
+    }
 };
 
 const handleHistoryChange = (...args) => {
@@ -8662,6 +8843,8 @@ const resetGlobalState = ({ immediateRender = true } = {}) => {
         draftMappingIds: new Set(),
         draftPatternIds: new Set(),
         focusLockNotice: createFocusLockNotice(),
+        lastSceneSwipeId: null,
+        lastSceneDigest: null,
     });
     clearSessionTopCharacters();
     if (!immediateRender) {
