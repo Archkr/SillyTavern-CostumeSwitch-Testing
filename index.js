@@ -678,6 +678,213 @@ function markMappingForInitialCollapse(mapping) {
 
 const TAB_STORAGE_KEY = `${extensionName}-active-tab`;
 
+function initHeaderCardParticles() {
+    if (typeof document === "undefined") {
+        return;
+    }
+
+    const card = document.querySelector("#costume-switcher-settings.cs-theme .cs-header-card");
+    if (!card || card.dataset.particlesInitialized === "true") {
+        return;
+    }
+
+    const canvas = card.querySelector(".cs-header-particles");
+    if (!canvas) {
+        return;
+    }
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+        return;
+    }
+
+    card.dataset.particlesInitialized = "true";
+
+    const motionQuery = typeof window.matchMedia === "function"
+        ? window.matchMedia("(prefers-reduced-motion: reduce)")
+        : null;
+    let prefersReducedMotion = motionQuery?.matches === true;
+
+    class Particle {
+        constructor() {
+            this.reset();
+        }
+
+        reset() {
+            this.baseX = Math.random() * canvas.width;
+            this.baseY = Math.random() * canvas.height;
+            this.depth = Math.random() * 800 + 200;
+            this.size = Math.random() * 2.2 + 0.6;
+            this.velocity = Math.random() * 0.35 + 0.08;
+            this.hue = 180 + Math.random() * 140;
+            this.displayX = this.baseX;
+            this.displayY = this.baseY;
+        }
+
+        update() {
+            this.depth -= this.velocity;
+            if (this.depth <= 0) {
+                this.depth = 1000;
+                this.baseX = Math.random() * canvas.width;
+                this.baseY = Math.random() * canvas.height;
+                this.hue = 180 + Math.random() * 140;
+            }
+        }
+
+        draw() {
+            const scale = 240 / (this.depth + 240);
+            const projectedX = (this.baseX - canvas.width / 2) * scale + canvas.width / 2;
+            const projectedY = (this.baseY - canvas.height / 2) * scale + canvas.height / 2;
+            const radius = this.size * scale;
+
+            this.displayX = projectedX;
+            this.displayY = projectedY;
+
+            const color = `hsla(${this.hue}, 85%, 72%, 1)`;
+            ctx.beginPath();
+            ctx.fillStyle = color;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 12;
+            ctx.arc(projectedX, projectedY, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    const particles = [];
+
+    function createParticles() {
+        particles.length = 0;
+        const targetCount = Math.min(140, Math.max(40, Math.round((canvas.width + canvas.height) / 9)));
+        for (let index = 0; index < targetCount; index += 1) {
+            particles.push(new Particle());
+        }
+    }
+
+    function drawConnections() {
+        const threshold = Math.max(110, Math.min(canvas.width, canvas.height) * 0.35);
+        for (let i = 0; i < particles.length; i += 1) {
+            const origin = particles[i];
+            for (let j = i + 1; j < particles.length; j += 1) {
+                const target = particles[j];
+                const dx = (origin.displayX ?? origin.baseX) - (target.displayX ?? target.baseX);
+                const dy = (origin.displayY ?? origin.baseY) - (target.displayY ?? target.baseY);
+                const distance = Math.hypot(dx, dy);
+                if (distance > threshold) {
+                    continue;
+                }
+
+                const opacity = 1 - distance / threshold;
+                ctx.strokeStyle = `rgba(134, 206, 255, ${opacity * 0.35})`;
+                ctx.lineWidth = 0.6;
+                ctx.beginPath();
+                ctx.moveTo(origin.displayX ?? origin.baseX, origin.displayY ?? origin.baseY);
+                ctx.lineTo(target.displayX ?? target.baseX, target.displayY ?? target.baseY);
+                ctx.stroke();
+            }
+        }
+    }
+
+    function drawFrame({ clear = false } = {}) {
+        if (canvas.width === 0 || canvas.height === 0) {
+            return;
+        }
+
+        if (clear) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        } else {
+            ctx.fillStyle = "rgba(6, 9, 24, 0.2)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        particles.forEach((particle) => {
+            if (!prefersReducedMotion) {
+                particle.update();
+            }
+            particle.draw();
+        });
+
+        drawConnections();
+    }
+
+    let animationFrameId = null;
+
+    function animate() {
+        drawFrame();
+        animationFrameId = window.requestAnimationFrame(animate);
+    }
+
+    function handleResize() {
+        const rect = card.getBoundingClientRect();
+        const width = Math.max(1, Math.round(rect.width));
+        const height = Math.max(1, Math.round(rect.height));
+
+        if (canvas.width === width && canvas.height === height) {
+            return;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        createParticles();
+        if (prefersReducedMotion) {
+            drawFrame({ clear: true });
+        }
+    }
+
+    let resizeObserver = null;
+    if (typeof ResizeObserver === "function") {
+        resizeObserver = new ResizeObserver(handleResize);
+        resizeObserver.observe(card);
+    } else {
+        window.addEventListener("resize", handleResize);
+    }
+
+    const cleanup = () => {
+        if (animationFrameId !== null) {
+            window.cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+
+        if (resizeObserver) {
+            resizeObserver.disconnect();
+        } else {
+            window.removeEventListener("resize", handleResize);
+        }
+    };
+
+    card.addEventListener("cs:teardown", cleanup, { once: true });
+    card.__csHeaderParticlesCleanup = cleanup;
+
+    handleResize();
+
+    if (prefersReducedMotion) {
+        drawFrame({ clear: true });
+    } else {
+        animationFrameId = window.requestAnimationFrame(animate);
+    }
+
+    if (motionQuery) {
+        const handleMotionChange = (event) => {
+            prefersReducedMotion = event.matches === true;
+            if (prefersReducedMotion) {
+                if (animationFrameId !== null) {
+                    window.cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                drawFrame({ clear: true });
+            } else if (animationFrameId === null) {
+                animationFrameId = window.requestAnimationFrame(animate);
+            }
+        };
+
+        if (typeof motionQuery.addEventListener === "function") {
+            motionQuery.addEventListener("change", handleMotionChange);
+        } else if (typeof motionQuery.addListener === "function") {
+            motionQuery.addListener(handleMotionChange);
+        }
+    }
+}
+
 function initTabNavigation() {
     const container = document.getElementById('costume-switcher-settings');
     if (!container) return;
@@ -8872,6 +9079,8 @@ if (typeof window !== "undefined" && typeof jQuery === "function") {
 
             const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
             $("#extensions_settings").append(settingsHtml);
+
+            initHeaderCardParticles();
 
             await mountScenePanelTemplate();
 

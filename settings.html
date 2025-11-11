@@ -6,25 +6,29 @@
     </div>
     <div class="inline-drawer-content">
       <div class="cs-shell">
-    <section class="cs-card cs-header-card">
-      <div class="cs-header-intro">
-        <h2 class="cs-title">Costume Switcher</h2>
-      </div>
-      <div class="cs-header-meta">
-        <div class="cs-build-meta" role="status" aria-live="polite">
-          <span class="cs-build-pill" id="cs-build-version">Loading…</span>
-          <span class="cs-build-note" id="cs-build-updated">Fetching build details…</span>
-        </div>
-        <label class="cs-master-toggle">
-          <input id="cs-enable" type="checkbox" />
-          <span class="cs-switch-thumb" aria-hidden="true"></span>
-          <div class="cs-switch-copy">
-            <strong>Enable Costume Switching</strong>
-            <small>Master toggle to pause detection without changing your settings.</small>
-          </div>
-        </label>
-      </div>
-    </section>
+        <section class="cs-card cs-header-card">
+            <div class="cs-header-visual" aria-hidden="true">
+                <canvas class="cs-header-particles"></canvas>
+                <div class="cs-header-visual-tint"></div>
+            </div>
+            <div class="cs-header-intro">
+                <h2 class="cs-title">Costume Switcher</h2>
+            </div>
+            <div class="cs-header-meta">
+                <div class="cs-build-meta" role="status" aria-live="polite">
+                    <span class="cs-build-pill" id="cs-build-version">Loading…</span>
+                    <span class="cs-build-note" id="cs-build-updated">Fetching build details…</span>
+                </div>
+                <label class="cs-master-toggle">
+                    <input id="cs-enable" type="checkbox" />
+                    <span class="cs-switch-thumb" aria-hidden="true"></span>
+                    <div class="cs-switch-copy">
+                        <strong>Enable Costume Switching</strong>
+                        <small>Master toggle to pause detection without changing your settings.</small>
+                    </div>
+                </label>
+            </div>
+        </section>
 
     <div class="cs-tabs" role="tablist">
       <button class="cs-tab-button is-active" id="cs-tab-profiles" type="button" role="tab" aria-selected="true" aria-controls="cs-panel-profiles" data-tab="profiles">
