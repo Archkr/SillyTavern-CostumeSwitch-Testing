@@ -169,8 +169,10 @@ test("createMessageState carries roster TTL forward between messages", () => {
 
     state.perMessageStates.set("m0", previousState);
 
-    const newState = __testables.createMessageState(profile, "m1");
+    const { state: newState, initialized, rosterCleared } = __testables.createMessageState(profile, "m1");
 
+    assert.equal(initialized, true, "creating a fresh message state should flag initialization");
+    assert.equal(rosterCleared, false, "roster should remain populated when TTL remains positive");
     assert.equal(newState.rosterTTL, 2, "roster TTL should decrement from previous message");
     assert.equal(newState.outfitTTL, 1, "outfit TTL should decrement from previous message");
     assert.deepEqual(Array.from(newState.sceneRoster), ["kotori"]);

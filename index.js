@@ -2942,7 +2942,8 @@ function buildOutfitMatchContext(options, normalizedName, profile) {
         context.text = options.buffer;
     }
 
-    const bufKey = typeof options?.bufKey === "string" ? options.bufKey : state.currentGenerationKey;
+    const rawKey = typeof options?.bufKey === "string" ? options.bufKey : state.currentGenerationKey;
+    const bufKey = rawKey ? (normalizeMessageKey(rawKey) || rawKey) : rawKey;
     let messageState = options?.messageState || null;
     if (!messageState && bufKey && state.perMessageStates instanceof Map) {
         messageState = state.perMessageStates.get(bufKey) || null;
@@ -3135,7 +3136,8 @@ function updateMessageOutfitRoster(normalizedKey, outfitInfo, opts, profile) {
         return;
     }
 
-    const bufKey = typeof opts?.bufKey === "string" ? opts.bufKey : state.currentGenerationKey;
+    const rawKey = typeof opts?.bufKey === "string" ? opts.bufKey : state.currentGenerationKey;
+    const bufKey = rawKey ? (normalizeMessageKey(rawKey) || rawKey) : rawKey;
     let msgState = opts?.messageState || null;
     if (!msgState && bufKey && state.perMessageStates instanceof Map) {
         msgState = state.perMessageStates.get(bufKey) || null;
@@ -6221,7 +6223,8 @@ function buildSimulationFinalState(msgState) {
 
 function simulateTesterStream(combined, profile, bufKey) {
     const events = [];
-    const msgState = state.perMessageStates.get(bufKey);
+    const normalizedKey = normalizeMessageKey(bufKey) || bufKey;
+    const msgState = state.perMessageStates.get(normalizedKey);
     if (!msgState) {
         replaceLiveTesterOutputs([], { roster: [] });
         requestScenePanelRender("tester-reset");
@@ -7599,7 +7602,8 @@ function summarizeMatches(matches) {
 }
 
 function updateMessageAnalytics(bufKey, text, { rosterSet, updateSession = true, assumeNormalized = false } = {}) {
-    if (!bufKey) {
+    const normalizedKey = bufKey ? (normalizeMessageKey(bufKey) || bufKey) : bufKey;
+    if (!normalizedKey) {
         return { stats: new Map(), ranking: [] };
     }
 
@@ -7616,11 +7620,11 @@ function updateMessageAnalytics(bufKey, text, { rosterSet, updateSession = true,
     const matches = normalizedText ? findAllMatches(normalizedText) : [];
     const stats = summarizeMatches(matches);
 
-    state.messageStats.set(bufKey, stats);
+    state.messageStats.set(normalizedKey, stats);
     if (!(state.messageMatches instanceof Map)) {
         state.messageMatches = new Map();
     }
-    state.messageMatches.set(bufKey, matches.map((match) => ({ ...match })));
+    state.messageMatches.set(normalizedKey, matches.map((match) => ({ ...match })));
 
     const ranking = rankSceneCharacters(matches, {
         rosterSet,
@@ -7629,17 +7633,16 @@ function updateMessageAnalytics(bufKey, text, { rosterSet, updateSession = true,
         rosterBonus: resolveNumericSetting(profile?.rosterBonus, PROFILE_DEFAULTS.rosterBonus),
         priorityMultiplier: 100,
     });
-    state.topSceneRanking.set(bufKey, ranking);
+    state.topSceneRanking.set(normalizedKey, ranking);
 
     const timestamp = Date.now();
-    const normalizedKey = normalizeMessageKey(bufKey) || bufKey;
     if (!(state.topSceneRankingUpdatedAt instanceof Map)) {
         state.topSceneRankingUpdatedAt = new Map();
     }
     state.topSceneRankingUpdatedAt.set(normalizedKey, timestamp);
 
     if (updateSession !== false) {
-        updateSessionTopCharacters(bufKey, ranking, timestamp);
+        updateSessionTopCharacters(normalizedKey, ranking, timestamp);
     } else if (state.latestTopRanking?.bufKey && normalizeMessageKey(state.latestTopRanking.bufKey) === normalizedKey) {
         state.latestTopRanking.updatedAt = timestamp;
     }
@@ -7657,20 +7660,21 @@ function calculateFinalMessageStats(reference) {
         return;
     }
 
-    trackMessageKey(bufKey);
+    const normalizedKey = normalizeMessageKey(bufKey) || bufKey;
+    trackMessageKey(normalizedKey);
 
-    const resolvedMessageId = Number.isFinite(messageId) ? messageId : extractMessageIdFromKey(bufKey);
+    const resolvedMessageId = Number.isFinite(messageId) ? messageId : extractMessageIdFromKey(normalizedKey);
 
-    let fullText = state.perMessageBuffers.get(bufKey);
-    if (!fullText && requestedKey && requestedKey !== bufKey && state.perMessageBuffers.has(requestedKey)) {
+    let fullText = state.perMessageBuffers.get(normalizedKey);
+    if (!fullText && requestedKey && requestedKey !== normalizedKey && state.perMessageBuffers.has(requestedKey)) {
         fullText = state.perMessageBuffers.get(requestedKey);
     }
 
     if (!fullText) {
-        debugLog("Could not find message buffer to calculate stats for:", bufKey);
+        debugLog("Could not find message buffer to calculate stats for:", normalizedKey);
         const { chat } = getContext();
         if (!Number.isFinite(resolvedMessageId)) {
-            debugLog("No valid message id available to fall back to chat context for key:", bufKey);
+            debugLog("No valid message id available to fall back to chat context for key:", normalizedKey);
             return;
         }
 
@@ -7679,11 +7683,11 @@ function calculateFinalMessageStats(reference) {
         fullText = normalizeStreamText(message.mes);
     }
 
-    const msgState = state.perMessageStates.get(bufKey);
+    const msgState = state.perMessageStates.get(normalizedKey);
     const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : null;
-    updateMessageAnalytics(bufKey, fullText, { rosterSet, assumeNormalized: true });
+    updateMessageAnalytics(normalizedKey, fullText, { rosterSet, assumeNormalized: true });
 
-    debugLog("Final stats calculated for", bufKey, state.messageStats.get(bufKey));
+    debugLog("Final stats calculated for", normalizedKey, state.messageStats.get(normalizedKey));
     requestScenePanelRender("final-stats", { immediate: true });
     maybeAutoExpandScenePanel("result");
 }
@@ -8120,9 +8124,46 @@ function confirmMessageSubject(msgState, matchedName) {
 }
 
 function createMessageState(profile, bufKey) {
-    if (!profile || !bufKey) return null;
+    if (!profile || !bufKey) {
+        return { state: null, initialized: false, rosterCleared: false, key: null };
+    }
 
-    const oldState = state.perMessageStates.size > 0 ? Array.from(state.perMessageStates.values()).pop() : null;
+    const normalizedKey = normalizeMessageKey(bufKey) || bufKey;
+
+    if (!(state.perMessageStates instanceof Map)) {
+        state.perMessageStates = new Map();
+    }
+    if (!(state.perMessageBuffers instanceof Map)) {
+        state.perMessageBuffers = new Map();
+    }
+
+    if (state.perMessageStates.has(normalizedKey)) {
+        return {
+            state: state.perMessageStates.get(normalizedKey),
+            initialized: false,
+            rosterCleared: false,
+            key: normalizedKey,
+        };
+    }
+
+    let oldState = null;
+    if (state.perMessageStates.size > 0) {
+        const queue = ensureMessageQueue();
+        for (let i = queue.length - 1; i >= 0; i -= 1) {
+            const candidateKey = queue[i];
+            if (!candidateKey || candidateKey === normalizedKey) {
+                continue;
+            }
+            const candidateState = state.perMessageStates.get(candidateKey);
+            if (candidateState) {
+                oldState = candidateState;
+                break;
+            }
+        }
+        if (!oldState) {
+            oldState = Array.from(state.perMessageStates.values()).pop() || null;
+        }
+    }
 
     let pendingSubject = null;
     let pendingSubjectNormalized = null;
@@ -8162,9 +8203,14 @@ function createMessageState(profile, bufKey) {
         bufferOffset: 0,
     };
 
+    let rosterCleared = false;
+
     if (newState.sceneRoster.size > 0 && Number.isFinite(newState.rosterTTL)) {
         newState.rosterTTL -= 1;
         if (newState.rosterTTL <= 0) {
+            if (newState.sceneRoster.size > 0) {
+                rosterCleared = true;
+            }
             debugLog("Scene roster TTL expired, clearing roster.");
             newState.sceneRoster.clear();
         }
@@ -8175,7 +8221,11 @@ function createMessageState(profile, bufKey) {
         newState.outfitTTL -= 1;
         if (newState.outfitTTL <= 0) {
             const expired = Array.from(newState.outfitRoster.keys());
-            debugLog("Outfit roster TTL expired, clearing tracked outfits:", expired.join(', '));
+            if (expired.length) {
+                debugLog("Outfit roster TTL expired, clearing tracked outfits:", expired.join(', '));
+            } else {
+                debugLog("Outfit roster TTL expired, clearing tracked outfits.");
+            }
             newState.outfitRoster.clear();
             const cache = ensureCharacterOutfitCache(state);
             expired.forEach(key => cache.delete(key));
@@ -8183,22 +8233,11 @@ function createMessageState(profile, bufKey) {
         newState.outfitTTL = Math.max(0, newState.outfitTTL);
     }
 
-    state.perMessageStates.set(bufKey, newState);
-    state.perMessageBuffers.set(bufKey, '');
-    trackMessageKey(bufKey);
+    state.perMessageStates.set(normalizedKey, newState);
+    state.perMessageBuffers.set(normalizedKey, '');
+    trackMessageKey(normalizedKey);
 
-    if (state.currentGenerationKey && state.currentGenerationKey === bufKey) {
-        applySceneRosterUpdate({
-            key: bufKey,
-            messageId: extractMessageIdFromKey(bufKey),
-            roster: Array.from(newState.sceneRoster || []),
-            turnsRemaining: Number.isFinite(newState.rosterTTL) ? newState.rosterTTL : null,
-            updatedAt: Date.now(),
-        });
-        requestScenePanelRender("roster-prime");
-    }
-
-    return newState;
+    return { state: newState, initialized: true, rosterCleared, key: normalizedKey };
 }
 
 __testables.createMessageState = createMessageState;
@@ -8306,18 +8345,29 @@ const handleGenerationStart = (...args) => {
         bufKey = 'live';
     }
 
-    state.currentGenerationKey = bufKey;
+    const normalizedKey = normalizeMessageKey(bufKey) || bufKey;
+
+    state.currentGenerationKey = normalizedKey;
     debugLog(`Generation started for ${bufKey}, resetting state.`);
     state.focusLockNotice = createFocusLockNotice();
 
     const profile = getActiveProfile();
     if (profile) {
-        createMessageState(profile, bufKey);
+        const { state: msgState, rosterCleared } = createMessageState(profile, normalizedKey);
+        if (rosterCleared && msgState) {
+            applySceneRosterUpdate({
+                key: normalizedKey,
+                messageId: extractMessageIdFromKey(normalizedKey),
+                roster: Array.from(msgState.sceneRoster || []),
+                turnsRemaining: Number.isFinite(msgState.rosterTTL) ? msgState.rosterTTL : 0,
+                updatedAt: Date.now(),
+            });
+            requestScenePanelRender("roster-prime", { immediate: true });
+        }
     } else {
-        state.perMessageStates.delete(bufKey);
-        state.perMessageBuffers.set(bufKey, '');
+        state.perMessageStates.delete(normalizedKey);
+        state.perMessageBuffers.set(normalizedKey, '');
     }
-    requestScenePanelRender("generation-start", { immediate: true });
     maybeAutoExpandScenePanel("stream");
 };
 
@@ -8351,8 +8401,9 @@ const handleStream = (...args) => {
                 }
             }
             if (fallbackKey) {
-                state.currentGenerationKey = fallbackKey;
-                debugLog(`Adopted ${fallbackKey} as stream key from token payload.`);
+                const normalizedFallback = normalizeMessageKey(fallbackKey) || fallbackKey;
+                state.currentGenerationKey = normalizedFallback;
+                debugLog(`Adopted ${normalizedFallback} as stream key from token payload.`);
             }
         }
 
@@ -8370,7 +8421,19 @@ const handleStream = (...args) => {
 
         let msgState = state.perMessageStates.get(bufKey);
         if (!msgState) {
-            msgState = createMessageState(profile, bufKey);
+            const { state: createdState, rosterCleared } = createMessageState(profile, bufKey);
+            msgState = createdState;
+            if (rosterCleared && msgState) {
+                const normalized = normalizeMessageKey(bufKey) || bufKey;
+                applySceneRosterUpdate({
+                    key: normalized,
+                    messageId: extractMessageIdFromKey(normalized),
+                    roster: Array.from(msgState.sceneRoster || []),
+                    turnsRemaining: Number.isFinite(msgState.rosterTTL) ? msgState.rosterTTL : 0,
+                    updatedAt: Date.now(),
+                });
+                requestScenePanelRender("roster-prime", { immediate: true });
+            }
         }
         if (!msgState) return;
 
