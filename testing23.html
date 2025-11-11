@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animated Background Effects Gallery</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            overflow-x: hidden;
+            background: #000;
+        }
+
+        /* Main Title Styles */
+        .main-title {
+            position: relative;
+            z-index: 100;
+            text-align: center;
+            padding: 2rem;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .main-title h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 20px rgba(255, 255, 255, 0.5);
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #fff, #e0e0e0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .main-title p {
+            font-size: 1.25rem;
+            color: rgba(255, 255, 255, 0.8);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Effects Gallery Container */
+        .effects-gallery {
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Individual Effect Container */
+        .effect-container {
+            position: relative;
+            height: 400px;
+            overflow: hidden;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Effect Title */
+        .effect-title {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 700;
+            z-index: 20;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.75rem 2rem;
+            border-radius: 50px;
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Demo Content */
+        .demo-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #fff;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2.5rem;
+            border-radius: 24px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .demo-content h2 {
+            font-size: 2rem;
+            margin-bottom: 1.25rem;
+            font-weight: 700;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .demo-content h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .demo-content p {
+            font-size: 1rem;
+            line-height: 1.7;
+            margin-bottom: 1.5rem;
+            opacity: 0.9;
+        }
+
+        /* Chat Window Demo */
+        .chat-demo {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 350px;
+            height: 250px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .chat-header {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 0.75rem 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h4 {
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .chat-header .status {
+            width: 10px;
+            height: 10px;
+            background: #00ff9d;
+            border-radius: 50%;
+            box-shadow: 0 0 12px #00ff9d;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 1.25rem;
+            overflow-y: auto;
+        }
+
+        .chat-messages .message {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            margin-bottom: 0.75rem;
+            animation: fadeInUp 0.4s ease;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .chat-input {
+            padding: 0.75rem 1.25rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .chat-input input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            color: #fff;
+            font-size: 0.9rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .chat-input input:focus {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .chat-input input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .chat-input button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            padding: 0 1.25rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .chat-input button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Control Panel */
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.4);
+            padding: 1rem 1.5rem;
+            border-radius: 50px;
+            z-index: 100;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .controls select {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            outline: none;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .controls select option {
+            background: #1a1a1a;
+            color: #fff;
+        }
+
+        .controls button {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1.25rem;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .controls button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Canvas for complex animations */
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Demo Animation Elements */
+        .demo-elements {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .demo-elements .element {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .demo-elements .element:nth-child(1) {
+            width: 80px;
+            height: 80px;
+            top: 20%;
+            left: 10%;
+            animation: float 6s infinite ease-in-out;
+        }
+
+        .demo-elements .element:nth-child(2) {
+            width: 120px;
+            height: 120px;
+            top: 60%;
+            right: 15%;
+            animation: float 8s infinite ease-in-out reverse;
+        }
+
+        .demo-elements .element:nth-child(3) {
+            width: 60px;
+            height: 60px;
+            bottom: 30%;
+            left: 20%;
+            animation: pulse 4s infinite ease-in-out;
+        }
+
+        .demo-elements .element:nth-child(4) {
+            width: 100px;
+            height: 100px;
+            top: 40%;
+            left: 70%;
+            animation: rotate 10s infinite linear;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg) scale(1); }
+            50% { transform: translateY(-30px) rotate(180deg) scale(1.1); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.3); opacity: 0.9; }
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            to { transform: rotate(360deg) scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-title">
+        <h1>🌟 Background Effects Gallery</h1>
+        <p>Complex and stunning animated backgrounds for modern web applications</p>
+    </div>
+
+    <div class="effects-gallery" id="effectsGallery">
+        <!-- Particles Universe Effect -->
+        <div class="effect-container" id="particles-universe">
+            <div class="effect-title">🌌 Particles Universe</div>
+            <canvas id="particlesCanvas"></canvas>
+            <div class="demo-content">
+                <h2>💫 Cosmic Journey</h2>
+                <p>Lose yourself in infinite space with moving particles creating a mesmerizing celestial experience.</p>
+                <p>Watch as stars dance across the cosmos in perfect harmony.</p>
+            </div>
+        </div>
+
+        <!-- Fluid Liquid Effect -->
+        <div class="effect-container" id="fluid-liquid">
+            <div class="effect-title">🌊 Liquid Fluid</div>
+            <canvas id="liquidCanvas"></canvas>
+            <div class="demo-content">
+                <h2>💧 Fluid Dynamics</h2>
+                <p>Intoxicating fluid motion blending colors creates living art that flows like liquid silk.</p>
+                <p>Colors merge endlessly, forming patterns that delight and inspire.</p>
+            </div>
+        </div>
+
+        <!-- Wave Gradient Effect -->
+        <div class="effect-container" id="wave-gradient">
+            <div class="effect-title">🌈 Gradient Waves</div>
+            <svg class="waves" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 24 150 28" preserveAspectRatio="none">
+                <defs>
+                    <path id="gentle-wave" d="M-160 44c30 0 58-18 88-18s 58 18 88 18 58-18 88-18 58 18 88 18 v44h-352z" />
+                </defs>
+                <g class="parallax">
+                    <use xlink:href="#gentle-wave" x="48" y="0" fill="#0A89E6" fill-opacity="0.4"/>
+                    <use xlink:href="#gentle-wave" x="48" y="3" fill="#23C89A" fill-opacity="0.4"/>
+                    <use xlink:href="#gentle-wave" x="48" y="5" fill="#971EF5" fill-opacity="0.4"/>
+                    <use xlink:href="#gentle-wave" x="48" y="7" fill="#8D4AF6" fill-opacity="0.4"/>
+                </g>
+            </svg>
+            <svg class="waves" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 24 150 28" preserveAspectRatio="none" style="animation: drift 25s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;">
+                <use xlink:href="#gentle-wave" x="48" y="0" fill="#FF6B6B" fill-opacity="0.3"/>
+            </svg>
+            <div class="demo-content">
+                <h2>🌊 Rhythmic Waves</h2>
+                <p>Flowing gradient waves sync with infinite harmonies, creating captivating visual rhythms.</p>
+                <p>Dance to nature's timeless melody in this immersive experience.</p>
+            </div>
+        </div>
+
+        <!-- Aurora Borealis Effect -->
+        <div class="effect-container" id="aurora">
+            <div class="effect-title">🌌 Aurora Borealis</div>
+            <div class="demo-content">
+                <h2>✨ Northern Lights</h2>
+                <p>Witness nature's most spectacular light show reimagined in digital form.</p>
+                <p>Mesmerizing aurora effects paint the sky with ethereal colors.</p>
+            </div>
+            <div class="demo-elements" id="auroraElements"></div>
+        </div>
+
+        <!-- Geometric Evolution Effect -->
+        <div class="effect-container" id="geometric-shapes">
+            <div class="effect-title">📐 Geometric Evolution</div>
+            <div class="demo-content">
+                <h2>🔷 Sacred Geometry</h2>
+                <p>Evolution of shapes through time creates harmony in mathematical beauty.</p>
+                <p>Watch geometry come alive in this mesmerizing dance of forms.</p>
+            </div>
+            <div class="demo-elements" id="geometricElements"></div>
+        </div>
+
+        <!-- Digital Matrix Effect -->
+        <div class="effect-container" id="digital-matrix">
+            <div class="effect-title">🤖 Digital Matrix</div>
+            <canvas id="matrixCanvas"></canvas>
+            <div class="demo-content">
+                <h2>📟 The Matrix</h2>
+                <p>Dive into digital rain with cascading code creating a cyberpunk vision.</p>
+                <p>Neo would be proud of this homage to digital consciousness.</p>
+            </div>
+        </div>
+
+        <!-- Fireflies Effect -->
+        <div class="effect-container" id="fireflies">
+            <div class="effect-title">🧚‍♀️ Magical Fireflies</div>
+            <div class="demo-content">
+                <h2>✨ Enchanted Evenings</h2>
+                <p>Gentle fireflies create glowing orbs of wonder, painting evening skies with whimsy.</p>
+                <p>Magic comes alive in this captivating display of nature's tiny lanterns.</p>
+            </div>
+            <div class="demo-elements" id="firefliesElements"></div>
+        </div>
+
+        <!-- Hologram Effect -->
+        <div class="effect-container" id="hologram">
+            <div class="effect-title">💎 Holographic Dreams</div>
+            <div class="demo-content">
+                <h2>🔮 Sci-Fi Fantasy</h2>
+                <p>Prismatic rainbow sheen with ethereal holographic effects spark imagination.</p>
+                <p>Step into tomorrow with this futuristic dreamscape.</p>
+            </div>
+            <div class="demo-elements" id="hologramElements"></div>
+        </div>
+
+        <!-- Data Stream Effect -->
+        <div class="effect-container" id="data-stream">
+            <div class="effect-title">🚀 Data Streams</div>
+            <canvas id="dataCanvas"></canvas>
+            <div class="chat-demo">
+                <div class="chat-header">
+                    <h4 style="color: white;">💬 Live Chat</h4>
+                    <div class="status"></div>
+                </div>
+                <div class="chat-messages">
+                    <div class="message">Welcome! 👋</div>
+                    <div class="message">This is just a demo</div>
+                    <div class="message">How are you today? 🤔</div>
+                </div>
+                <div class="chat-input">
+                    <input type="text" placeholder="Type a message..." />
+                    <button>Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cloud Migration Effect -->
+        <div class="effect-container" id="cloud-migration">
+            <div class="effect-title">☁️ Cloud Migration</div>
+            <div class="demo-content">
+                <h2>🏔️ Sky Dreams</h2>
+                <p>A feeling of soaring freedom drifts across imaginative skies.</p>
+                <p>Let your thoughts float away on gentle cloud formations.</p>
+            </div>
+            <div class="demo-elements" id="cloudElements"></div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <select id="effectSelector">
+            <option value="all">Show All Effects</option>
+            <option value="particles-universe">🌌 Particles</option>
+            <option value="fluid-liquid">🌊 Liquid</option>
+            <option value="wave-gradient">🌈 Waves</option>
+            <option value="aurora">🌌 Aurora</option>
+            <option value="geometric-shapes">📐 Geometry</option>
+            <option value="digital-matrix">🤖 Matrix</option>
+            <option value="fireflies">🧚‍♀️ Fireflies</option>
+            <option value="hologram">💎 Hologram</option>
+            <option value="data-stream">🚀 Data Stream</option>
+            <option value="cloud-migration">☁️ Clouds</option>
+        </select>
+        <button id="pauseBtn">⏸️ Pause</button>
+        <button id="speedBtn">⚡ Speed</button>
+    </div>
+
+    <script>
+        // Global Variables
+        let animationSpeed = 1;
+        let isPaused = false;
+
+        // Utility Functions
+        function rand(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
+        function getElement(selector) {
+            return document.querySelector(selector);
+        }
+
+        function getContext(canvasId) {
+            const canvas = getElement(`#${canvasId}`);
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth || window.innerWidth;
+            canvas.height = canvas.offsetHeight || window.innerHeight;
+            return { canvas, ctx };
+        }
+
+        // Particles Universe Animation
+        function initParticles() {
+            const { canvas, ctx } = getContext('particlesCanvas');
+            if (!ctx) return;
+            
+            const particles = [];
+            const particleCount = 100;
+
+            class Particle {
+                constructor() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.z = Math.random() * 1000;
+                    this.size = Math.random() * 3;
+                    this.speed = Math.random() * 0.5 + 0.1;
+                    this.color = `hsl(${Math.random() * 360}, 70%, 70%)`;
+                }
+
+                update() {
+                    this.z -= this.speed * animationSpeed;
+                    if (this.z <= 0) {
+                        this.z = 1000;
+                        this.x = Math.random() * canvas.width;
+                        this.y = Math.random() * canvas.height;
+                    }
+                }
+
+                draw() {
+                    const scale = 200 / (this.z + 200);
+                    const x = (this.x - canvas.width/2) * scale + canvas.width/2;
+                    const y = (this.y - canvas.height/2) * scale + canvas.height/2;
+                    const size = this.size * scale;
+                    
+                    ctx.fillStyle = this.color;
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = this.color;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Add glow effect
+                    ctx.shadowBlur = 20;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+
+            function createParticles() {
+                for (let i = 0; i < particleCount; i++) {
+                    particles.push(new Particle());
+                }
+            }
+
+            function drawConnections() {
+                for (let i = 0; i < particles.length; i++) {
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const p1 = particles[i];
+                        const p2 = particles[j];
+                        const distance = Math.sqrt(
+                            Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2)
+                        );
+                        if (distance < 150) {
+                            const opacity = (150 - distance) / 150 * 0.3;
+                            ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.beginPath();
+                            ctx.moveTo(p1.x, p1.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+            function animate() {
+                if (!isPaused) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    particles.forEach(particle => {
+                        particle.update();
+                        particle.draw();
+                    });
+                    
+                    drawConnections();
+                }
+                requestAnimationFrame(animate);
+            }
+
+            createParticles();
+            animate();
+        }
+
+        // Fluid Liquid Animation
+        function initLiquid() {
+            const { canvas, ctx } = getContext('liquidCanvas');
+            if (!ctx) return;
+
+            let time = 0;
+            const points = [];
+            
+            for (let i = 0; i <= 50; i++) {
+                points.push({
+                    x: (canvas.width / 50) * i,
+                    y: canvas.height / 2,
+                    baseY: canvas.height / 2
+                });
+            }
+
+            function animate() {
+                if (!isPaused) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.02)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    const gradient = ctx.createRadialGradient(
+                        canvas.width/2 + Math.sin(time * 0.01) * 100, 
+                        canvas.height/2, 
+                        0,
+                        canvas.width/2, 
+                        canvas.height/2, 
+                        canvas.width/2
+                    );
+                    gradient.addColorStop(0, '#ff6b6b');
+                    gradient.addColorStop(0.3, '#4ecdc4');
+                    gradient.addColorStop(0.6, '#45b7d1');
+                    gradient.addColorStop(1, '#96ceb4');
+                    
+                    points.forEach((point, i) => {
+                        point.y = point.baseY + Math.sin(time * 0.01 + i * 0.2) * 30 * animationSpeed +
+                                  Math.sin(time * 0.02 + i * 0.1) * 20 * animationSpeed;
+                    });
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(points[0].x, points[0].y);
+                    
+                    for (let i = 1; i < points.length; i++) {
+                        const cpx = (points[i-1].x + points[i].x) / 2;
+                        const cpy = (points[i-1].y + points[i].y) / 2;
+                        ctx.quadraticCurveTo(points[i-1].x, points[i-1].y, cpx, cpy);
+                    }
+                    
+                    ctx.lineTo(canvas.width, 0);
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+                    
+                    time += animationSpeed;
+                }
+                requestAnimationFrame(animate);
+            }
+            
+            animate();
+        }
+
+        // Matrix Digital Rain
+        function initMatrix() {
+            const { canvas, ctx } = getContext('matrixCanvas');
+            if (!ctx) return;
+
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789@#$%^&*()*&^%+-/~{[|`]}";
+            const charArray = chars.split("");
+            const fontSize = 14;
+            const columns = canvas.width / fontSize;
+            const drops = [];
+            
+            for (let x = 0; x < columns; x++) {
+                drops[x] = 1;
+            }
+
+            function draw() {
+                if (!isPaused) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    ctx.fillStyle = '#00FF00';
+                    ctx.font = fontSize + 'px monospace';
+                    
+                    for (let i = 0; i < drops.length; i++) {
+                        const text = charArray[Math.floor(Math.random() * charArray.length)];
+                        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                        
+                        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                            drops[i] = 0;
+                        }
+                        drops[i] += animationSpeed;
+                    }
+                }
+                requestAnimationFrame(draw);
+            }
+            
+            draw();
+        }
+
+        // Data Stream Effect
+        function initDataStream() {
+            const { canvas, ctx } = getContext('dataCanvas');
+            if (!ctx) return;
+
+            class DataStream {
+                constructor() {
+                    this.reset();
+                }
+
+                reset() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = -50;
+                    this.speed = rand(0.5, 4) * animationSpeed;
+                    this.width = rand(20, 100);
+                    this.height = 0;
+                    this.maxHeight = rand(100, 400);
+                    this.color = `hsl(${rand(180, 280)}, 100%, 60%)`;
+                }
+
+                update() {
+                    if (!isPaused) {
+                        this.y += this.speed;
+                        if (this.height < this.maxHeight && this.y < canvas.height) {
+                            this.height += this.speed * 5;
+                        }
+                        
+                        if (this.y > canvas.height) {
+                            this.reset();
+                        }
+                    }
+                }
+
+                draw() {
+                    ctx.fillStyle = this.color;
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    
+                    // Add glow effect
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = this.color;
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    ctx.shadowBlur = 0;
+                    
+                    // Add data bits
+                    const bits = Math.floor(this.height / 20);
+                    for (let i = 0; i < bits; i++) {
+                        ctx.fillStyle = `rgba(255, 255, 255, ${Math.random()})`;
+                        ctx.fillRect(this.x + rand(-5, this.width), this.y + i * 20, 5, 5);
+                    }
+                }
+            }
+
+            const streams = [];
+            for (let i = 0; i < 15; i++) {
+                streams.push(new DataStream());
+            }
+
+            function animate() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                streams.forEach(stream => {
+                    stream.update();
+                    stream.draw();
+                });
+                
+                requestAnimationFrame(animate);
+            }
+            
+            animate();
+        }
+
+        // Aurora Borealis Effect
+        function initAurora() {
+            const container = getElement('#auroraElements');
+            if (!container) return;
+            
+            for (let i = 0; i < 15; i++) {
+                const aurora = document.createElement('div');
+                aurora.style.position = 'absolute';
+                aurora.style.height = `${rand(20, 60)}vh`;
+                aurora.style.width = `${rand(100, 200)}%`;
+                aurora.style.background = `linear-gradient(45deg, 
+                    transparent, 
+                    rgba(0, 255, 157, 0.2), 
+                    rgba(0, 255, 255, 0.3), 
+                    rgba(147, 51, 234, 0.2),
+                    transparent)`;
+                aurora.style.top = `${rand(-20, 20)}%`;
+                aurora.style.left = `${rand(-50, 0)}%`;
+                aurora.style.borderRadius = '50%';
+                aurora.style.filter = 'blur(20px)';
+                aurora.style.animation = `auroraDrift ${rand(15, 25)}s infinite ease-in-out, 
+                                         auroraPulse ${rand(3, 6)}s infinite ease-in-out`;
+                aurora.style.animationDelay = `${rand(0, 10)}s`;
+                container.appendChild(aurora);
+            }
+        }
+
+        // Geometric Shapes Animation
+        function initGeometric() {
+            const container = getElement('#geometricElements');
+            if (!container) return;
+            
+            for (let i = 0; i < 8; i++) {
+                const shape = document.createElement('div');
+                const size = rand(60, 120);
+                shape.style.position = 'absolute';
+                shape.style.width = `${size}px`;
+                shape.style.height = `${size}px`;
+                shape.style.background = 'transparent';
+                shape.style.border = `2px solid rgba(147, 51, 234, 0.4)`;
+                shape.style.top = `${rand(10, 70)}%`;
+                shape.style.left = `${rand(10, 70)}%`;
+                shape.style.transform = `rotate(${rand(0, 360)}deg)`;
+                shape.style.boxShadow = '0 0 20px rgba(147, 51, 234, 0.3)';
+                shape.style.animation = `geometricTransform ${rand(15, 25)}s infinite ease-in-out`;
+                shape.style.animationDelay = `${rand(0, 5)}s`;
+                container.appendChild(shape);
+            }
+        }
+
+        // Fireflies Effect
+        function initFireflies() {
+            const container = getElement('#firefliesElements');
+            if (!container) return;
+            
+            for (let i = 0; i < 20; i++) {
+                const firefly = document.createElement('div');
+                firefly.style.position = 'absolute';
+                firefly.style.width = '4px';
+                firefly.style.height = '4px';
+                firefly.style.background = '#00FF9D';
+                firefly.style.borderRadius = '50%';
+                firefly.style.boxShadow = '0 0 10px #00FF9D, 0 0 20px #00FF9D';
+                firefly.style.top = `${rand(10, 80)}%`;
+                firefly.style.left = `${rand(10, 80)}%`;
+                firefly.style.animation = `fireflyFlight ${rand(10, 20)}s infinite ease-in-out, 
+                                         fireflyGlow ${rand(2, 4)}s infinite ease-in-out`;
+                firefly.style.animationDelay = `${rand(0, 5)}s`;
+                container.appendChild(firefly);
+            }
+        }
+
+        // Hologram Effect
+        function initHologram() {
+            const container = getElement('#hologramElements');
+            if (!container) return;
+            
+            for (let i = 0; i < 5; i++) {
+                const layer = document.createElement('div');
+                layer.style.position = 'absolute';
+                layer.style.top = `${i * 20}%`;
+                layer.style.left = '0';
+                layer.style.width = '100%';
+                layer.style.height = '2px';
+                layer.style.background = `linear-gradient(90deg, 
+                    transparent, 
+                    rgba(255, 0, 255, 0.3), 
+                    rgba(0, 255, 255, 0.4), 
+                    rgba(255, 255, 0, 0.3), 
+                    transparent)`;
+                layer.style.boxShadow = '0 0 20px rgba(255, 0, 255, 0.5)';
+                layer.style.animation = `hologramScan ${rand(3, 5)}s infinite linear`;
+                layer.style.animationDelay = `${i * 0.5}s`;
+                container.appendChild(layer);
+            }
+        }
+
+        // Cloud Migration Effect
+        function initClouds() {
+            const container = getElement('#cloudElements');
+            if (!container) return;
+            
+            for (let i = 0; i < 6; i++) {
+                const cloud = document.createElement('div');
+                cloud.style.position = 'absolute';
+                cloud.style.width = `${rand(150, 250)}px`;
+                cloud.style.height = `${rand(60, 100)}px`;
+                cloud.style.background = 'radial-gradient(ellipse, rgba(255, 255, 255, 0.3) 0%, transparent 70%)';
+                cloud.style.borderRadius = '50%';
+                cloud.style.top = `${rand(10, 70)}%`;
+                cloud.style.left = `${rand(-30, -10)}%`;
+                cloud.style.filter = 'blur(10px)';
+                cloud.style.animation = `cloudDrift ${rand(25, 40)}s infinite linear`;
+                cloud.style.animationDelay = `${rand(0, 10)}s`;
+                container.appendChild(cloud);
+            }
+        }
+
+        // Wave Gradient Effect
+        function initWaves() {
+            const style = document.createElement('style');
+            style.textContent = `
+                .parallax > use {
+                    animation: moveWave 25s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
+                }
+                .parallax > use:nth-child(1) {
+                    animation-delay: -2s;
+                    animation-duration: 7s;
+                }
+                .parallax > use:nth-child(2) {
+                    animation-delay: -3s;
+                    animation-duration: 10s;
+                }
+                .parallax > use:nth-child(3) {
+                    animation-delay: -4s;
+                    animation-duration: 13s;
+                }
+                .parallax > use:nth-child(4) {
+                    animation-delay: -5s;
+                    animation-duration: 20s;
+                }
+                @keyframes moveWave {
+                    0% { transform: translate3d(-90px,0,0); }
+                    100% { transform: translate3d(85px,0,0); }
+                }
+                @keyframes drift {
+                    0% { transform: translateX(-90px); }
+                    100% { transform: translateX(85px); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Enhanced CSS Animations
+        function initCSSAnimations() {
+            const enhancedStyles = `
+                @keyframes auroraDrift {
+                    0%, 100% { 
+                        transform: translateX(-10%) translateY(-5%) rotate(0deg) scaleY(1); 
+                        opacity: 0.3; 
+                    }
+                    25% { 
+                        transform: translateX(-5%) translateY(0%) rotate(90deg) scaleY(1.2); 
+                        opacity: 0.6; 
+                    }
+                    50% { 
+                        transform: translateX(5%) translateY(5%) rotate(180deg) scaleY(1.1); 
+                        opacity: 0.4; 
+                    }
+                    75% { 
+                        transform: translateX(0%) translateY(-3%) rotate(270deg) scaleY(1.3); 
+                        opacity: 0.7; 
+                    }
+                }
+                
+                @keyframes auroraPulse {
+                    0%, 100% { opacity: 0.3; }
+                    50% { opacity: 0.8; }
+                }
+                
+                @keyframes geometricTransform {
+                    0% { 
+                        transform: translate(0, 0) rotate(0deg) scale(1); 
+                        opacity: 0.3; 
+                        border-radius: 0%; 
+                    }
+                    25% { 
+                        transform: translate(50px, -30px) rotate(90deg) scale(1.2); 
+                        opacity: 0.6; 
+                        border-radius: 25%; 
+                    }
+                    50% { 
+                        transform: translate(100px, 50px) rotate(180deg) scale(0.8); 
+                        opacity: 0.4; 
+                        border-radius: 50%; 
+                    }
+                    75% { 
+                        transform: translate(-50px, 100px) rotate(270deg) scale(1.1); 
+                        opacity: 0.7; 
+                        border-radius: 10%; 
+                    }
+                    100% { 
+                        transform: translate(0, 0) rotate(360deg) scale(1); 
+                        opacity: 0.3; 
+                        border-radius: 0%; 
+                    }
+                }
+                
+                @keyframes fireflyFlight {
+                    0% { transform: translate(0, 0); }
+                    20% { transform: translate(50px, -30px); }
+                    40% { transform: translate(-30px, 50px); }
+                    60% { transform: translate(70px, 20px); }
+                    80% { transform: translate(-50px, -40px); }
+                    100% { transform: translate(0, 0); }
+                }
+                
+                @keyframes fireflyGlow {
+                    0%, 100% { 
+                        opacity: 0.3; 
+                        box-shadow: 0 0 10px #00FF9D, 0 0 20px #00FF9D; 
+                    }
+                    50% { 
+                        opacity: 1; 
+                        box-shadow: 0 0 20px #00FF9D, 0 0 40px #00FF9D, 0 0 60px #00FF9D; 
+                    }
+                }
+                
+                @keyframes hologramScan {
+                    0% { 
+                        transform: translateY(-100px) rotateX(0deg); 
+                        opacity: 0; 
+                    }
+                    50% { 
+                        transform: translateY(0) rotateX(15deg); 
+                        opacity: 1; 
+                    }
+                    100% { 
+                        transform: translateY(100px) rotateX(0deg); 
+                        opacity: 0; 
+                    }
+                }
+                
+                @keyframes cloudDrift {
+                    0% { 
+                        transform: translateX(-100px) translateY(0px); 
+                        opacity: 0; 
+                    }
+                    10% { opacity: 0.7; }
+                    90% { opacity: 0.7; }
+                    100% { 
+                        transform: translateX(calc(100vw + 100px)) translateY(-20px); 
+                        opacity: 0; 
+                    }
+                }
+            `;
+            document.head.insertAdjacentHTML('beforeend', `<style>${enhancedStyles}</style>`);
+        }
+
+        // Control Panel Functions
+        function initControls() {
+            const effectSelector = getElement('#effectSelector');
+            const pauseBtn = getElement('#pauseBtn');
+            const speedBtn = getElement('#speedBtn');
+
+            effectSelector.addEventListener('change', function() {
+                const selectedValue = this.value;
+                document.querySelectorAll('.effect-container').forEach(container => {
+                    container.style.display = selectedValue === 'all' || container.id === selectedValue ? 'block' : 'none';
+                });
+            });
+
+            pauseBtn.addEventListener('click', function() {
+                isPaused = !isPaused;
+                this.textContent = isPaused ? '▶️ Play' : '⏸️ Pause';
+            });
+
+            speedBtn.addEventListener('click', function() {
+                animationSpeed = animationSpeed === 1 ? 2 : animationSpeed === 2 ? 0.5 : 1;
+                this.textContent = animationSpeed === 1 ? '⚡ Speed' : `⚡ Speed: ${animationSpeed}x`;
+            });
+
+            // Auto-switch effects every 10 seconds
+            let currentEffect = 0;
+            setInterval(() => {
+                if (!isPaused && effectSelector.value === 'all') {
+                    const effects = document.querySelectorAll('.effect-container');
+                    effects.forEach((effect, index) => {
+                        effect.style.display = index === currentEffect ? 'block' : 'none';
+                    });
+                    currentEffect = (currentEffect + 1) % effects.length;
+                }
+            }, 10000);
+        }
+
+        // Initialize everything
+        function init() {
+            initCSSAnimations();
+            initControls();
+            initParticles();
+            initLiquid();
+            initMatrix();
+            initDataStream();
+            initAurora();
+            initGeometric();
+            initFireflies();
+            initHologram();
+            initClouds();
+            initWaves();
+
+            // Add message to chat demo
+            const messages = [
+                "Hello! How are you? 😊",
+                "This is just a demo 🎨",
+                "Amazing background effects! ✨",
+                "Click the controls to interact 🎮",
+                "Which effect is your favorite? 🤔",
+                "Such beautiful animations! 🌈",
+                "The Matrix looks legendary 🤖"
+            ];
+            
+            const chatMessages = getElement('.chat-messages');
+            if (chatMessages) {
+                let messageIndex = 0;
+                setInterval(() => {
+                    if (Math.random() > 0.7) {
+                        const message = document.createElement('div');
+                        message.className = 'message';
+                        message.textContent = messages[messageIndex % messages.length];
+                        chatMessages.appendChild(message);
+                        messageIndex++;
+                        
+                        if (chatMessages.children.length > 8) {
+                            chatMessages.removeChild(chatMessages.firstChild);
+                        }
+                    }
+                }, 3000);
+            }
+        }
+
+        // Start application when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+
+        // Enhanced resize handling
+        window.addEventListener('resize', () => {
+            const canvases = ['particlesCanvas', 'liquidCanvas', 'matrixCanvas', 'dataCanvas'];
+            canvases.forEach(canvasId => {
+                const canvas = getElement(`#${canvasId}`);
+                if (canvas) {
+                    canvas.width = canvas.offsetWidth || window.innerWidth;
+                    canvas.height = canvas.offsetHeight || window.innerHeight;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
