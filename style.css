@@ -548,8 +548,8 @@
     flex-direction: row;
     align-items: stretch;
     gap: 20px;
-    padding: 20px 24px;
-    min-height: clamp(220px, 28vw, 280px);
+    padding: 18px 22px;
+    min-height: clamp(180px, 22vw, 230px);
     background: transparent;
     color: var(--header-text);
 }
