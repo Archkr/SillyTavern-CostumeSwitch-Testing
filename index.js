@@ -2104,32 +2104,45 @@ function syncSceneRosterFromMembership({ message } = {}) {
         : null;
     const members = Array.isArray(membership?.members) ? membership.members : [];
     const activeMembers = members.filter((member) => member && member.active);
-    let turnsRemaining = null;
-    activeMembers.forEach((member) => {
-        if (Number.isFinite(member.turnsRemaining)) {
-            const remaining = Math.max(0, Math.floor(member.turnsRemaining));
-            turnsRemaining = turnsRemaining == null ? remaining : Math.min(turnsRemaining, remaining);
-        }
-    });
-    const rosterNames = activeMembers.map((member) => member.name || member.normalized).filter(Boolean);
+    const rosterEntries = activeMembers
+        .map((member) => {
+            if (!member) {
+                return null;
+            }
+            const normalized = typeof member.normalized === "string" && member.normalized.trim()
+                ? member.normalized.trim().toLowerCase()
+                : (typeof member.name === "string" && member.name.trim()
+                    ? member.name.trim().toLowerCase()
+                    : null);
+            if (!normalized) {
+                return null;
+            }
+            const turnsRemaining = Number.isFinite(member.turnsRemaining)
+                ? Math.max(0, Math.floor(member.turnsRemaining))
+                : null;
+            const joinedAt = Number.isFinite(member.joinedAt) ? member.joinedAt : null;
+            const lastSeenAt = Number.isFinite(member.lastSeenAt) ? member.lastSeenAt : null;
+            return {
+                name: member.name || member.normalized || normalized,
+                normalized,
+                joinedAt,
+                lastSeenAt,
+                turnsRemaining,
+            };
+        })
+        .filter(Boolean);
     const displayNames = new Map();
-    activeMembers.forEach((member) => {
-        const key = typeof member.normalized === "string" && member.normalized
-            ? member.normalized
-            : (member.name || "").toLowerCase();
-        if (key) {
-            displayNames.set(key, member.name || member.normalized || key);
-        }
+    rosterEntries.forEach((entry) => {
+        displayNames.set(entry.normalized, entry.name);
     });
     const scene = typeof getCurrentSceneSnapshot === "function" ? getCurrentSceneSnapshot() : {};
     applySceneRosterUpdate({
         key: scene.key,
         messageId: scene.messageId,
-        roster: rosterNames,
+        roster: rosterEntries,
         displayNames,
         lastMatch: scene.lastEvent,
-        updatedAt: Date.now(),
-        turnsRemaining,
+        updatedAt: Number.isFinite(membership?.updatedAt) ? membership.updatedAt : Date.now(),
     });
     requestScenePanelRender("roster-manager", { immediate: true });
     if (message) {

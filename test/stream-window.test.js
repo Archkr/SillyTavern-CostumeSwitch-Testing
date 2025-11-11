@@ -16,6 +16,8 @@ const {
     replaceLiveTesterOutputs,
     clearLiveTesterOutputs,
     resetSceneState,
+    listRosterMembers,
+    getCurrentSceneSnapshot,
 } = await import("../src/core/state.js");
 
 extensionSettingsStore[extensionName] = {
@@ -172,6 +174,35 @@ test("createMessageState carries roster TTL forward between messages", () => {
     assert.equal(newState.rosterTTL, 2, "roster TTL should decrement from previous message");
     assert.equal(newState.outfitTTL, 1, "outfit TTL should decrement from previous message");
     assert.deepEqual(Array.from(newState.sceneRoster), ["kotori"]);
+});
+
+test("applySceneRosterUpdate preserves per-member TTL values", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    const timestamp = Date.now();
+    applySceneRosterUpdate({
+        key: "m1",
+        messageId: 1,
+        roster: [
+            { name: "Kotori", normalized: "kotori", turnsRemaining: 4, joinedAt: timestamp - 5000, lastSeenAt: timestamp },
+            { name: "Honoka", normalized: "honoka", turnsRemaining: 1, joinedAt: timestamp - 3000, lastSeenAt: timestamp },
+        ],
+        updatedAt: timestamp,
+    });
+
+    const members = listRosterMembers();
+    const kotori = members.find((entry) => entry.normalized === "kotori");
+    const honoka = members.find((entry) => entry.normalized === "honoka");
+    assert.equal(kotori?.turnsRemaining, 4);
+    assert.equal(honoka?.turnsRemaining, 1);
+
+    const scene = getCurrentSceneSnapshot();
+    const roster = Array.isArray(scene.roster) ? scene.roster : [];
+    const sceneKotori = roster.find((entry) => entry.normalized === "kotori");
+    const sceneHonoka = roster.find((entry) => entry.normalized === "honoka");
+    assert.equal(sceneKotori?.turnsRemaining, 4);
+    assert.equal(sceneHonoka?.turnsRemaining, 1);
 });
 
 test("handleStream infers message key from token event payloads", () => {

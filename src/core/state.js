@@ -102,6 +102,40 @@ function cloneRosterMember(member) {
     };
 }
 
+function normalizeTurnsByMember(value) {
+    if (!value) {
+        return null;
+    }
+    const map = new Map();
+    const assign = (key, raw) => {
+        const normalized = normalizeKey(key);
+        if (!normalized || !Number.isFinite(raw)) {
+            return;
+        }
+        map.set(normalized, Math.max(0, Math.floor(raw)));
+    };
+    if (value instanceof Map) {
+        value.forEach((raw, key) => assign(key, raw));
+        return map.size ? map : null;
+    }
+    if (Array.isArray(value)) {
+        value.forEach((entry) => {
+            if (Array.isArray(entry) && entry.length >= 2) {
+                assign(entry[0], entry[1]);
+            } else if (entry && typeof entry === "object") {
+                const key = entry.normalized ?? entry.name;
+                assign(key, entry.turnsRemaining);
+            }
+        });
+        return map.size ? map : null;
+    }
+    if (typeof value === "object") {
+        Object.entries(value).forEach(([key, raw]) => assign(key, raw));
+        return map.size ? map : null;
+    }
+    return null;
+}
+
 function cloneTesterOutput(entry) {
     return {
         name: entry.name,
@@ -139,28 +173,66 @@ export function applySceneRosterUpdate({
     lastMatch = null,
     updatedAt = Date.now(),
     turnsRemaining = null,
+    turnsByMember = null,
 } = {}) {
     const normalizedDisplayNames = normalizeDisplayNameMap(displayNames);
     const activeSet = new Set();
     const rosterEntries = [];
     const sanitizedTurns = Number.isFinite(turnsRemaining) ? Math.max(0, Math.floor(turnsRemaining)) : null;
+    const perMemberTurns = normalizeTurnsByMember(turnsByMember);
 
     const values = Array.isArray(roster) ? roster : [];
     values.forEach((value) => {
-        const normalized = normalizeKey(value);
+        let normalized = null;
+        let providedName = null;
+        let providedJoinedAt = null;
+        let providedLastSeenAt = null;
+        let providedTurns = null;
+        if (value && typeof value === "object") {
+            if (typeof value.normalized === "string" && value.normalized.trim()) {
+                normalized = value.normalized.trim().toLowerCase();
+            } else if (typeof value.name === "string" && value.name.trim()) {
+                normalized = value.name.trim().toLowerCase();
+            }
+            if (typeof value.name === "string" && value.name.trim()) {
+                providedName = value.name.trim();
+            }
+            if (Number.isFinite(value.joinedAt)) {
+                providedJoinedAt = value.joinedAt;
+            }
+            if (Number.isFinite(value.lastSeenAt)) {
+                providedLastSeenAt = value.lastSeenAt;
+            }
+            if (Number.isFinite(value.turnsRemaining)) {
+                providedTurns = Math.max(0, Math.floor(value.turnsRemaining));
+            }
+        } else {
+            normalized = normalizeKey(value);
+        }
         if (!normalized || activeSet.has(normalized)) {
             return;
         }
         activeSet.add(normalized);
-        const name = resolveDisplayName(normalized, normalizedDisplayNames);
+        if (providedName) {
+            normalizedDisplayNames.set(normalized, providedName);
+        }
+        const name = providedName || resolveDisplayName(normalized, normalizedDisplayNames);
         const existing = rosterMembers.get(normalized);
-        const joinedAt = existing?.joinedAt ?? updatedAt;
+        const joinedAt = providedJoinedAt ?? existing?.joinedAt ?? updatedAt;
+        const lastSeenAt = providedLastSeenAt ?? updatedAt;
+        let entryTurns = providedTurns;
+        if (!Number.isFinite(entryTurns) && perMemberTurns?.has(normalized)) {
+            entryTurns = perMemberTurns.get(normalized);
+        }
+        if (!Number.isFinite(entryTurns)) {
+            entryTurns = sanitizedTurns;
+        }
         rosterEntries.push({
             name,
             normalized,
             joinedAt,
-            lastSeenAt: updatedAt,
-            turnsRemaining: sanitizedTurns,
+            lastSeenAt,
+            turnsRemaining: Number.isFinite(entryTurns) ? entryTurns : null,
         });
     });
 

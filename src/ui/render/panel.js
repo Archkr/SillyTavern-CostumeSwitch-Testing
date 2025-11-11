@@ -21,6 +21,10 @@ import { renderCoverageSuggestions } from "./coverage.js";
 import { resolveContainer, clearContainer, createElement } from "./utils.js";
 
 let scenePanelSummonButton = null;
+let lastRosterRevision = null;
+let lastActiveRevision = null;
+let lastLogRevision = null;
+let lastCoverageRevision = null;
 
 function ensureScenePanelSummonButton() {
     if (typeof document === "undefined") {
@@ -317,46 +321,96 @@ export function renderScenePanel(panelState = {}) {
     });
 
     const rosterTarget = getSceneRosterList?.();
+    const rosterRevision = showRoster
+        ? [
+            panelState.scene?.updatedAt ?? 0,
+            panelState.membership?.updatedAt ?? 0,
+            panelState.isStreaming ? 1 : 0,
+            settings.showRosterAvatars !== false ? 1 : 0,
+        ].join(":")
+        : null;
     if (rosterTarget && showRoster) {
-        renderSceneRoster(rosterTarget, panelState);
+        if (lastRosterRevision !== rosterRevision) {
+            renderSceneRoster(rosterTarget, panelState);
+            lastRosterRevision = rosterRevision;
+        }
     } else if (rosterTarget) {
-        clearContainer(rosterTarget);
+        if (lastRosterRevision != null) {
+            clearContainer(rosterTarget);
+            lastRosterRevision = null;
+        }
     }
 
     const activeTarget = getSceneActiveCards?.();
+    const activeRevision = showActive
+        ? [
+            panelState.analytics?.updatedAt ?? 0,
+            Array.isArray(panelState.ranking) ? panelState.ranking.length : 0,
+            settings.autoPinActive !== false ? 1 : 0,
+        ].join(":")
+        : null;
     if (activeTarget && showActive) {
-        renderActiveCharacters(activeTarget, panelState);
+        if (lastActiveRevision !== activeRevision) {
+            renderActiveCharacters(activeTarget, panelState);
+            lastActiveRevision = activeRevision;
+        }
     } else if (activeTarget) {
-        clearContainer(activeTarget);
+        if (lastActiveRevision != null) {
+            clearContainer(activeTarget);
+            lastActiveRevision = null;
+        }
     }
 
     const liveLogTarget = getSceneLiveLog?.();
+    const logRevision = showLog
+        ? [
+            panelState.analytics?.updatedAt ?? 0,
+            Array.isArray(panelState.analytics?.events) ? panelState.analytics.events.length : 0,
+            Array.isArray(panelState.analytics?.matches) ? panelState.analytics.matches.length : 0,
+            panelState.analytics?.messageKey || "",
+        ].join(":")
+        : null;
     if (liveLogTarget && showLog) {
-        renderLiveLog(liveLogTarget, panelState);
+        if (lastLogRevision !== logRevision) {
+            renderLiveLog(liveLogTarget, panelState);
+            lastLogRevision = logRevision;
+        }
     } else if (liveLogTarget) {
-        clearContainer(liveLogTarget);
+        if (lastLogRevision != null) {
+            clearContainer(liveLogTarget);
+            lastLogRevision = null;
+        }
     }
 
     const coverageSection = getSceneCoverageSection?.();
     const coveragePronouns = getSceneCoveragePronouns?.();
     const coverageAttribution = getSceneCoverageAttribution?.();
     const coverageAction = getSceneCoverageAction?.();
+    const coverageRevision = showCoverage
+        ? JSON.stringify(panelState.coverage || null)
+        : null;
     if (coverageSection && showCoverage) {
-        renderCoverageSuggestions({
-            section: coverageSection,
-            pronouns: coveragePronouns,
-            attribution: coverageAttribution,
-            action: coverageAction,
-        }, panelState);
+        if (lastCoverageRevision !== coverageRevision) {
+            renderCoverageSuggestions({
+                section: coverageSection,
+                pronouns: coveragePronouns,
+                attribution: coverageAttribution,
+                action: coverageAction,
+            }, panelState);
+            lastCoverageRevision = coverageRevision;
+        }
     } else {
-        if (coveragePronouns) {
-            clearContainer(coveragePronouns);
-        }
-        if (coverageAttribution) {
-            clearContainer(coverageAttribution);
-        }
-        if (coverageAction) {
-            clearContainer(coverageAction);
+        if (lastCoverageRevision != null) {
+            if (coveragePronouns) {
+                clearContainer(coveragePronouns);
+            }
+            if (coverageAttribution) {
+                clearContainer(coverageAttribution);
+            }
+            if (coverageAction) {
+                clearContainer(coverageAction);
+            }
+            lastCoverageRevision = null;
         }
     }
 }
