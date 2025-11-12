@@ -17,6 +17,7 @@
 - **Scene panel layout cleanup.** Retired the legacy collapse handle so the crest header and toolbar own panel visibility, keeping the frame tidy without the extra toggle stub.
 
 ### Fixed
+- **Scene panel user message handling.** User-authored chat updates no longer trigger roster wipes or analytics refreshes, so the control center stays stable while players talk.
 - **Scene panel idle refresh.** Chat-change hooks now ignore updates that don't alter the latest assistant message, so editing system prompts or sending player chatter no longer clears or replays roster detections.
 - **Scene panel auto-open triggers.** Auto-open on streaming or new results now re-enables the side panel when it was hidden, so updates bring the workspace back instead of staying out of view.
 - **Buffer window trimming.** Streaming keeps matching after the max buffer limit trims older text, so outfit switching and live diagnostics continue instead of stalling at the limit.

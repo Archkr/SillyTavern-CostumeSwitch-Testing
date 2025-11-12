@@ -7807,6 +7807,10 @@ function captureSceneOutcomeForMessage(reference) {
     const normalizedKey = normalizeMessageKey(bufKey);
     const resolvedId = Number.isFinite(messageId) ? messageId : extractMessageIdFromKey(normalizedKey);
     const message = findChatMessageById(resolvedId) || findChatMessageByKey(normalizedKey);
+    if (message?.is_user) {
+        debugLog(`Skipping scene outcome capture for user-authored message ${normalizedKey}.`);
+        return;
+    }
     const swipeId = Number.isFinite(message?.swipe_id) ? message.swipe_id : 0;
     const msgState = state.perMessageStates instanceof Map ? state.perMessageStates.get(normalizedKey) : null;
     const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : new Set();
@@ -8870,6 +8874,20 @@ const handleMessageRendered = (...args) => {
     const finalKey = resolvedKey || tempKey;
     if (!finalKey) {
         debugLog('Message rendered without a resolvable key.', args);
+        state.currentGenerationKey = null;
+        return;
+    }
+
+    let renderedMessage = null;
+    if (Number.isFinite(resolvedId)) {
+        renderedMessage = findChatMessageById(resolvedId);
+    }
+    if (!renderedMessage && finalKey) {
+        renderedMessage = findChatMessageByKey(finalKey);
+    }
+
+    if (renderedMessage?.is_user) {
+        debugLog(`Skipping scene panel sync for user-authored message ${finalKey}.`);
         state.currentGenerationKey = null;
         return;
     }
