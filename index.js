@@ -2392,7 +2392,10 @@ function handleScenePanelClearRoster(event) {
 
 function handleScenePanelRefresh(event) {
     event?.preventDefault?.();
-    requestScenePanelRender("manual-refresh", { immediate: true });
+    const restored = restoreLatestSceneOutcome({ immediateRender: true });
+    if (!restored) {
+        requestScenePanelRender("manual-refresh", { immediate: true });
+    }
     showStatus("Scene panel refreshed.", "info");
     rerenderScenePanelLayer();
 }
@@ -8888,6 +8891,18 @@ const handleMessageRendered = (...args) => {
 
     if (renderedMessage?.is_user) {
         debugLog(`Skipping scene panel sync for user-authored message ${finalKey}.`);
+        state.currentGenerationKey = null;
+        return;
+    }
+
+    const hasTrackedState = Boolean(
+        (state.perMessageBuffers instanceof Map && state.perMessageBuffers.has(finalKey))
+        || (state.perMessageStates instanceof Map && state.perMessageStates.has(finalKey))
+        || (state.messageStats instanceof Map && state.messageStats.has(finalKey))
+    );
+
+    if (!renderedMessage && !hasTrackedState) {
+        debugLog(`Skipping scene panel sync for ${finalKey}; no tracked generation state found.`, args);
         state.currentGenerationKey = null;
         return;
     }

@@ -42,6 +42,9 @@
 - **Character slot persistence.** Pattern cards stay linked to the active profile after auto-saves, so follow-up edits continue to stick instead of silently rolling back.
 - **Scene panel glow overflow.** The aurora backdrop now animates entirely inside the frame and keeps a generous bleed so no hard edges peek through mid-cycle.
 - **Live tester isolation.** Running pattern simulations no longer injects tester roster data or log events into the side panel.
+- **Scene completion gating.** Live tester streams no longer trigger the command center's completion handlers, so roster capture waits for real assistant messages to finish.
+- **Roster activation regression.** Freshly detected characters now mark as active again when they enter the roster instead of staying flagged as inactive.
+- **Manual refresh recovery.** The refresh control reloads the latest assistant outcome so the side panel actually updates instead of simply re-rendering stale data.
 
 ## v3.5.0
 

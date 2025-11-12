@@ -261,8 +261,13 @@ function mergeRosterData(scene, membership, testers, now) {
     }
 
     for (const [normalized, entry] of map.entries()) {
-        if (!sceneActive.has(normalized)) {
-            entry.active = false;
+        const inScene = sceneActive.has(normalized);
+        if (inScene) {
+            entry.active = true;
+            entry.lastLeftAt = null;
+            continue;
+        }
+        if (!entry.active) {
             entry.turnsRemaining = null;
             if (!Number.isFinite(entry.lastLeftAt) && Number.isFinite(entry.lastSeenAt)) {
                 entry.lastLeftAt = entry.lastSeenAt;
