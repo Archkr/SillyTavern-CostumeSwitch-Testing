@@ -163,7 +163,8 @@ test("createMessageState carries roster TTL forward between messages", () => {
         pendingSubjectNormalized: null,
         sceneRoster: new Set(["kotori"]),
         outfitRoster: new Map([["kotori", { outfit: "casual" }]]),
-        rosterTTL: 3,
+        rosterTurns: new Map([["kotori", 3]]),
+        defaultRosterTTL: 5,
         outfitTTL: 2,
     };
 
@@ -173,7 +174,9 @@ test("createMessageState carries roster TTL forward between messages", () => {
 
     assert.equal(initialized, true, "creating a fresh message state should flag initialization");
     assert.equal(rosterCleared, false, "roster should remain populated when TTL remains positive");
-    assert.equal(newState.rosterTTL, 2, "roster TTL should decrement from previous message");
+    assert.ok(newState.rosterTurns instanceof Map, "roster turns should be tracked per member");
+    assert.equal(newState.rosterTurns.get("kotori"), 2, "roster turns should decrement from previous message");
+    assert.equal(newState.defaultRosterTTL, 5, "default roster TTL should persist from the profile");
     assert.equal(newState.outfitTTL, 1, "outfit TTL should decrement from previous message");
     assert.deepEqual(Array.from(newState.sceneRoster), ["kotori"]);
 });
@@ -300,7 +303,8 @@ test("handleStream records veto phrase and recent events", () => {
         pendingSubjectNormalized: null,
         sceneRoster: new Set(),
         outfitRoster: new Map(),
-        rosterTTL: 5,
+        rosterTurns: new Map(),
+        defaultRosterTTL: 5,
         outfitTTL: 5,
         processedLength: 0,
         lastAcceptedIndex: -1,

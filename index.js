@@ -2600,6 +2600,59 @@ function normalizeRosterKey(value) {
     }
     return value.trim().toLowerCase();
 }
+
+function sanitizeRosterTurnValue(value) {
+    if (!Number.isFinite(value)) {
+        return null;
+    }
+    const rounded = Math.floor(value);
+    if (!Number.isFinite(rounded)) {
+        return null;
+    }
+    return Math.max(0, rounded);
+}
+
+function toRosterTurnEntries(turns) {
+    if (!(turns instanceof Map)) {
+        return [];
+    }
+    const entries = [];
+    turns.forEach((value, key) => {
+        const normalized = normalizeRosterKey(key);
+        const turnsRemaining = sanitizeRosterTurnValue(value);
+        if (!normalized || turnsRemaining == null) {
+            return;
+        }
+        entries.push([normalized, turnsRemaining]);
+    });
+    return entries;
+}
+
+function fromRosterTurnEntries(entries) {
+    const map = new Map();
+    if (!Array.isArray(entries)) {
+        return map;
+    }
+    entries.forEach((entry) => {
+        if (!Array.isArray(entry) || entry.length < 2) {
+            return;
+        }
+        const normalized = normalizeRosterKey(entry[0]);
+        const turnsRemaining = sanitizeRosterTurnValue(entry[1]);
+        if (!normalized || turnsRemaining == null) {
+            return;
+        }
+        map.set(normalized, turnsRemaining);
+    });
+    return map;
+}
+
+function cloneRosterTurns(source) {
+    if (!(source instanceof Map)) {
+        return new Map();
+    }
+    return fromRosterTurnEntries(Array.from(source.entries()));
+}
 function toDisplayNameEntries(displayNames) {
     if (!(displayNames instanceof Map)) {
         return [];
@@ -6176,6 +6229,7 @@ function adjustWindowForTrim(msgState, trimmedChars, combinedLength) {
 }
 
 function createTesterMessageState(profile) {
+    const defaultRosterTTL = sanitizeRosterTurnValue(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
     return {
         lastAcceptedName: null,
         lastAcceptedTs: 0,
@@ -6185,9 +6239,10 @@ function createTesterMessageState(profile) {
         pendingSubject: null,
         pendingSubjectNormalized: null,
         sceneRoster: new Set(),
-        rosterTTL: profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL,
+        rosterTurns: new Map(),
+        defaultRosterTTL,
         outfitRoster: new Map(),
-        outfitTTL: profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL,
+        outfitTTL: sanitizeRosterTurnValue(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL),
         processedLength: 0,
         lastAcceptedIndex: -1,
         bufferOffset: 0,
@@ -6216,7 +6271,10 @@ function buildSimulationFinalState(msgState) {
         lastSubject: msgState.lastSubject,
         processedLength: msgState.processedLength,
         sceneRoster: Array.from(msgState.sceneRoster || []),
-        rosterTTL: msgState.rosterTTL,
+        rosterTTL: msgState.defaultRosterTTL,
+        rosterTurns: msgState?.rosterTurns instanceof Map
+            ? Array.from(msgState.rosterTurns.entries())
+            : [],
         outfitRoster: Array.from(msgState.outfitRoster || []),
         outfitTTL: msgState.outfitTTL,
         vetoed: Boolean(msgState.vetoed),
@@ -6232,6 +6290,13 @@ function simulateTesterStream(combined, profile, bufKey) {
         replaceLiveTesterOutputs([], { roster: [] });
         requestScenePanelRender("tester-reset");
         return { events, finalState: null, rosterTimeline: [], rosterWarnings: [] };
+    }
+
+    if (!(msgState.rosterTurns instanceof Map)) {
+        msgState.rosterTurns = new Map();
+    }
+    if (!Number.isFinite(msgState.defaultRosterTTL)) {
+        msgState.defaultRosterTTL = sanitizeRosterTurnValue(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
     }
 
     const settings = getSettings();
@@ -6288,7 +6353,7 @@ function simulateTesterStream(combined, profile, bufKey) {
     };
 
     const maxBuffer = resolveMaxBufferChars(profile);
-    const rosterTTL = profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL;
+    const defaultRosterTTL = sanitizeRosterTurnValue(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
     const repeatSuppress = Number(profile.repeatSuppressMs) || 0;
     let buffer = "";
     const rosterTimeline = [];
@@ -6351,14 +6416,17 @@ function simulateTesterStream(combined, profile, bufKey) {
         msgState.processedLength = Math.max(msgState.processedLength || 0, absoluteIndex + 1);
 
         if (profile.enableSceneRoster) {
-            const normalized = String(bestMatch.name || "").toLowerCase();
+            const normalized = normalizeRosterKey(bestMatch.name);
             const wasPresent = normalized ? msgState.sceneRoster.has(normalized) : false;
             if (normalized) {
                 msgState.sceneRoster.add(normalized);
                 rosterDisplayNames.set(normalized, bestMatch.name);
+                const resolvedTTL = sanitizeRosterTurnValue(msgState.defaultRosterTTL ?? defaultRosterTTL);
+                if (resolvedTTL != null) {
+                    msgState.rosterTurns.set(normalized, resolvedTTL);
+                }
             }
-            msgState.rosterTTL = rosterTTL;
-            msgState.outfitTTL = rosterTTL;
+            msgState.outfitTTL = sanitizeRosterTurnValue(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
             rosterTimeline.push({
                 type: wasPresent ? 'refresh' : 'join',
                 name: bestMatch.name,
@@ -6436,7 +6504,10 @@ function simulateTesterStream(combined, profile, bufKey) {
         if (state.currentGenerationKey && state.currentGenerationKey === bufKey) {
             const displayNames = new Map();
             if (bestMatch.name) {
-                displayNames.set(bestMatch.name.toLowerCase(), bestMatch.name);
+                const normalizedName = normalizeRosterKey(bestMatch.name);
+                if (normalizedName) {
+                    displayNames.set(normalizedName, bestMatch.name);
+                }
             }
             applySceneRosterUpdate({
                 key: bufKey,
@@ -6449,7 +6520,8 @@ function simulateTesterStream(combined, profile, bufKey) {
                     charIndex: absoluteIndex,
                 },
                 updatedAt: now,
-                turnsRemaining: Number.isFinite(msgState.rosterTTL) ? msgState.rosterTTL : null,
+                turnsByMember: cloneRosterTurns(msgState.rosterTurns),
+                turnsRemaining: msgState.defaultRosterTTL,
             });
             requestScenePanelRender("stream-roster");
         }
@@ -6457,15 +6529,32 @@ function simulateTesterStream(combined, profile, bufKey) {
 
     const finalState = buildSimulationFinalState(msgState);
 
-    if (profile.enableSceneRoster && msgState.sceneRoster.size > 0) {
-        const turnsRemaining = (msgState.rosterTTL ?? rosterTTL) - 1;
-        if (turnsRemaining <= 0) {
-            const names = Array.from(msgState.sceneRoster || []).map((name) => rosterDisplayNames.get(name) || name);
+    if (profile.enableSceneRoster && msgState.rosterTurns instanceof Map && msgState.rosterTurns.size > 0) {
+        const expiring = [];
+        msgState.rosterTurns.forEach((turns, normalized) => {
+            const sanitized = sanitizeRosterTurnValue(turns);
+            if (sanitized == null) {
+                return;
+            }
+            if (sanitized <= 1) {
+                const nextRemaining = Math.max(0, sanitized - 1);
+                expiring.push({
+                    name: rosterDisplayNames.get(normalized) || normalized,
+                    remaining: nextRemaining,
+                });
+            }
+        });
+        if (expiring.length) {
+            const names = expiring.map((entry) => entry.name);
+            const turnsRemaining = expiring.reduce((min, entry) => Math.min(min, entry.remaining), expiring[0].remaining);
+            const ttlLabel = defaultRosterTTL != null
+                ? `Scene roster TTL of ${defaultRosterTTL}`
+                : "Scene roster TTL";
             rosterWarnings.push({
                 type: 'ttl-expiry',
                 turnsRemaining: Math.max(0, turnsRemaining),
                 names,
-                message: `Scene roster TTL of ${rosterTTL} will clear ${names.join(', ')} before the next message. Consider increasing the TTL for longer conversations.`,
+                message: `${ttlLabel} will clear ${names.join(', ')} before the next message. Consider increasing the TTL for longer conversations.`,
             });
             rosterTimeline.push({
                 type: 'expiry-warning',
@@ -7823,7 +7912,10 @@ function captureSceneOutcomeForMessage(reference) {
     const displayNames = collectDisplayNameMap(roster, events, existingOutcome?.displayNames);
     const stats = state.messageStats instanceof Map ? state.messageStats.get(normalizedKey) : null;
     const timestamp = Date.now();
-    const turnsRemaining = Number.isFinite(msgState?.rosterTTL) ? Math.max(0, Math.floor(msgState.rosterTTL)) : null;
+    const turnsByMember = cloneRosterTurns(msgState?.rosterTurns);
+    const turnsRemaining = Number.isFinite(msgState?.defaultRosterTTL)
+        ? Math.max(0, Math.floor(msgState.defaultRosterTTL))
+        : null;
     const matches = state.messageMatches instanceof Map
         ? state.messageMatches.get(normalizedKey) || []
         : [];
@@ -7841,6 +7933,7 @@ function captureSceneOutcomeForMessage(reference) {
         displayNames,
         lastMatch: events.length ? { ...events[events.length - 1] } : null,
         updatedAt: timestamp,
+        turnsByMember,
         turnsRemaining,
     });
 
@@ -7861,6 +7954,7 @@ function captureSceneOutcomeForMessage(reference) {
         text: message?.mes || "",
         updatedAt: timestamp,
         lastEvent: events.length ? { ...events[events.length - 1] } : null,
+        turnsByMember: toRosterTurnEntries(turnsByMember),
         turnsRemaining,
         matches: matches.map((match) => ({ ...match })),
     };
@@ -7952,9 +8046,23 @@ function restoreSceneOutcomeForMessage(message, { immediateRender = true } = {})
     });
 
     const resolvedId = Number.isFinite(stored?.messageId) ? stored.messageId : message.mesId;
+    const storedTurnEntries = Array.isArray(stored?.turnsByMember)
+        ? stored.turnsByMember
+        : [];
+    const turnsByMember = fromRosterTurnEntries(storedTurnEntries);
     const turnsRemaining = Number.isFinite(stored?.turnsRemaining)
         ? Math.max(0, Math.floor(stored.turnsRemaining))
         : null;
+    if (turnsByMember.size === 0 && Number.isFinite(stored?.turnsRemaining)) {
+        const fallbackTurns = Math.max(0, Math.floor(stored.turnsRemaining));
+        roster.forEach((value) => {
+            const normalized = normalizeRosterKey(value);
+            if (!normalized) {
+                return;
+            }
+            turnsByMember.set(normalized, fallbackTurns);
+        });
+    }
     if (!(state.messageMatches instanceof Map)) {
         state.messageMatches = new Map();
     }
@@ -7970,6 +8078,7 @@ function restoreSceneOutcomeForMessage(message, { immediateRender = true } = {})
         displayNames,
         lastMatch: stored?.lastEvent ? { ...stored.lastEvent } : (events.length ? { ...events[events.length - 1] } : null),
         updatedAt: timestamp,
+        turnsByMember,
         turnsRemaining,
     });
 
@@ -8183,15 +8292,49 @@ function createMessageState(profile, bufKey) {
         }
     }
 
-    const profileTTL = Number.isFinite(profile.sceneRosterTTL)
-        ? profile.sceneRosterTTL
-        : PROFILE_DEFAULTS.sceneRosterTTL;
-    const baseRosterTTL = Number.isFinite(oldState?.rosterTTL)
-        ? oldState.rosterTTL
-        : (Number.isFinite(profileTTL) ? profileTTL : null);
+    const profileTTL = sanitizeRosterTurnValue(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
+    const previousTurns = oldState?.rosterTurns instanceof Map ? oldState.rosterTurns : null;
+    const rosterTurns = new Map();
+    const expiredMembers = [];
+
+    if (previousTurns && previousTurns.size > 0) {
+        previousTurns.forEach((value, key) => {
+            const normalized = normalizeRosterKey(key);
+            const sanitized = sanitizeRosterTurnValue(value);
+            if (!normalized || sanitized == null) {
+                return;
+            }
+            const next = sanitized - 1;
+            if (next > 0) {
+                rosterTurns.set(normalized, next);
+            } else {
+                expiredMembers.push(normalized);
+            }
+        });
+    } else if (oldState?.sceneRoster instanceof Set && oldState.sceneRoster.size > 0) {
+        const fallback = sanitizeRosterTurnValue(oldState?.rosterTTL ?? profileTTL);
+        oldState.sceneRoster.forEach((value) => {
+            const normalized = normalizeRosterKey(value);
+            if (!normalized) {
+                return;
+            }
+            if (fallback == null) {
+                expiredMembers.push(normalized);
+                return;
+            }
+            const next = fallback - 1;
+            if (next > 0) {
+                rosterTurns.set(normalized, next);
+            } else {
+                expiredMembers.push(normalized);
+            }
+        });
+    }
+
+    const sceneRoster = new Set(rosterTurns.keys());
     const baseOutfitTTL = Number.isFinite(oldState?.outfitTTL)
         ? oldState.outfitTTL
-        : (Number.isFinite(profileTTL) ? profileTTL : null);
+        : profileTTL;
 
     const newState = {
         lastAcceptedName: null,
@@ -8201,9 +8344,10 @@ function createMessageState(profile, bufKey) {
         lastSubjectNormalized: null,
         pendingSubject,
         pendingSubjectNormalized,
-        sceneRoster: new Set(oldState?.sceneRoster || []),
+        sceneRoster,
         outfitRoster: new Map(oldState?.outfitRoster || []),
-        rosterTTL: baseRosterTTL,
+        rosterTurns,
+        defaultRosterTTL: profileTTL,
         outfitTTL: baseOutfitTTL,
         processedLength: 0,
         lastAcceptedIndex: -1,
@@ -8212,16 +8356,9 @@ function createMessageState(profile, bufKey) {
 
     let rosterCleared = false;
 
-    if (newState.sceneRoster.size > 0 && Number.isFinite(newState.rosterTTL)) {
-        newState.rosterTTL -= 1;
-        if (newState.rosterTTL <= 0) {
-            if (newState.sceneRoster.size > 0) {
-                rosterCleared = true;
-            }
-            debugLog("Scene roster TTL expired, clearing roster.");
-            newState.sceneRoster.clear();
-        }
-        newState.rosterTTL = Math.max(0, newState.rosterTTL);
+    if (expiredMembers.length > 0) {
+        rosterCleared = true;
+        debugLog(`Scene roster TTL expired for ${expiredMembers.join(', ')}, removing from roster.`);
     }
 
     if (newState.outfitRoster.size > 0 && Number.isFinite(newState.outfitTTL)) {
@@ -8322,6 +8459,75 @@ function remapMessageKey(oldKey, newKey) {
 }
 
 const handleGenerationStart = (...args) => {
+    const isUserInitiated = (() => {
+        const queue = Array.isArray(args) ? [...args] : [];
+        const visited = new Set();
+        while (queue.length) {
+            const value = queue.shift();
+            if (value == null) {
+                continue;
+            }
+            if (typeof value === "string") {
+                const lowered = value.trim().toLowerCase();
+                if (["user", "input", "manual", "manual_input", "human", "player"].includes(lowered)) {
+                    return true;
+                }
+                continue;
+            }
+            if (typeof value === "number" || typeof value === "boolean") {
+                continue;
+            }
+            if (typeof value !== "object") {
+                continue;
+            }
+            if (visited.has(value)) {
+                continue;
+            }
+            visited.add(value);
+            if (value.is_user === true || value.isUser === true) {
+                return true;
+            }
+            const role = typeof value.role === "string" ? value.role.trim().toLowerCase() : null;
+            if (role === "user" || role === "player" || role === "human") {
+                return true;
+            }
+            const author = typeof value.author === "string" ? value.author.trim().toLowerCase() : null;
+            if (author === "user" || author === "player" || author === "human") {
+                return true;
+            }
+            const sender = typeof value.sender === "string" ? value.sender.trim().toLowerCase() : null;
+            if (sender === "user" || sender === "player" || sender === "human") {
+                return true;
+            }
+            const source = typeof value.source === "string" ? value.source.trim().toLowerCase() : null;
+            if (source === "user" || source === "player" || source === "human") {
+                return true;
+            }
+            const type = typeof value.type === "string" ? value.type.trim().toLowerCase() : null;
+            if (type === "user" || type === "input" || type === "manual" || type === "human") {
+                return true;
+            }
+            const generationType = typeof value.generationType === "string"
+                ? value.generationType.trim().toLowerCase()
+                : null;
+            if (generationType === "user" || generationType === "input" || generationType === "manual") {
+                return true;
+            }
+            if (typeof value.message === "object" && value.message !== null) {
+                queue.push(value.message);
+            }
+            if (Array.isArray(value.messages)) {
+                queue.push(...value.messages);
+            }
+        }
+        return false;
+    })();
+
+    if (isUserInitiated) {
+        debugLog("Skipping generation start for user-authored event.", args);
+        return;
+    }
+
     let bufKey = null;
     for (const arg of args) {
         if (typeof arg === 'string' && arg.trim().length) {
@@ -8366,7 +8572,8 @@ const handleGenerationStart = (...args) => {
                 key: normalizedKey,
                 messageId: extractMessageIdFromKey(normalizedKey),
                 roster: Array.from(msgState.sceneRoster || []),
-                turnsRemaining: Number.isFinite(msgState.rosterTTL) ? msgState.rosterTTL : 0,
+                turnsByMember: cloneRosterTurns(msgState.rosterTurns),
+                turnsRemaining: msgState.defaultRosterTTL,
                 updatedAt: Date.now(),
             });
             requestScenePanelRender("roster-prime", { immediate: true });
@@ -8436,7 +8643,8 @@ const handleStream = (...args) => {
                     key: normalized,
                     messageId: extractMessageIdFromKey(normalized),
                     roster: Array.from(msgState.sceneRoster || []),
-                    turnsRemaining: Number.isFinite(msgState.rosterTTL) ? msgState.rosterTTL : 0,
+                    turnsByMember: cloneRosterTurns(msgState.rosterTurns),
+                    turnsRemaining: msgState.defaultRosterTTL,
                     updatedAt: Date.now(),
                 });
                 requestScenePanelRender("roster-prime", { immediate: true });
@@ -8511,9 +8719,18 @@ const handleStream = (...args) => {
             msgState.processedLength = Math.max(msgState.processedLength || 0, absoluteIndex + 1);
 
             if (profile.enableSceneRoster) {
-                msgState.sceneRoster.add(matchedName.toLowerCase());
-                msgState.rosterTTL = profile.sceneRosterTTL;
-                msgState.outfitTTL = profile.sceneRosterTTL;
+                const normalizedName = normalizeRosterKey(matchedName);
+                if (normalizedName) {
+                    msgState.sceneRoster.add(normalizedName);
+                    if (!(msgState.rosterTurns instanceof Map)) {
+                        msgState.rosterTurns = new Map();
+                    }
+                    const resolvedTTL = sanitizeRosterTurnValue(msgState.defaultRosterTTL ?? profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
+                    if (resolvedTTL != null) {
+                        msgState.rosterTurns.set(normalizedName, resolvedTTL);
+                    }
+                }
+                msgState.outfitTTL = sanitizeRosterTurnValue(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
             }
             if (matchKind !== 'pronoun') {
                 confirmMessageSubject(msgState, matchedName);
