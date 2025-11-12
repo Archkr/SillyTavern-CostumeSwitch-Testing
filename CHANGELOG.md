@@ -17,7 +17,7 @@
 - **Scene panel layout cleanup.** Retired the legacy collapse handle so the crest header and toolbar own panel visibility, keeping the frame tidy without the extra toggle stub.
 
 ### Fixed
-- **Scene panel user message handling.** User-authored chat updates no longer trigger roster wipes or analytics refreshes, so the control center stays stable while players talk.
+- **Scene panel user message handling.** User-authored chat updates no longer trigger roster wipes or scene panel refreshes, so the control center stays stable and message counters persist while players talk.
 - **Scene panel idle refresh.** Chat-change hooks now ignore updates that don't alter the latest assistant message, so editing system prompts or sending player chatter no longer clears or replays roster detections.
 - **Scene panel auto-open triggers.** Auto-open on streaming or new results now re-enables the side panel when it was hidden, so updates bring the workspace back instead of staying out of view.
 - **Buffer window trimming.** Streaming keeps matching after the max buffer limit trims older text, so outfit switching and live diagnostics continue instead of stalling at the limit.
@@ -27,7 +27,7 @@
   the event list.
 - **Roster inactivity detection.** Characters drop to an inactive state when they are missing from the latest detection pass,
   preventing message counters from stalling at their initial values.
-- **Scene roster TTL countdown.** Remaining message counters now inherit the previous turn balance, so entries tick down each message instead of freezing at the initial value.
+- **Scene roster TTL countdown.** Remaining message counters now inherit their prior balance per character, so each roster entry ticks down independently instead of every slot sharing the same timer.
 - **First-stream detection fallback.** Streaming tokens now capture their message key when the generation-start hook fires too early, restoring roster updates for the first outputs after loading a chat.
 - **Scene roster scrolling.** The roster list keeps its scrollbox active so large casts remain accessible without shifting the entire panel.
 - **Scene panel analytics remapping.** Detection events recorded during streaming now follow the rendered message key, restoring roster/results feeds that previously appeared empty after generation finished.
