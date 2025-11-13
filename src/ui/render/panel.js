@@ -21,6 +21,170 @@ import { renderCoverageSuggestions } from "./coverage.js";
 import { resolveContainer, clearContainer, createElement } from "./utils.js";
 
 let scenePanelSummonButton = null;
+let scenePanelSummonButtonObserver = null;
+let scenePanelSummonParentObserver = null;
+let scenePanelSummonParentObserverTarget = null;
+let scenePanelSummonRestoring = false;
+let lastScenePanelSummonState = {
+    enabled: false,
+    collapsed: false,
+};
+
+function isHTMLElement(node) {
+    return typeof HTMLElement !== "undefined" && node instanceof HTMLElement;
+}
+
+function getScenePanelSummonParent() {
+    if (typeof document === "undefined") {
+        return null;
+    }
+    return document.body || null;
+}
+
+function restoreScenePanelSummonButton() {
+    if (scenePanelSummonRestoring) {
+        return;
+    }
+    scenePanelSummonRestoring = true;
+    try {
+        const button = ensureScenePanelSummonButton();
+        if (!button) {
+            return;
+        }
+        const parent = getScenePanelSummonParent();
+        if (parent && (!button.parentElement || !button.parentElement.isConnected)) {
+            parent.appendChild(button);
+        }
+        button.style.removeProperty("display");
+        button.style.removeProperty("visibility");
+        button.style.removeProperty("opacity");
+        button.removeAttribute("hidden");
+        button.removeAttribute("aria-hidden");
+        if (!button.classList.contains("cs-scene-panel__summon")) {
+            button.classList.add("cs-scene-panel__summon");
+        }
+        updateScenePanelSummonVisibility(lastScenePanelSummonState.enabled, {
+            collapsed: lastScenePanelSummonState.collapsed,
+        });
+    } finally {
+        scenePanelSummonRestoring = false;
+    }
+}
+
+function observeScenePanelSummonButton(button) {
+    if (typeof MutationObserver === "undefined" || !button) {
+        return;
+    }
+    if (!scenePanelSummonButtonObserver) {
+        scenePanelSummonButtonObserver = new MutationObserver((mutations) => {
+            if (scenePanelSummonRestoring) {
+                return;
+            }
+            let requiresRestore = false;
+            for (const mutation of mutations) {
+                if (!mutation || mutation.type !== "attributes") {
+                    continue;
+                }
+                const target = isHTMLElement(mutation.target) ? mutation.target : null;
+                if (!target) {
+                    continue;
+                }
+                if (mutation.attributeName === "hidden" && target.hidden) {
+                    requiresRestore = true;
+                    break;
+                }
+                if (mutation.attributeName === "aria-hidden") {
+                    const ariaHidden = target.getAttribute("aria-hidden");
+                    if (ariaHidden === "true") {
+                        requiresRestore = true;
+                        break;
+                    }
+                }
+                if (mutation.attributeName === "style") {
+                    const { display, visibility, opacity } = target.style;
+                    if (
+                        display === "none"
+                        || visibility === "hidden"
+                        || visibility === "collapse"
+                        || opacity === "0"
+                    ) {
+                        requiresRestore = true;
+                        break;
+                    }
+                }
+                if (mutation.attributeName === "class" && !target.classList.contains("cs-scene-panel__summon")) {
+                    requiresRestore = true;
+                    break;
+                }
+            }
+            if (requiresRestore) {
+                restoreScenePanelSummonButton();
+            }
+        });
+    }
+    try {
+        scenePanelSummonButtonObserver.disconnect();
+    } catch (err) {
+    }
+    try {
+        scenePanelSummonButtonObserver.observe(button, {
+            attributes: true,
+            attributeFilter: ["hidden", "aria-hidden", "style", "class"],
+        });
+    } catch (err) {
+    }
+}
+
+function observeScenePanelSummonParent(button) {
+    if (typeof MutationObserver === "undefined" || !button) {
+        return;
+    }
+    const parent = isHTMLElement(button.parentNode) ? button.parentNode : getScenePanelSummonParent();
+    if (!parent) {
+        return;
+    }
+    if (!scenePanelSummonParentObserver) {
+        scenePanelSummonParentObserver = new MutationObserver((mutations) => {
+            if (scenePanelSummonRestoring) {
+                return;
+            }
+            for (const mutation of mutations) {
+                if (!mutation || mutation.type !== "childList") {
+                    continue;
+                }
+                for (const removed of mutation.removedNodes) {
+                    if (removed === scenePanelSummonButton) {
+                        restoreScenePanelSummonButton();
+                        return;
+                    }
+                }
+            }
+        });
+    }
+    if (scenePanelSummonParentObserverTarget && scenePanelSummonParentObserverTarget !== parent) {
+        try {
+            scenePanelSummonParentObserver.disconnect();
+        } catch (err) {
+        }
+        scenePanelSummonParentObserverTarget = null;
+    }
+    if (scenePanelSummonParentObserverTarget === parent) {
+        return;
+    }
+    try {
+        scenePanelSummonParentObserver.observe(parent, { childList: true });
+        scenePanelSummonParentObserverTarget = parent;
+    } catch (err) {
+    }
+}
+
+function startScenePanelSummonGuards(button) {
+    if (!button) {
+        return;
+    }
+    observeScenePanelSummonButton(button);
+    observeScenePanelSummonParent(button);
+}
 let lastRosterRevision = null;
 let lastActiveRevision = null;
 let lastLogRevision = null;
@@ -36,6 +200,7 @@ function ensureScenePanelSummonButton() {
     const existing = document.getElementById("cs-scene-panel-summon");
     if (existing) {
         scenePanelSummonButton = existing;
+        startScenePanelSummonGuards(scenePanelSummonButton);
         return scenePanelSummonButton;
     }
     const button = createElement("button", "cs-scene-panel__summon");
@@ -63,15 +228,20 @@ function ensureScenePanelSummonButton() {
     }
     button.hidden = true;
     button.setAttribute("aria-hidden", "true");
-    const parent = document.body;
+    const parent = getScenePanelSummonParent();
     if (parent) {
         parent.appendChild(button);
     }
     scenePanelSummonButton = button;
+    startScenePanelSummonGuards(scenePanelSummonButton);
     return scenePanelSummonButton;
 }
 
 function updateScenePanelSummonVisibility(enabled, { collapsed = false } = {}) {
+    lastScenePanelSummonState = {
+        enabled: Boolean(enabled),
+        collapsed: Boolean(collapsed),
+    };
     const button = ensureScenePanelSummonButton();
     if (!button) {
         return;
@@ -85,6 +255,14 @@ function updateScenePanelSummonVisibility(enabled, { collapsed = false } = {}) {
     button.hidden = false;
     button.removeAttribute("hidden");
     button.removeAttribute("aria-hidden");
+    if (button.style) {
+        try {
+            button.style.setProperty("display", "inline-flex", "important");
+            button.style.setProperty("visibility", "visible", "important");
+            button.style.setProperty("opacity", "1", "important");
+        } catch (err) {
+        }
+    }
     button.setAttribute("aria-pressed", enabled ? "true" : "false");
     button.setAttribute("aria-label", enabled ? "Hide scene panel" : "Show scene panel");
     button.title = enabled ? "Hide scene panel" : "Show scene panel";
