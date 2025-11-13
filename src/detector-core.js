@@ -251,10 +251,23 @@ export function findMatches(text, regex, quoteRanges, options = {}) {
     }
     const results = [];
     const searchInsideQuotes = Boolean(options.searchInsideQuotes);
+    const startIndex = Number.isFinite(options.startIndex) && options.startIndex > 0
+        ? Math.max(0, Math.floor(options.startIndex))
+        : 0;
+    const minIndex = Number.isFinite(options.minIndex)
+        ? Math.max(0, Math.floor(options.minIndex))
+        : null;
     const flags = regex.flags.includes("g") ? regex.flags : `${regex.flags}g`;
     const matcher = new RegExp(regex.source, flags);
+    if (startIndex > 0) {
+        matcher.lastIndex = startIndex;
+    }
     let match;
     while ((match = matcher.exec(text)) !== null) {
+        const matchLength = typeof match[0] === "string" ? match[0].length : 0;
+        if (minIndex != null && match.index + matchLength <= minIndex) {
+            continue;
+        }
         if (searchInsideQuotes || !isIndexInsideQuotes(match.index, quoteRanges)) {
             results.push({ match: match[0], groups: match.slice(1), index: match.index });
         }
@@ -356,6 +369,13 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
     const quoteRanges = options.quoteRanges || getQuoteRanges(text);
     const priorityWeights = options.priorityWeights || {};
     const scanDialogueActions = Boolean(options.scanDialogueActions);
+    const startIndex = Number.isFinite(options.startIndex) && options.startIndex > 0
+        ? Math.max(0, Math.floor(options.startIndex))
+        : 0;
+    const minIndex = Number.isFinite(options.minIndex)
+        ? Math.max(0, Math.floor(options.minIndex))
+        : null;
+    const matchOptions = { startIndex, minIndex };
     const matches = [];
 
     const addMatch = (name, matchKind, index, priority, length = null) => {
@@ -378,21 +398,31 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
     };
 
     if (regexes.speakerRegex) {
-        findMatches(text, regexes.speakerRegex, quoteRanges).forEach(match => {
+        findMatches(text, regexes.speakerRegex, quoteRanges, matchOptions).forEach(match => {
             const name = match.groups?.[0]?.trim();
             addMatch(name, "speaker", match.index, priorityWeights.speaker, getMatchLength(match));
         });
     }
 
     if (profile.detectAttribution !== false && regexes.attributionRegex) {
-        findMatches(text, regexes.attributionRegex, quoteRanges, { searchInsideQuotes: scanDialogueActions }).forEach(match => {
+        findMatches(
+            text,
+            regexes.attributionRegex,
+            quoteRanges,
+            { searchInsideQuotes: scanDialogueActions, ...matchOptions },
+        ).forEach(match => {
             const name = match.groups?.find(group => group)?.trim();
             addMatch(name, "attribution", match.index, priorityWeights.attribution, getMatchLength(match));
         });
     }
 
     if (profile.detectAction !== false && regexes.actionRegex) {
-        findMatches(text, regexes.actionRegex, quoteRanges, { searchInsideQuotes: scanDialogueActions }).forEach(match => {
+        findMatches(
+            text,
+            regexes.actionRegex,
+            quoteRanges,
+            { searchInsideQuotes: scanDialogueActions, ...matchOptions },
+        ).forEach(match => {
             const name = match.groups?.find(group => group)?.trim();
             addMatch(name, "action", match.index, priorityWeights.action, getMatchLength(match));
         });
@@ -403,27 +433,32 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         : "";
 
     if (profile.detectPronoun && regexes.pronounRegex && validatedSubject) {
-        findMatches(text, regexes.pronounRegex, quoteRanges).forEach(match => {
+        findMatches(text, regexes.pronounRegex, quoteRanges, matchOptions).forEach(match => {
             addMatch(validatedSubject, "pronoun", match.index, priorityWeights.pronoun, getMatchLength(match));
         });
     }
 
     if (profile.detectVocative !== false && regexes.vocativeRegex) {
-        findMatches(text, regexes.vocativeRegex, quoteRanges, { searchInsideQuotes: true }).forEach(match => {
+        findMatches(
+            text,
+            regexes.vocativeRegex,
+            quoteRanges,
+            { searchInsideQuotes: true, ...matchOptions },
+        ).forEach(match => {
             const name = match.groups?.[0]?.trim();
             addMatch(name, "vocative", match.index, priorityWeights.vocative, getMatchLength(match));
         });
     }
 
     if (profile.detectPossessive && regexes.possessiveRegex) {
-        findMatches(text, regexes.possessiveRegex, quoteRanges).forEach(match => {
+        findMatches(text, regexes.possessiveRegex, quoteRanges, matchOptions).forEach(match => {
             const name = match.groups?.[0]?.trim();
             addMatch(name, "possessive", match.index, priorityWeights.possessive, getMatchLength(match));
         });
     }
 
     if (profile.detectGeneral && regexes.nameRegex) {
-        findMatches(text, regexes.nameRegex, quoteRanges).forEach(match => {
+        findMatches(text, regexes.nameRegex, quoteRanges, matchOptions).forEach(match => {
             const raw = match.groups?.[0] ?? match.match;
             const name = String(raw ?? "").replace(/-(?:sama|san)$/i, "").trim();
             addMatch(name, "name", match.index, priorityWeights.name, getMatchLength(match));

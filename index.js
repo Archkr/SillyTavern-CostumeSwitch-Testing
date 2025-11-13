@@ -88,6 +88,7 @@ const extensionName = "SillyTavern-CostumeSwitch-Testing";
 const extensionTemplateNamespace = `third-party/${extensionName}`;
 const extensionFolderPath = `scripts/extensions/${extensionTemplateNamespace}`;
 const logPrefix = "[CostumeSwitch]";
+const INCREMENTAL_SCAN_PADDING = 8;
 const NO_EFFECTIVE_PATTERNS_MESSAGE = "All detection patterns were filtered out by ignored names. No detectors can run until you restore at least one allowed pattern.";
 const FOCUS_LOCK_NOTICE_INTERVAL = 2500;
 const MESSAGE_OUTCOME_STORAGE_KEY = "cs_scene_outcomes";
@@ -848,7 +849,7 @@ function getPriorityWeights(profile) {
     return weights;
 }
 
-function findAllMatches(combined) {
+function findAllMatches(combined, options = {}) {
     const profile = getActiveProfile();
     const { compiledRegexes } = state;
     if (!profile || !combined) {
@@ -867,11 +868,21 @@ function findAllMatches(combined) {
         }
     }
 
-    return collectDetections(combined, profile, compiledRegexes, {
+    const detectionOptions = {
         priorityWeights: getPriorityWeights(profile),
         lastSubject,
         scanDialogueActions: Boolean(profile.scanDialogueActions),
-    });
+    };
+
+    if (Number.isFinite(options?.startIndex) && options.startIndex >= 0) {
+        detectionOptions.startIndex = Math.floor(options.startIndex);
+    }
+
+    if (Number.isFinite(options?.minIndex) && options.minIndex >= 0) {
+        detectionOptions.minIndex = Math.floor(options.minIndex);
+    }
+
+    return collectDetections(combined, profile, compiledRegexes, detectionOptions);
 }
 
 function findBestMatch(combined, precomputedMatches = null, options = {}) {
@@ -1647,8 +1658,8 @@ function collectScenePanelState(options = {}) {
     const stats = activeKey && state.messageStats instanceof Map
         ? state.messageStats.get(activeKey) || null
         : null;
-    const matches = activeKey && state.messageMatches instanceof Map
-        ? state.messageMatches.get(activeKey) || []
+    const matches = activeKey
+        ? getCachedMatchesForBuffer(activeKey, buffer.length)
         : [];
     const rankingForMessage = activeKey && state.topSceneRanking instanceof Map
         ? state.topSceneRanking.get(activeKey) || []
@@ -7955,7 +7966,101 @@ function summarizeMatches(matches) {
     return stats;
 }
 
-function updateMessageAnalytics(bufKey, text, { rosterSet, updateSession = true, assumeNormalized = false } = {}) {
+function ensureMatchCache(normalizedKey) {
+    if (!(state.messageMatches instanceof Map)) {
+        state.messageMatches = new Map();
+    }
+
+    let cache = state.messageMatches.get(normalizedKey);
+    if (!cache || typeof cache !== "object" || !Array.isArray(cache.matches)) {
+        cache = { matches: [], processedAbsolute: -1 };
+        state.messageMatches.set(normalizedKey, cache);
+    }
+    return cache;
+}
+
+function normalizeMatchForCache(match, bufferOffset) {
+    const matchLength = Number.isFinite(match.matchLength) && match.matchLength > 0
+        ? Math.floor(match.matchLength)
+        : null;
+    const absoluteIndex = Number.isFinite(match.matchIndex)
+        ? match.matchIndex + bufferOffset
+        : null;
+    return {
+        name: match.name,
+        matchKind: match.matchKind,
+        matchLength,
+        priority: match.priority,
+        absoluteIndex,
+    };
+}
+
+function normalizeStoredMatch(match, bufferOffset = 0) {
+    if (!match) {
+        return null;
+    }
+    const matchLength = Number.isFinite(match.matchLength) && match.matchLength > 0
+        ? Math.floor(match.matchLength)
+        : null;
+    let absoluteIndex = null;
+    if (Number.isFinite(match.absoluteIndex)) {
+        absoluteIndex = match.absoluteIndex;
+    } else if (Number.isFinite(match.matchIndex)) {
+        absoluteIndex = match.matchIndex + bufferOffset;
+    }
+    return {
+        name: match.name,
+        matchKind: match.matchKind,
+        matchLength,
+        priority: match.priority,
+        absoluteIndex,
+    };
+}
+
+function computeAbsoluteEnd(match) {
+    if (!match || !Number.isFinite(match.absoluteIndex)) {
+        return null;
+    }
+    if (!Number.isFinite(match.matchLength) || match.matchLength <= 0) {
+        return match.absoluteIndex;
+    }
+    return match.absoluteIndex + match.matchLength - 1;
+}
+
+function projectMatchesForBuffer(cache, bufferOffset, textLength) {
+    if (!cache || !Array.isArray(cache.matches)) {
+        return [];
+    }
+    const limit = bufferOffset + textLength;
+    return cache.matches
+        .filter((match) => !Number.isFinite(match.absoluteIndex)
+            || (match.absoluteIndex >= bufferOffset && match.absoluteIndex < limit))
+        .map((match) => {
+            const relativeIndex = Number.isFinite(match.absoluteIndex)
+                ? match.absoluteIndex - bufferOffset
+                : null;
+            return {
+                name: match.name,
+                matchKind: match.matchKind,
+                matchLength: match.matchLength,
+                priority: match.priority,
+                matchIndex: relativeIndex,
+                absoluteIndex: match.absoluteIndex,
+            };
+        });
+}
+
+function updateMessageAnalytics(bufKey, text, options = {}) {
+    const {
+        rosterSet,
+        updateSession = true,
+        assumeNormalized = false,
+        bufferOffset: explicitBufferOffset = 0,
+        incremental = false,
+        startIndex = null,
+        previousProcessedAbsolute = null,
+    } = options;
+
     const normalizedKey = bufKey ? (normalizeMessageKey(bufKey) || bufKey) : bufKey;
     if (!normalizedKey) {
         return { stats: new Map(), ranking: [] };
@@ -7971,16 +8076,51 @@ function updateMessageAnalytics(bufKey, text, { rosterSet, updateSession = true,
 
     const normalizedText = typeof text === 'string' ? (assumeNormalized ? text : normalizeStreamText(text)) : '';
     const profile = getActiveProfile();
-    const matches = normalizedText ? findAllMatches(normalizedText) : [];
-    const stats = summarizeMatches(matches);
+    const bufferOffset = Number.isFinite(explicitBufferOffset) ? Math.max(0, Math.floor(explicitBufferOffset)) : 0;
+    const cache = ensureMatchCache(normalizedKey);
 
-    state.messageStats.set(normalizedKey, stats);
-    if (!(state.messageMatches instanceof Map)) {
-        state.messageMatches = new Map();
+    const textLength = normalizedText.length;
+
+    if (!incremental) {
+        const matches = normalizedText ? findAllMatches(normalizedText) : [];
+        cache.matches = matches.map((match) => normalizeMatchForCache(match, bufferOffset));
+        cache.processedAbsolute = textLength > 0
+            ? bufferOffset + textLength - 1
+            : bufferOffset - 1;
+    } else if (normalizedText) {
+        const relativeStart = Number.isFinite(startIndex) && startIndex >= 0
+            ? Math.min(Math.floor(startIndex), textLength)
+            : textLength;
+        const minIndex = Number.isFinite(relativeStart) ? relativeStart : 0;
+        const processedBoundary = Number.isFinite(cache.processedAbsolute)
+            ? cache.processedAbsolute
+            : (Number.isFinite(previousProcessedAbsolute) ? previousProcessedAbsolute : bufferOffset + minIndex - 1);
+        const scanStartIndex = Math.max(0, minIndex - INCREMENTAL_SCAN_PADDING);
+        const newMatches = findAllMatches(normalizedText, { startIndex: scanStartIndex, minIndex });
+        newMatches
+            .map((match) => normalizeMatchForCache(match, bufferOffset))
+            .forEach((match) => {
+                const absoluteEnd = computeAbsoluteEnd(match);
+                if (Number.isFinite(absoluteEnd) && absoluteEnd <= processedBoundary) {
+                    return;
+                }
+                cache.matches.push(match);
+            });
+        cache.matches.sort((a, b) => {
+            const aIndex = Number.isFinite(a.absoluteIndex) ? a.absoluteIndex : Number.POSITIVE_INFINITY;
+            const bIndex = Number.isFinite(b.absoluteIndex) ? b.absoluteIndex : Number.POSITIVE_INFINITY;
+            return aIndex - bIndex;
+        });
+        cache.processedAbsolute = textLength > 0
+            ? bufferOffset + textLength - 1
+            : bufferOffset - 1;
     }
-    state.messageMatches.set(normalizedKey, matches.map((match) => ({ ...match })));
 
-    const ranking = rankSceneCharacters(matches, {
+    state.messageStats.set(normalizedKey, summarizeMatches(cache.matches));
+
+    const visibleMatches = projectMatchesForBuffer(cache, bufferOffset, textLength);
+
+    const ranking = rankSceneCharacters(visibleMatches, {
         rosterSet,
         profile,
         distancePenaltyWeight: resolveNumericSetting(profile?.distancePenaltyWeight, PROFILE_DEFAULTS.distancePenaltyWeight),
@@ -8002,7 +8142,46 @@ function updateMessageAnalytics(bufKey, text, { rosterSet, updateSession = true,
     }
 
     requestScenePanelRender("analytics-update");
-    return { stats, ranking, matches };
+    return {
+        stats: state.messageStats.get(normalizedKey) || new Map(),
+        ranking,
+        matches: visibleMatches,
+    };
+}
+
+function resolveBufferOffsetForKey(key) {
+    const normalizedKey = normalizeMessageKey(key);
+    if (!normalizedKey) {
+        return 0;
+    }
+    if (state.perMessageStates instanceof Map) {
+        const msgState = state.perMessageStates.get(normalizedKey);
+        if (msgState && Number.isFinite(msgState.bufferOffset)) {
+            return Math.max(0, Math.floor(msgState.bufferOffset));
+        }
+    }
+    return 0;
+}
+
+function getCachedMatchesForBuffer(key, bufferLength = null) {
+    const normalizedKey = normalizeMessageKey(key);
+    if (!normalizedKey || !(state.messageMatches instanceof Map)) {
+        return [];
+    }
+    const cache = state.messageMatches.get(normalizedKey);
+    if (!cache) {
+        return [];
+    }
+    const bufferOffset = resolveBufferOffsetForKey(normalizedKey);
+    const length = Number.isFinite(bufferLength) && bufferLength >= 0
+        ? bufferLength
+        : (() => {
+            if (Number.isFinite(cache.processedAbsolute)) {
+                return Math.max(0, cache.processedAbsolute - bufferOffset + 1);
+            }
+            return 0;
+        })();
+    return projectMatchesForBuffer(cache, bufferOffset, length);
 }
 
 function calculateFinalMessageStats(reference) {
@@ -8178,9 +8357,8 @@ function captureSceneOutcomeForMessage(reference) {
     const turnsRemaining = Number.isFinite(msgState?.defaultRosterTTL)
         ? Math.max(0, Math.floor(msgState.defaultRosterTTL))
         : null;
-    const matches = state.messageMatches instanceof Map
-        ? state.messageMatches.get(normalizedKey) || []
-        : [];
+    const buffer = state.perMessageBuffers instanceof Map ? state.perMessageBuffers.get(normalizedKey) || "" : "";
+    const matches = getCachedMatchesForBuffer(normalizedKey, buffer.length);
 
     replaceLiveTesterOutputs(events, {
         roster,
@@ -8199,7 +8377,6 @@ function captureSceneOutcomeForMessage(reference) {
         turnsRemaining,
     });
 
-    const buffer = state.perMessageBuffers instanceof Map ? state.perMessageBuffers.get(normalizedKey) || "" : "";
     state.lastSceneSwipeId = Number.isFinite(message?.swipe_id) ? message.swipe_id : null;
     state.lastSceneDigest = extractSceneMessageDigest(message)
         || deriveSceneDigestFromText(message?.mes)
@@ -8332,13 +8509,24 @@ function restoreSceneOutcomeForMessage(message, {
             turnsByMember.set(normalized, fallbackTurns);
         });
     }
-    if (!(state.messageMatches instanceof Map)) {
-        state.messageMatches = new Map();
+    const cache = ensureMatchCache(messageKey);
+    if (Array.isArray(stored?.matches) && stored.matches.length) {
+        const bufferOffset = resolveBufferOffsetForKey(messageKey);
+        cache.matches = stored.matches
+            .map((match) => normalizeStoredMatch(match, bufferOffset))
+            .filter(Boolean);
+        const maxAbsolute = cache.matches.reduce((max, match) => {
+            const end = computeAbsoluteEnd(match);
+            return Number.isFinite(end) ? Math.max(max, end) : max;
+        }, Number.NEGATIVE_INFINITY);
+        if (Number.isFinite(maxAbsolute) && maxAbsolute !== Number.NEGATIVE_INFINITY) {
+            cache.processedAbsolute = maxAbsolute;
+        } else if (!Number.isFinite(cache.processedAbsolute)) {
+            cache.processedAbsolute = buffer.length > 0
+                ? bufferOffset + buffer.length - 1
+                : bufferOffset - 1;
+        }
     }
-    const storedMatches = Array.isArray(stored?.matches)
-        ? stored.matches.map((match) => ({ ...match }))
-        : [];
-    state.messageMatches.set(messageKey, storedMatches);
 
     applySceneRosterUpdate({
         key: messageKey,
@@ -8973,6 +9161,10 @@ const handleStream = (...args) => {
         if (msgState.vetoed) return;
 
         const prev = state.perMessageBuffers.get(bufKey) || "";
+        const previousOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
+        const previousProcessedLength = Number.isFinite(msgState.processedLength)
+            ? msgState.processedLength
+            : previousOffset + prev.length;
         const normalizedToken = normalizeStreamText(tokenText);
         const appended = prev + normalizedToken;
         const maxBuffer = resolveMaxBufferChars(profile);
@@ -8982,6 +9174,8 @@ const handleStream = (...args) => {
         state.perMessageBuffers.set(bufKey, combined);
 
         const bufferOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
+        const deltaAbsoluteStart = Math.max(previousProcessedLength, bufferOffset);
+        const startIndex = Math.max(0, deltaAbsoluteStart - bufferOffset);
         const newestAbsoluteIndex = combined.length > 0 ? bufferOffset + combined.length - 1 : bufferOffset;
         const lastProcessedIndex = Number.isFinite(msgState.lastAcceptedIndex) ? msgState.lastAcceptedIndex : -1;
 
@@ -8990,7 +9184,16 @@ const handleStream = (...args) => {
         }
 
         const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : null;
-        const analytics = updateMessageAnalytics(bufKey, combined, { rosterSet, assumeNormalized: true });
+        const analytics = updateMessageAnalytics(bufKey, combined, {
+            rosterSet,
+            assumeNormalized: true,
+            bufferOffset,
+            incremental: true,
+            startIndex,
+            previousProcessedAbsolute: Number.isFinite(previousProcessedLength)
+                ? previousProcessedLength - 1
+                : null,
+        });
 
         let minIndexRelative = null;
         if (lastProcessedIndex >= bufferOffset) {
