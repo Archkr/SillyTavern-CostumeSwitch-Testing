@@ -16,16 +16,18 @@
     --header-text-subtle: rgba(248, 249, 255, 0.75);
     --cs-hero-gradient: linear-gradient(
         135deg,
-        rgba(211, 108, 255, 0.48) 0%,
-        rgba(102, 171, 255, 0.42) 38%,
-        rgba(120, 255, 214, 0.3) 72%
+        rgba(146, 88, 226, 0.35) 0%,
+        rgba(72, 134, 216, 0.3) 40%,
+        rgba(64, 182, 190, 0.2) 80%
     );
     --cs-hero-base: linear-gradient(
         160deg,
-        rgba(13, 18, 45, 0.98) 0%,
-        rgba(34, 12, 63, 0.96) 45%,
-        rgba(6, 10, 26, 0.99) 100%
+        rgba(6, 10, 24, 0.98) 0%,
+        rgba(20, 9, 38, 0.97) 46%,
+        rgba(3, 6, 16, 0.99) 100%
     );
+    --cs-hero-aurora: radial-gradient(circle at 18% -12%, rgba(138, 96, 226, 0.24), transparent 58%),
+        radial-gradient(circle at 112% 22%, rgba(60, 184, 232, 0.22), transparent 52%);
 }
 
 #costume-switcher-settings.cs-theme .inline-drawer {
@@ -597,12 +599,28 @@
 #costume-switcher-settings.cs-theme .cs-header-ambient::before {
     content: "";
     position: absolute;
-    inset: -14% -12%;
-    background: radial-gradient(circle at 22% 30%, rgba(255, 141, 255, 0.4), transparent 64%),
-        radial-gradient(circle at 76% 24%, rgba(118, 210, 255, 0.32), transparent 72%),
-        radial-gradient(circle at 60% 82%, rgba(120, 255, 214, 0.26), transparent 70%);
-    opacity: 0.9;
-    filter: blur(18px);
+    inset: -18% -16%;
+    background: var(--cs-hero-aurora);
+    opacity: 0.58;
+    filter: blur(28px);
+    pointer-events: none;
+    mix-blend-mode: screen;
+    z-index: 0;
+    transform: scale(1.08);
+}
+
+#costume-switcher-settings.cs-theme .cs-header-ambient::after {
+    content: "";
+    position: absolute;
+    inset: -12%;
+    background: linear-gradient(
+        150deg,
+        rgba(4, 6, 18, 0.78) 0%,
+        rgba(9, 13, 28, 0.88) 40%,
+        rgba(6, 12, 24, 0.92) 100%
+    );
+    opacity: 0.88;
+    mix-blend-mode: multiply;
     pointer-events: none;
     z-index: 0;
 }
@@ -689,136 +707,163 @@
 #costume-switcher-settings.cs-theme .cs-header-ambient::after {
     content: "";
     position: absolute;
-    inset: -18% -8% 16% -8%;
-    background: radial-gradient(circle at 32% 34%, rgba(255, 182, 255, 0.4), transparent 62%),
-        radial-gradient(circle at 74% 62%, rgba(138, 214, 255, 0.28), transparent 70%),
+    inset: -20% -12% 18% -12%;
+    background:
+        radial-gradient(circle at 26% 32%, rgba(151, 109, 255, 0.22), transparent 64%),
+        radial-gradient(circle at 72% 68%, rgba(64, 207, 255, 0.18), transparent 72%),
         conic-gradient(
-            from 180deg at 50% 50%,
+            from 160deg at 50% 52%,
             rgba(255, 255, 255, 0) 0deg,
-            rgba(255, 163, 255, 0.28) 120deg,
-            rgba(122, 222, 255, 0.25) 220deg,
+            rgba(171, 139, 255, 0.18) 118deg,
+            rgba(126, 218, 255, 0.16) 214deg,
             rgba(255, 255, 255, 0) 360deg
         );
-    opacity: 0.62;
+    opacity: 0.48;
     mix-blend-mode: screen;
     pointer-events: none;
-    filter: blur(16px);
+    filter: blur(18px);
     z-index: 2;
 }
 
-#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-layer {
+#costume-switcher-settings.cs-theme .cs-header-ambient .nebula-cloud {
     position: absolute;
-    width: var(--ripple-size, 320px);
-    height: var(--ripple-size, 320px);
-    left: var(--ripple-left, 50%);
-    top: var(--ripple-top, 50%);
+    width: var(--cloud-size, 320px);
+    height: var(--cloud-size, 320px);
+    left: var(--cloud-left, 50%);
+    top: var(--cloud-top, 50%);
     transform: translate(-50%, -50%);
     border-radius: 50%;
-    overflow: hidden;
-    opacity: var(--ripple-opacity, 0.5);
-    filter: blur(var(--ripple-blur, 2px));
+    background:
+        radial-gradient(circle at 32% 38%, var(--cloud-color-primary, rgba(118, 210, 255, 0.38)) 0%, transparent 66%),
+        radial-gradient(circle at 70% 64%, var(--cloud-color-secondary, rgba(238, 168, 255, 0.28)) 0%, transparent 72%);
+    opacity: var(--cloud-opacity, 0.48);
+    filter: blur(var(--cloud-blur, 32px));
     mix-blend-mode: screen;
-    animation: ripple-wave var(--ripple-duration, 18s) ease-in-out infinite;
-    animation-delay: var(--ripple-delay, 0s);
+    animation: nebula-drift var(--cloud-duration, 46s) ease-in-out infinite;
+    animation-delay: var(--cloud-delay, 0s);
     z-index: 3;
     will-change: transform, opacity;
 }
 
-#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-layer::before {
+#costume-switcher-settings.cs-theme .cs-header-ambient .nebula-cloud::before {
     content: "";
     position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: radial-gradient(circle at 48% 42%, rgba(255, 195, 255, 0.32) 0%, rgba(255, 195, 255, 0.12) 36%, rgba(255, 195, 255, 0.04) 58%, transparent 78%),
-        radial-gradient(circle at 28% 70%, rgba(132, 222, 255, 0.28), transparent 70%),
-        radial-gradient(circle at 76% 30%, rgba(164, 143, 255, 0.32), transparent 68%);
-}
-
-#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-layer::after {
-    content: "";
-    position: absolute;
-    inset: -18%;
-    border-radius: 50%;
+    inset: -22%;
+    border-radius: inherit;
     background: conic-gradient(
-        from 200deg at 50% 50%,
+        from 140deg at 50% 50%,
         rgba(255, 255, 255, 0) 0deg,
-        rgba(255, 189, 255, 0.32) 82deg,
-        rgba(108, 205, 255, 0.28) 162deg,
-        rgba(255, 255, 255, 0) 240deg,
-        rgba(123, 255, 219, 0.22) 310deg,
+        color-mix(in srgb, var(--cloud-color-primary, rgba(118, 210, 255, 0.38)) 70%, transparent) 110deg,
+        color-mix(in srgb, var(--cloud-color-secondary, rgba(238, 168, 255, 0.28)) 65%, transparent) 220deg,
         rgba(255, 255, 255, 0) 360deg
     );
+    opacity: 0.65;
+    filter: blur(18px);
     mix-blend-mode: screen;
-    opacity: 0.48;
-    animation: ripple-sheen calc(var(--ripple-duration, 18s) * 1.2) linear infinite;
-    animation-delay: calc(var(--ripple-delay, 0s) * 1.05);
+    animation: nebula-shimmer calc(var(--cloud-duration, 46s) * 1.4) linear infinite;
+    animation-delay: var(--cloud-delay, 0s);
+    will-change: transform, opacity;
 }
 
-@keyframes ripple-wave {
+@keyframes nebula-drift {
     0% {
-        transform: translate(-50%, -50%) scale(var(--ripple-scale-start, 0.45));
-        opacity: 0;
-    }
-    18% {
-        opacity: var(--ripple-opacity, 0.5);
+        transform: translate(-50%, -50%) rotate(var(--cloud-rotation-start, -6deg)) scale(var(--cloud-scale-start, 0.96));
+        opacity: calc(var(--cloud-opacity, 0.48) * 0.8);
     }
     48% {
-        opacity: calc(var(--ripple-opacity, 0.5) + 0.02);
-    }
-    78% {
-        opacity: calc(var(--ripple-opacity, 0.5) * 0.4);
+        transform: translate(calc(-50% + 3%), calc(-50% - 2%)) rotate(var(--cloud-rotation-mid, 18deg)) scale(var(--cloud-scale-mid, 1.12));
+        opacity: calc(var(--cloud-opacity, 0.48) * 1.1);
     }
     100% {
-        transform: translate(-50%, -50%) scale(var(--ripple-scale-end, 1.4));
-        opacity: 0;
+        transform: translate(-50%, -50%) rotate(var(--cloud-rotation-end, 32deg)) scale(var(--cloud-scale-end, 0.94));
+        opacity: calc(var(--cloud-opacity, 0.48) * 0.86);
     }
 }
 
-@keyframes ripple-sheen {
+@keyframes nebula-shimmer {
     0% {
-        transform: rotate(0deg) scale(0.92);
+        transform: rotate(0deg) scale(0.96);
+        opacity: 0.55;
     }
     50% {
-        transform: rotate(180deg) scale(1);
+        transform: rotate(180deg) scale(1.04);
+        opacity: 0.85;
     }
     100% {
-        transform: rotate(360deg) scale(0.92);
+        transform: rotate(360deg) scale(0.96);
+        opacity: 0.55;
     }
 }
 
-#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-spark {
+#costume-switcher-settings.cs-theme .cs-header-ambient .nebula-star {
     position: absolute;
-    width: var(--spark-size, 180px);
-    height: var(--spark-size, 180px);
-    left: var(--spark-left, 52%);
-    top: var(--spark-top, 48%);
+    width: var(--star-size, 12px);
+    height: var(--star-size, 12px);
+    left: var(--star-left, 50%);
+    top: var(--star-top, 50%);
     transform: translate(-50%, -50%);
     border-radius: 50%;
-    background: radial-gradient(circle at 46% 42%, rgba(255, 205, 255, 0.45) 0%, rgba(255, 205, 255, 0.16) 42%, transparent 78%),
-        radial-gradient(circle at 60% 68%, rgba(134, 234, 255, 0.32) 0%, rgba(134, 234, 255, 0.1) 48%, transparent 80%);
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.4) 36%, transparent 74%);
+    opacity: var(--star-opacity, 0.82);
     mix-blend-mode: screen;
-    filter: blur(16px);
-    opacity: var(--spark-opacity, 0.35);
-    animation: ripple-sparkle var(--spark-duration, 10s) ease-in-out infinite;
-    animation-delay: var(--spark-delay, 0s);
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.7));
+    animation: nebula-star-twinkle var(--star-duration, 18s) ease-in-out infinite;
+    animation-delay: var(--star-delay, 0s);
     z-index: 4;
+    will-change: transform, opacity;
 }
 
-@keyframes ripple-sparkle {
+#costume-switcher-settings.cs-theme .cs-header-ambient .nebula-star::after {
+    content: "";
+    position: absolute;
+    inset: -60%;
+    background:
+        radial-gradient(circle, rgba(255, 255, 255, 0.45) 0%, transparent 60%),
+        linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.55) 50%, rgba(255, 255, 255, 0) 100%),
+        linear-gradient(0deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.45) 50%, rgba(255, 255, 255, 0) 100%);
+    mix-blend-mode: screen;
+    opacity: 0.55;
+    transform: rotate(15deg);
+    animation: nebula-star-glint calc(var(--star-duration, 18s) * 0.65) ease-in-out infinite;
+    animation-delay: calc(var(--star-delay, 0s) * 0.85);
+    pointer-events: none;
+}
+
+@keyframes nebula-star-twinkle {
     0% {
-        transform: translate(-50%, -50%) scale(0.85);
-        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: calc(var(--star-opacity, 0.82) * 0.4);
     }
-    25% {
-        opacity: var(--spark-opacity, 0.35);
+    35% {
+        transform: translate(calc(-50% - 6px), calc(-50% - 4px)) scale(1.05);
+        opacity: calc(var(--star-opacity, 0.82) * 0.85);
     }
     55% {
-        transform: translate(-48%, -52%) scale(1.05);
-        opacity: calc(var(--spark-opacity, 0.35) * 0.6);
+        transform: translate(calc(-50% + 5px), calc(-50% + 3px)) scale(1.28);
+        opacity: var(--star-opacity, 0.82);
+    }
+    78% {
+        transform: translate(calc(-50% + 1px), calc(-50% - 2px)) scale(1.02);
+        opacity: calc(var(--star-opacity, 0.82) * 0.7);
     }
     100% {
-        transform: translate(-50%, -50%) scale(1.25);
-        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.88);
+        opacity: calc(var(--star-opacity, 0.82) * 0.45);
+    }
+}
+
+@keyframes nebula-star-glint {
+    0% {
+        opacity: 0.2;
+        transform: rotate(0deg) scale(0.75);
+    }
+    50% {
+        opacity: 0.8;
+        transform: rotate(180deg) scale(1.05);
+    }
+    100% {
+        opacity: 0.2;
+        transform: rotate(360deg) scale(0.75);
     }
 }
 
@@ -873,48 +918,69 @@
 }
 
 #costume-switcher-settings.cs-theme .cs-master-toggle {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 18px;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  cursor: pointer;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-radius: 16px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    position: relative;
 }
 
 #costume-switcher-settings.cs-theme .cs-master-toggle input {
-  appearance: none;
-  width: 46px;
-  height: 26px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.25);
-  position: relative;
-  transition: background 0.25s ease;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    overflow: hidden;
+    white-space: nowrap;
 }
 
-#costume-switcher-settings.cs-theme .cs-master-toggle input::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  transform: translateX(0);
-  transition: transform 0.25s ease;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+#costume-switcher-settings.cs-theme .cs-switch-thumb {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 52px;
+    height: 30px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    padding: 4px;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
-#costume-switcher-settings.cs-theme .cs-master-toggle input:checked {
-  background: var(--accent);
-  border-color: var(--accent);
+#costume-switcher-settings.cs-theme .cs-switch-thumb::before {
+    content: "";
+    inline-size: 20px;
+    block-size: 20px;
+    border-radius: 50%;
+    background: #fff;
+    transform: translateX(0);
+    transition: transform 0.25s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
 }
 
-#costume-switcher-settings.cs-theme .cs-master-toggle input:checked::after {
-  transform: translateX(20px);
+#costume-switcher-settings.cs-theme .cs-master-toggle input:checked + .cs-switch-thumb {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+#costume-switcher-settings.cs-theme .cs-master-toggle input:checked + .cs-switch-thumb::before {
+    transform: translateX(24px);
+}
+
+#costume-switcher-settings.cs-theme .cs-master-toggle input:focus-visible + .cs-switch-thumb {
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.45);
 }
 
 #costume-switcher-settings.cs-theme .cs-master-toggle .cs-switch-copy strong {
@@ -1025,34 +1091,57 @@
 }
 
 #costume-switcher-settings.cs-theme .cs-toggle input {
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  display: grid;
-  place-items: center;
-  transition: all 0.2s ease;
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    overflow: hidden;
+    white-space: nowrap;
 }
 
-#costume-switcher-settings.cs-theme .cs-toggle input::after {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: transparent;
-  transform: scale(0);
-  transition: transform 0.2s ease, background 0.2s ease;
+#costume-switcher-settings.cs-theme .cs-toggle-indicator {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 38px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    padding: 2px;
+    flex-shrink: 0;
 }
 
-#costume-switcher-settings.cs-theme .cs-toggle input:checked {
-  border-color: var(--accent);
-  background: var(--accent);
+#costume-switcher-settings.cs-theme .cs-toggle-indicator::before {
+    content: "";
+    inline-size: 16px;
+    block-size: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transform: translateX(0);
+    transition: transform 0.2s ease;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
 }
 
-#costume-switcher-settings.cs-theme .cs-toggle input:checked::after {
-  transform: scale(1);
-  background: #fff;
+#costume-switcher-settings.cs-theme .cs-toggle input:checked + .cs-toggle-indicator {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+#costume-switcher-settings.cs-theme .cs-toggle input:checked + .cs-toggle-indicator::before {
+    transform: translateX(18px);
+}
+
+#costume-switcher-settings.cs-theme .cs-toggle input:focus-visible + .cs-toggle-indicator {
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.35);
 }
 
 #costume-switcher-settings.cs-theme .cs-toggle span i {
@@ -1604,7 +1693,7 @@
     grid-template-columns: 1fr;
   }
 
-  #costume-switcher-settings.cs-theme .cs-master-toggle input {
+  #costume-switcher-settings.cs-theme .cs-master-toggle .cs-switch-thumb {
     justify-self: flex-start;
   }
 
@@ -1628,11 +1717,6 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
   border-color: rgba(126, 168, 255, 0.35);
   color: rgba(224, 234, 255, 0.92);
 }
-
-#costume-switcher-settings.cs-theme .cs-toggle-indicator {
-  display: none;
-}
-#costume-switcher-settings.cs-theme .cs-switch-thumb { display: none; }
 
 #costume-switcher-settings.cs-theme .cs-status-message.is-success {
   border-color: rgba(46, 213, 115, 0.6);
@@ -1688,12 +1772,16 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     inset: 0;
     border-radius: inherit;
     background:
-        radial-gradient(circle at 20% -10%, rgba(151, 109, 255, 0.28), transparent 55%),
-        radial-gradient(circle at 110% 20%, rgba(64, 207, 255, 0.25), transparent 50%);
+        radial-gradient(180% 140% at 18% 24%, rgba(147, 104, 232, 0.32), transparent 68%),
+        radial-gradient(140% 120% at 86% 6%, rgba(72, 186, 232, 0.28), transparent 64%),
+        conic-gradient(from 220deg at 72% 42%, rgba(118, 255, 214, 0.18), transparent 40%, rgba(160, 132, 255, 0.22) 78%, transparent 1turn),
+        linear-gradient(140deg, rgba(44, 78, 128, 0.18), rgba(48, 66, 120, 0.08));
+    background-repeat: no-repeat;
+    background-size: 170% 170%, 150% 150%, 210% 210%, 180% 180%;
+    background-position: 18% 34%, 82% 6%, 52% 48%, 32% 74%;
     opacity: 0.7;
     pointer-events: none;
     mix-blend-mode: screen;
-    animation: cs-scene-panel-aurora 14s ease-in-out infinite alternate;
     transform-origin: center;
     z-index: -1;
 }
@@ -2421,21 +2509,6 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-panel__summon[hidden] {
     display: none !important;
-}
-
-@keyframes cs-scene-panel-aurora {
-    0% {
-        transform: translate3d(-2%, -1%, 0) scale(1.14);
-        opacity: 0.68;
-    }
-    50% {
-        transform: translate3d(2%, 3%, 0) scale(1.2);
-        opacity: 0.92;
-    }
-    100% {
-        transform: translate3d(-1%, 4%, 0) scale(1.15);
-        opacity: 0.75;
-    }
 }
 
 @keyframes cs-scene-roster-ttl-pulse {
