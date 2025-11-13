@@ -849,6 +849,21 @@ function getPriorityWeights(profile) {
     return weights;
 }
 
+const PRONOUN_SUPPRESS_REASONS = new Set([
+    "already-active",
+    "outfit-unchanged",
+    "per-trigger-cooldown",
+    "failed-trigger-cooldown",
+]);
+
+function shouldLogMatchEvent(matchKind, reason) {
+    if (matchKind !== "pronoun") {
+        return true;
+    }
+    const normalizedReason = String(reason ?? "").toLowerCase();
+    return !PRONOUN_SUPPRESS_REASONS.has(normalizedReason);
+}
+
 function findAllMatches(combined, options = {}) {
     const profile = getActiveProfile();
     const { compiledRegexes } = state;
@@ -3673,6 +3688,21 @@ async function issueCostumeForName(name, opts = {}) {
 
     if (!decision.shouldSwitch) {
         debugLog("Switch skipped for", name, "reason:", decision.reason || 'n/a');
+
+        if (decision.reason === 'outfit-unchanged' && decision.outfit?.folder && normalizedKey) {
+            const outfitCache = ensureCharacterOutfitCache(state);
+            outfitCache.set(normalizedKey, {
+                folder: decision.outfit.folder,
+                reason: decision.outfit.reason,
+                label: decision.outfit.label || null,
+                updatedAt: decision.now,
+            });
+        }
+
+        if (!shouldLogMatchEvent(opts.matchKind || null, decision.reason)) {
+            return;
+        }
+
         recordDecisionEvent({
             type: 'skipped',
             name: decision.name || name,
@@ -6717,7 +6747,9 @@ function simulateTesterStream(combined, profile, bufKey) {
         const virtualNow = absoluteIndex * 50;
         if (msgState.lastAcceptedName?.toLowerCase() === bestMatch.name.toLowerCase()
             && (virtualNow - msgState.lastAcceptedTs < repeatSuppress)) {
-            events.push({ type: 'skipped', name: bestMatch.name, matchKind: bestMatch.matchKind, reason: 'repeat-suppression', charIndex: absoluteIndex });
+            if (bestMatch.matchKind !== 'pronoun') {
+                events.push({ type: 'skipped', name: bestMatch.name, matchKind: bestMatch.matchKind, reason: 'repeat-suppression', charIndex: absoluteIndex });
+            }
             continue;
         }
 
@@ -6758,20 +6790,32 @@ function simulateTesterStream(combined, profile, bufKey) {
                 updatedAt: decision.now,
             });
         } else {
-            events.push({
-                type: 'skipped',
-                name: bestMatch.name,
-                matchKind: bestMatch.matchKind,
-                reason: decision.reason || 'unknown',
-                outfit: decision.outfit ? {
+            if (decision.reason === 'outfit-unchanged' && decision.outfit?.folder) {
+                const cache = ensureCharacterOutfitCache(simulationState);
+                cache.set(decision.name.toLowerCase(), {
                     folder: decision.outfit.folder,
+                    reason: decision.outfit.reason || 'tester',
                     label: decision.outfit.label || null,
-                    reason: decision.outfit.reason || null,
-                    trigger: decision.outfit.trigger || null,
-                    awareness: decision.outfit.awareness || null,
-                } : null,
-                charIndex: absoluteIndex,
-            });
+                    updatedAt: decision.now,
+                });
+            }
+
+            if (shouldLogMatchEvent(bestMatch.matchKind, decision.reason)) {
+                events.push({
+                    type: 'skipped',
+                    name: bestMatch.name,
+                    matchKind: bestMatch.matchKind,
+                    reason: decision.reason || 'unknown',
+                    outfit: decision.outfit ? {
+                        folder: decision.outfit.folder,
+                        label: decision.outfit.label || null,
+                        reason: decision.outfit.reason || null,
+                        trigger: decision.outfit.trigger || null,
+                        awareness: decision.outfit.awareness || null,
+                    } : null,
+                    charIndex: absoluteIndex,
+                });
+            }
         }
 
         if (state.currentGenerationKey && state.currentGenerationKey === bufKey) {
@@ -9258,14 +9302,16 @@ const handleStream = (...args) => {
             }
 
             if (msgState.lastAcceptedName?.toLowerCase() === matchedName.toLowerCase() && (now - msgState.lastAcceptedTs < suppressMs)) {
-                recordDecisionEvent({
-                    type: 'skipped',
-                    name: matchedName,
-                    matchKind,
-                    reason: 'repeat-suppression',
-                    charIndex: absoluteIndex,
-                    timestamp: now,
-                });
+                if (matchKind !== 'pronoun') {
+                    recordDecisionEvent({
+                        type: 'skipped',
+                        name: matchedName,
+                        matchKind,
+                        reason: 'repeat-suppression',
+                        charIndex: absoluteIndex,
+                        timestamp: now,
+                    });
+                }
                 return;
             }
 

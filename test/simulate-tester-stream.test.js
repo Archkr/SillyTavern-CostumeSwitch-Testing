@@ -158,6 +158,27 @@ test("first-token pronoun yields a detection when falling back to the pending su
     assert.equal(msgState.pendingSubject, "Kotori", "pending subject should persist until a non-pronoun confirmation occurs");
 });
 
+test("pronoun repeats do not emit redundant tester events", () => {
+    const profile = setupProfile({
+        detectPronoun: true,
+        detectAction: true,
+        globalCooldownMs: 0,
+        repeatSuppressMs: 0,
+        enableOutfits: false,
+    });
+    const bufKey = "tester-pronoun-throttle";
+    const msgState = createMessageState(profile);
+    state.perMessageStates = new Map([[bufKey, msgState]]);
+    state.perMessageBuffers = new Map([[bufKey, ""]]);
+
+    const text = "Kotori waves to the crowd. He moved toward the console. He moved again moments later.";
+    const result = simulateTesterStream(text, profile, bufKey);
+
+    const events = result.events.filter(event => event.type !== "veto");
+    assert.equal(events.length, 1, "only the explicit name should yield a tester event");
+    assert.notEqual(events[0].matchKind, "pronoun", "recorded tester event should come from the explicit cue");
+});
+
 test("simulateTesterStream records per-character tester outputs", () => {
     const profile = setupProfile();
     const bufKey = "tester-output";
