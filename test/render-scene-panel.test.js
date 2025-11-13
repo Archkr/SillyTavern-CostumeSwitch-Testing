@@ -115,8 +115,45 @@ class StubElement {
         }
     }
 
-    querySelector() {
-        return null;
+    querySelector(selector) {
+        const matches = this.querySelectorAll(selector);
+        return matches[0] || null;
+    }
+
+    querySelectorAll(selector) {
+        const tokens = String(selector || "")
+            .split(",")
+            .map((token) => token.trim())
+            .filter(Boolean);
+        if (tokens.length === 0) {
+            return [];
+        }
+        const results = [];
+        const visit = (node) => {
+            if (!node) {
+                return;
+            }
+            for (const token of tokens) {
+                if (!token) {
+                    continue;
+                }
+                if (token.startsWith(".")) {
+                    const className = token.slice(1);
+                    const classes = String(node.className || "")
+                        .split(/\s+/)
+                        .filter(Boolean);
+                    if (classes.includes(className)) {
+                        results.push(node);
+                        break;
+                    }
+                }
+            }
+            if (Array.isArray(node.childNodes) && node.childNodes.length) {
+                node.childNodes.forEach(visit);
+            }
+        };
+        visit(this);
+        return results;
     }
 
     set textContent(value) {
@@ -195,7 +232,7 @@ function withScenePanelDom(callback) {
     }
 }
 
-test("renderScenePanel keeps coverage section visible before data arrives", () => {
+test("renderScenePanel respects coverage section visibility setting", () => {
     withScenePanelDom(({ createElement, registerElement }) => {
         const container = createElement("div");
         const sectionsContainer = createElement("div");
@@ -230,9 +267,67 @@ test("renderScenePanel keeps coverage section visible before data arrives", () =
             },
         });
 
+        assert.equal(coverageSection.getAttribute("data-scene-panel-hidden"), "true");
+        assert.equal(coverageToggle.getAttribute("aria-pressed"), "false");
+        assert.equal(coverageToggle.getAttribute("aria-hidden"), "false");
+        assert.equal(coverageToggle.getAttribute("hidden"), null);
+        assert.equal(coverageToggle.getAttribute("disabled"), null);
+    });
+});
+
+test("renderScenePanel expands layout when coverage is the only visible section", () => {
+    withScenePanelDom(({ createElement, registerElement }) => {
+        const container = createElement("div");
+        const sectionsContainer = createElement("div");
+        const rosterSection = createElement("section");
+        const activeSection = createElement("section");
+        const logSection = createElement("section");
+        const coverageSection = createElement("section");
+        const coveragePronouns = createElement("div");
+        const coverageAttribution = createElement("div");
+        const coverageAction = createElement("div");
+
+        setScenePanelContainer({ el: container });
+        setSceneSectionsContainer({ el: sectionsContainer });
+        setSceneRosterSection({ el: rosterSection });
+        setSceneActiveSection({ el: activeSection });
+        setSceneLiveLogSection({ el: logSection });
+        setSceneCoverageSection({ el: coverageSection });
+        setSceneCoveragePronouns({ el: coveragePronouns });
+        setSceneCoverageAttribution({ el: coverageAttribution });
+        setSceneCoverageAction({ el: coverageAction });
+
+        rosterSection.className = "cs-scene-panel__section";
+        activeSection.className = "cs-scene-panel__section";
+        logSection.className = "cs-scene-panel__section";
+        coverageSection.className = "cs-scene-panel__section";
+
+        sectionsContainer.appendChild(rosterSection);
+        sectionsContainer.appendChild(activeSection);
+        sectionsContainer.appendChild(logSection);
+        sectionsContainer.appendChild(coverageSection);
+
+        registerElement("cs-scene-panel-toggle", createElement("button"));
+        registerElement("cs-scene-section-toggle-roster", createElement("button"));
+        registerElement("cs-scene-section-toggle-active", createElement("button"));
+        registerElement("cs-scene-section-toggle-log", createElement("button"));
+        registerElement("cs-scene-panel-toggle-auto-open", createElement("button"));
+        registerElement("cs-scene-section-toggle-coverage", createElement("button"));
+
+        renderScenePanel({
+            settings: {
+                enabled: true,
+                sections: {
+                    roster: false,
+                    activeCharacters: false,
+                    liveLog: false,
+                    coverage: true,
+                },
+            },
+        });
+
         assert.equal(coverageSection.getAttribute("data-scene-panel-hidden"), "false");
-        assert.equal(coverageToggle.getAttribute("hidden"), "");
-        assert.equal(coverageToggle.getAttribute("aria-hidden"), "true");
-        assert.equal(coverageToggle.getAttribute("disabled"), "true");
+        assert.equal(sectionsContainer.getAttribute("data-visible-sections"), "1");
+        assert.equal(sectionsContainer.getAttribute("data-sections-expanded"), "true");
     });
 });
