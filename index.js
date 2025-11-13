@@ -8769,10 +8769,37 @@ function resolveMessageRoleFromArgs(args) {
     if (!Array.isArray(args) || args.length === 0) {
         return null;
     }
+
+    const normalizeRole = (value) => {
+        if (typeof value !== "string") {
+            return null;
+        }
+        const trimmed = value.trim().toLowerCase();
+        if (!trimmed) {
+            return null;
+        }
+        if (["assistant", "model", "bot", "ai"].includes(trimmed)) {
+            return "assistant";
+        }
+        if (["user", "player", "human", "manual", "input"].includes(trimmed)) {
+            return "user";
+        }
+        return null;
+    };
+
     const visited = new Set();
     const queue = [...args];
     while (queue.length > 0) {
         const value = queue.shift();
+
+        if (typeof value === "string") {
+            const role = normalizeRole(value);
+            if (role) {
+                return role;
+            }
+            continue;
+        }
+
         if (!value || typeof value !== "object") {
             continue;
         }
@@ -8780,14 +8807,38 @@ function resolveMessageRoleFromArgs(args) {
             continue;
         }
         visited.add(value);
+
         if (typeof value.role === "string" && value.role.trim()) {
+            const role = normalizeRole(value.role);
+            if (role) {
+                return role;
+            }
             return value.role.trim().toLowerCase();
         }
+
+        if (value.is_user === true || value.isUser === true) {
+            return "user";
+        }
+        if (value.is_assistant === true || value.isAssistant === true) {
+            return "assistant";
+        }
+
+        const candidates = [value.author, value.sender, value.source, value.type, value.generationType];
+        for (const candidate of candidates) {
+            const role = normalizeRole(candidate);
+            if (role) {
+                return role;
+            }
+        }
+
         if (typeof value.message === "object" && value.message !== null) {
             queue.push(value.message);
         }
         if (Array.isArray(value.messages) && value.messages.length > 0) {
             queue.push(...value.messages);
+        }
+        if (typeof value.detail === "object" && value.detail !== null) {
+            queue.push(value.detail);
         }
     }
     return null;
@@ -9022,6 +9073,13 @@ function remapMessageKey(oldKey, newKey) {
 }
 
 const handleGenerationStart = (...args) => {
+    const messageRole = resolveMessageRoleFromArgs(args);
+    if (messageRole && messageRole !== "assistant") {
+        debugLog(`Skipping generation start for ${messageRole} message.`, args);
+        state.currentGenerationKey = null;
+        return;
+    }
+
     const isUserInitiated = (() => {
         const queue = Array.isArray(args) ? [...args] : [];
         const visited = new Set();
@@ -9129,7 +9187,6 @@ const handleGenerationStart = (...args) => {
 
     const profile = getActiveProfile();
     if (profile) {
-        const messageRole = resolveMessageRoleFromArgs(args);
         const { state: msgState, rosterCleared } = createMessageState(profile, normalizedKey, { messageRole });
         if (rosterCleared && msgState) {
             applySceneRosterUpdate({
