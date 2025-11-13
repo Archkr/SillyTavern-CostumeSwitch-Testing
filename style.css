@@ -1884,7 +1884,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-panel__headline {
     position: relative;
-    padding-bottom: calc(14px + 38px + 12px);
+    padding-bottom: calc(14px + 24px);
 }
 
 .cs-scene-panel__headline > *:not(.cs-scene-panel__ambient),
@@ -1946,9 +1946,12 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     flex-wrap: wrap;
 }
 
-.cs-scene-panel__icon-button,
-.cs-scene-panel__text-button,
-.cs-scene-panel__footer-button,
+#cs-scene-panel,
+#cs-scene-panel * {
+    box-sizing: border-box;
+}
+
+#cs-scene-panel :is(.cs-scene-panel__icon-button, .cs-scene-panel__text-button, .cs-scene-panel__footer-button),
 .cs-scene-panel__summon {
     all: unset;
     display: inline-flex;
@@ -1964,6 +1967,11 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     pointer-events: auto;
     min-width: 0;
     appearance: none;
+}
+
+#cs-scene-panel :is(.cs-scene-panel__icon-button, .cs-scene-panel__text-button, .cs-scene-panel__footer-button) {
+    position: relative;
+    border: none;
 }
 
 .cs-scene-panel__master-toggle {
@@ -1983,30 +1991,30 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
 }
 
-.cs-scene-panel__icon-button {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    background: rgba(255, 255, 255, 0.06);
-    color: inherit;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: background 0.2s ease, border-color 0.2s ease;
+#cs-scene-panel .cs-scene-panel__icon-button {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: inherit !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: background 0.2s ease, border-color 0.2s ease !important;
 }
 
-.cs-scene-panel__icon-button[aria-pressed="true"] {
-    background: rgba(156, 125, 255, 0.25);
-    border-color: rgba(156, 125, 255, 0.55);
-    color: #ffffff;
+#cs-scene-panel .cs-scene-panel__icon-button[aria-pressed="true"] {
+    background: rgba(156, 125, 255, 0.25) !important;
+    border-color: rgba(156, 125, 255, 0.55) !important;
+    color: #ffffff !important;
 }
 
-.cs-scene-panel__icon-button:hover,
-.cs-scene-panel__icon-button:focus-visible {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.35);
+#cs-scene-panel .cs-scene-panel__icon-button:hover,
+#cs-scene-panel .cs-scene-panel__icon-button:focus-visible {
+    background: rgba(255, 255, 255, 0.16) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
 }
 
 .cs-scene-panel__helper {
@@ -2084,18 +2092,18 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     gap: 8px;
 }
 
-.cs-scene-panel__text-button {
-    border: none;
-    background: transparent;
-    color: var(--primary-color, #9c7dff);
-    cursor: pointer;
-    font-size: 0.75rem;
-    padding: 4px 0;
+#cs-scene-panel .cs-scene-panel__text-button {
+    border: none !important;
+    background: transparent !important;
+    color: var(--primary-color, #9c7dff) !important;
+    cursor: pointer !important;
+    font-size: 0.75rem !important;
+    padding: 4px 0 !important;
 }
 
-.cs-scene-panel__text-button:hover,
-.cs-scene-panel__text-button:focus-visible {
-    text-decoration: underline;
+#cs-scene-panel .cs-scene-panel__text-button:hover,
+#cs-scene-panel .cs-scene-panel__text-button:focus-visible {
+    text-decoration: underline !important;
 }
 
 .cs-scene-panel__scrollable,
@@ -2521,22 +2529,22 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     justify-content: flex-end;
 }
 
-.cs-scene-panel__footer-button {
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 10px;
-    padding: 10px 16px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255, 255, 255, 0.08);
-    cursor: pointer;
-    font-weight: 600;
+#cs-scene-panel .cs-scene-panel__footer-button {
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 10px !important;
+    padding: 10px 16px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    cursor: pointer !important;
+    font-weight: 600 !important;
 }
 
-.cs-scene-panel__footer-button:hover,
-.cs-scene-panel__footer-button:focus-visible {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.28);
+#cs-scene-panel .cs-scene-panel__footer-button:hover,
+#cs-scene-panel .cs-scene-panel__footer-button:focus-visible {
+    background: rgba(255, 255, 255, 0.16) !important;
+    border-color: rgba(255, 255, 255, 0.28) !important;
 }
 
 .cs-scene-panel__summon {
