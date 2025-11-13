@@ -414,7 +414,7 @@ function applySectionLayoutState(visibleCount) {
     }
 }
 
-function updateToolbarToggleState(buttonId, pressed, { pressedTitle, unpressedTitle }) {
+function updateToolbarToggleState(buttonId, pressed, { pressedTitle, unpressedTitle } = {}) {
     if (typeof document === "undefined") {
         return;
     }
@@ -422,36 +422,29 @@ function updateToolbarToggleState(buttonId, pressed, { pressedTitle, unpressedTi
     if (!button) {
         return;
     }
+    if (button.classList && typeof button.classList.remove === "function") {
+        button.classList.remove("cs-scene-panel__icon-button--disabled");
+    }
+    if (typeof button.removeAttribute === "function") {
+        button.removeAttribute("hidden");
+        button.removeAttribute("aria-hidden");
+        button.removeAttribute("disabled");
+        button.removeAttribute("tabindex");
+    }
+    if (button.style && typeof button.style.removeProperty === "function") {
+        button.style.removeProperty("display");
+    }
+    if ("hidden" in button) {
+        try {
+            button.hidden = false;
+        } catch (err) {
+        }
+    }
+    button.setAttribute("aria-hidden", "false");
     button.setAttribute("aria-pressed", pressed ? "true" : "false");
     const title = pressed ? pressedTitle : unpressedTitle;
     if (title) {
         button.setAttribute("title", title);
-    }
-}
-
-function disableToolbarToggle(buttonId) {
-    if (typeof document === "undefined") {
-        return;
-    }
-    const button = document.getElementById(buttonId);
-    if (!button) {
-        return;
-    }
-    if (typeof button.setAttribute === "function") {
-        button.setAttribute("aria-pressed", "false");
-        button.setAttribute("aria-hidden", "true");
-        button.setAttribute("disabled", "true");
-        button.setAttribute("tabindex", "-1");
-        button.setAttribute("hidden", "");
-    }
-    if (button.classList && typeof button.classList.add === "function") {
-        button.classList.add("cs-scene-panel__icon-button--disabled");
-    }
-    if (button.style) {
-        try {
-            button.style.display = "none";
-        } catch (err) {
-        }
     }
 }
 
@@ -493,7 +486,7 @@ export function renderScenePanel(panelState = {}, { source = "scene" } = {}) {
     const showRoster = enabled && sections.roster !== false;
     const showActive = enabled && sections.activeCharacters !== false;
     const showLog = enabled && sections.liveLog !== false;
-    const showCoverage = enabled;
+    const showCoverage = enabled && sections.coverage !== false;
 
     applySectionVisibility(getSceneRosterSection?.(), showRoster);
     applySectionVisibility(getSceneActiveSection?.(), showActive);
@@ -518,7 +511,10 @@ export function renderScenePanel(panelState = {}, { source = "scene" } = {}) {
         pressedTitle: "Hide live log section",
         unpressedTitle: "Show live log section",
     });
-    disableToolbarToggle("cs-scene-section-toggle-coverage");
+    updateToolbarToggleState("cs-scene-section-toggle-coverage", showCoverage, {
+        pressedTitle: "Hide coverage suggestions section",
+        unpressedTitle: "Show coverage suggestions section",
+    });
     updateToolbarToggleState("cs-scene-panel-toggle-auto-open", settings.autoOpenOnResults !== false, {
         pressedTitle: "Disable auto-open on new results",
         unpressedTitle: "Enable auto-open on new results",

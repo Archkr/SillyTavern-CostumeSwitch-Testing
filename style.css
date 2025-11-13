@@ -2172,6 +2172,15 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     background: rgba(0, 0, 0, 0.35);
     border-radius: 8px;
     padding: 12px;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: var(--cs-scene-section-max-height, 240px);
+    overflow-y: auto;
+    scrollbar-gutter: stable both-edges;
+}
+
+.cs-scene-panel__sections[data-sections-expanded="true"] .cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-panel {
+    max-height: none;
 }
 
 .cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-panel > div {
