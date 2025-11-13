@@ -918,48 +918,69 @@
 }
 
 #costume-switcher-settings.cs-theme .cs-master-toggle {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 18px;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  cursor: pointer;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-radius: 16px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    position: relative;
 }
 
 #costume-switcher-settings.cs-theme .cs-master-toggle input {
-  appearance: none;
-  width: 46px;
-  height: 26px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.25);
-  position: relative;
-  transition: background 0.25s ease;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    overflow: hidden;
+    white-space: nowrap;
 }
 
-#costume-switcher-settings.cs-theme .cs-master-toggle input::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  transform: translateX(0);
-  transition: transform 0.25s ease;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+#costume-switcher-settings.cs-theme .cs-switch-thumb {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 52px;
+    height: 30px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    padding: 4px;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
-#costume-switcher-settings.cs-theme .cs-master-toggle input:checked {
-  background: var(--accent);
-  border-color: var(--accent);
+#costume-switcher-settings.cs-theme .cs-switch-thumb::before {
+    content: "";
+    inline-size: 20px;
+    block-size: 20px;
+    border-radius: 50%;
+    background: #fff;
+    transform: translateX(0);
+    transition: transform 0.25s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
 }
 
-#costume-switcher-settings.cs-theme .cs-master-toggle input:checked::after {
-  transform: translateX(20px);
+#costume-switcher-settings.cs-theme .cs-master-toggle input:checked + .cs-switch-thumb {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+#costume-switcher-settings.cs-theme .cs-master-toggle input:checked + .cs-switch-thumb::before {
+    transform: translateX(24px);
+}
+
+#costume-switcher-settings.cs-theme .cs-master-toggle input:focus-visible + .cs-switch-thumb {
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.45);
 }
 
 #costume-switcher-settings.cs-theme .cs-master-toggle .cs-switch-copy strong {
@@ -1070,34 +1091,57 @@
 }
 
 #costume-switcher-settings.cs-theme .cs-toggle input {
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  display: grid;
-  place-items: center;
-  transition: all 0.2s ease;
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    overflow: hidden;
+    white-space: nowrap;
 }
 
-#costume-switcher-settings.cs-theme .cs-toggle input::after {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: transparent;
-  transform: scale(0);
-  transition: transform 0.2s ease, background 0.2s ease;
+#costume-switcher-settings.cs-theme .cs-toggle-indicator {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 38px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    padding: 2px;
+    flex-shrink: 0;
 }
 
-#costume-switcher-settings.cs-theme .cs-toggle input:checked {
-  border-color: var(--accent);
-  background: var(--accent);
+#costume-switcher-settings.cs-theme .cs-toggle-indicator::before {
+    content: "";
+    inline-size: 16px;
+    block-size: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transform: translateX(0);
+    transition: transform 0.2s ease;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
 }
 
-#costume-switcher-settings.cs-theme .cs-toggle input:checked::after {
-  transform: scale(1);
-  background: #fff;
+#costume-switcher-settings.cs-theme .cs-toggle input:checked + .cs-toggle-indicator {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+#costume-switcher-settings.cs-theme .cs-toggle input:checked + .cs-toggle-indicator::before {
+    transform: translateX(18px);
+}
+
+#costume-switcher-settings.cs-theme .cs-toggle input:focus-visible + .cs-toggle-indicator {
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.35);
 }
 
 #costume-switcher-settings.cs-theme .cs-toggle span i {
@@ -1649,7 +1693,7 @@
     grid-template-columns: 1fr;
   }
 
-  #costume-switcher-settings.cs-theme .cs-master-toggle input {
+  #costume-switcher-settings.cs-theme .cs-master-toggle .cs-switch-thumb {
     justify-self: flex-start;
   }
 
@@ -1673,11 +1717,6 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
   border-color: rgba(126, 168, 255, 0.35);
   color: rgba(224, 234, 255, 0.92);
 }
-
-#costume-switcher-settings.cs-theme .cs-toggle-indicator {
-  display: none;
-}
-#costume-switcher-settings.cs-theme .cs-switch-thumb { display: none; }
 
 #costume-switcher-settings.cs-theme .cs-status-message.is-success {
   border-color: rgba(46, 213, 115, 0.6);
@@ -1743,7 +1782,6 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     opacity: 0.7;
     pointer-events: none;
     mix-blend-mode: screen;
-    animation: cs-scene-panel-aurora 14s ease-in-out infinite alternate, cs-scene-panel-aurora-flow 26s ease-in-out infinite alternate;
     transform-origin: center;
     z-index: -1;
 }
@@ -2471,33 +2509,6 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-panel__summon[hidden] {
     display: none !important;
-}
-
-@keyframes cs-scene-panel-aurora {
-    0% {
-        transform: translate3d(-2%, -1%, 0) scale(1.14);
-        opacity: 0.68;
-    }
-    50% {
-        transform: translate3d(2%, 3%, 0) scale(1.2);
-        opacity: 0.92;
-    }
-    100% {
-        transform: translate3d(-1%, 4%, 0) scale(1.15);
-        opacity: 0.75;
-    }
-}
-
-@keyframes cs-scene-panel-aurora-flow {
-    0% {
-        background-position: 18% 34%, 82% 6%, 52% 48%, 32% 74%;
-    }
-    50% {
-        background-position: 24% 28%, 78% 12%, 46% 58%, 40% 70%;
-    }
-    100% {
-        background-position: 16% 36%, 88% 18%, 58% 44%, 28% 78%;
-    }
 }
 
 @keyframes cs-scene-roster-ttl-pulse {
