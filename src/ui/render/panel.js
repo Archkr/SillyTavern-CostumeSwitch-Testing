@@ -17,7 +17,7 @@ import {
 import { renderSceneRoster } from "./sceneRoster.js";
 import { renderActiveCharacters } from "./activeCharacters.js";
 import { renderLiveLog } from "./liveLog.js";
-import { renderCoverageSuggestions } from "./coverage.js";
+import { renderCoverageSection } from "./coverage.js";
 import { resolveContainer, clearContainer, createElement } from "./utils.js";
 
 let scenePanelSummonButton = null;
@@ -567,17 +567,23 @@ export function renderScenePanel(panelState = {}, { source = "scene" } = {}) {
     const coveragePronouns = getSceneCoveragePronouns?.();
     const coverageAttribution = getSceneCoverageAttribution?.();
     const coverageAction = getSceneCoverageAction?.();
+    const hasCoverageBuffer = typeof panelState.analytics?.buffer === "string"
+        ? panelState.analytics.buffer.trim().length > 0
+        : false;
     const coverageRevision = showCoverage
-        ? JSON.stringify(panelState.coverage || null)
+        ? JSON.stringify({
+            coverage: panelState.coverage || null,
+            hasBuffer: hasCoverageBuffer,
+        })
         : null;
     if (coverageSection && showCoverage) {
         if (lastCoverageRevision !== coverageRevision) {
-            renderCoverageSuggestions({
+            renderCoverageSection({
                 section: coverageSection,
                 pronouns: coveragePronouns,
                 attribution: coverageAttribution,
                 action: coverageAction,
-            }, panelState);
+            }, panelState.coverage || {}, { hasBuffer: hasCoverageBuffer });
             lastCoverageRevision = coverageRevision;
         }
     } else {
@@ -590,6 +596,17 @@ export function renderScenePanel(panelState = {}, { source = "scene" } = {}) {
             }
             if (coverageAction) {
                 clearContainer(coverageAction);
+            }
+            if (coverageSection) {
+                const wrapper = resolveContainer(coverageSection);
+                if (wrapper.el) {
+                    wrapper.el.removeAttribute("data-state");
+                    wrapper.el.setAttribute("data-has-content", "false");
+                }
+                if (wrapper.$ && typeof wrapper.$.attr === "function") {
+                    wrapper.$.removeAttr?.("data-state");
+                    wrapper.$.attr("data-has-content", "false");
+                }
             }
             lastCoverageRevision = null;
         }
