@@ -1504,6 +1504,74 @@ function computeAnalyticsUpdatedAt({
     return Math.max(...candidates);
 }
 
+function collectRosterHistorySnapshot() {
+    if (!(state.perMessageStates instanceof Map) || state.perMessageStates.size === 0) {
+        return null;
+    }
+    const queue = ensureMessageQueue();
+    if (!Array.isArray(queue) || queue.length === 0) {
+        return null;
+    }
+
+    const messages = [];
+    let ttlWindow = null;
+
+    queue.forEach((key) => {
+        const msgState = state.perMessageStates.get(key);
+        if (!msgState) {
+            return;
+        }
+        const roster = msgState.sceneRoster instanceof Set
+            ? Array.from(msgState.sceneRoster).map((value) => normalizeRosterKey(value)).filter(Boolean)
+            : [];
+        const turnsByMember = [];
+        if (msgState.rosterTurns instanceof Map) {
+            msgState.rosterTurns.forEach((turns, name) => {
+                const normalized = normalizeRosterKey(name);
+                const sanitized = sanitizeRosterTurnValue(turns);
+                if (normalized && sanitized != null) {
+                    turnsByMember.push([normalized, sanitized]);
+                }
+            });
+        }
+        const defaultTTL = Number.isFinite(msgState.defaultRosterTTL)
+            ? Math.max(0, Math.floor(msgState.defaultRosterTTL))
+            : null;
+        if (Number.isFinite(defaultTTL)) {
+            ttlWindow = defaultTTL;
+        }
+        if (!roster.length && turnsByMember.length === 0) {
+            return;
+        }
+        const entry = {
+            key,
+            roster,
+            turnsByMember,
+        };
+        if (Number.isFinite(defaultTTL)) {
+            entry.turnsRemaining = defaultTTL;
+        }
+        if (Number.isFinite(msgState.lastAcceptedTs) && msgState.lastAcceptedTs > 0) {
+            entry.updatedAt = msgState.lastAcceptedTs;
+        }
+        messages.push(entry);
+    });
+
+    if (!messages.length) {
+        return null;
+    }
+
+    const normalizedWindow = Number.isFinite(ttlWindow) ? Math.max(0, Math.floor(ttlWindow)) : null;
+    const trimmed = normalizedWindow != null && normalizedWindow > 0 && messages.length > normalizedWindow
+        ? messages.slice(-normalizedWindow)
+        : messages;
+
+    return {
+        ttlWindow: normalizedWindow,
+        messages: trimmed,
+    };
+}
+
 function collectScenePanelState(options = {}) {
     if (options?.source === "tester" && lastCollectedScenePanelState) {
         return lastCollectedScenePanelState;
@@ -1513,6 +1581,29 @@ function collectScenePanelState(options = {}) {
     const scene = getCurrentSceneSnapshot();
     const membership = getRosterMembershipSnapshot();
     const displayNames = buildDisplayNameMap(scene, membership, null);
+    const rosterHistory = collectRosterHistorySnapshot();
+    if (rosterHistory) {
+        const cloneHistoryMessages = () => rosterHistory.messages.map((entry) => ({
+            key: entry.key || null,
+            roster: Array.isArray(entry.roster) ? entry.roster.slice() : [],
+            turnsByMember: Array.isArray(entry.turnsByMember)
+                ? entry.turnsByMember.map(([name, turns]) => [name, turns])
+                : [],
+            turnsRemaining: Number.isFinite(entry.turnsRemaining)
+                ? entry.turnsRemaining
+                : null,
+            updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : null,
+        }));
+        const ttlWindow = Number.isFinite(rosterHistory.ttlWindow) ? rosterHistory.ttlWindow : null;
+        scene.history = {
+            ttlWindow,
+            messages: cloneHistoryMessages(),
+        };
+        membership.history = {
+            ttlWindow,
+            messages: cloneHistoryMessages(),
+        };
+    }
     const ranking = getLastTopCharacters(4);
 
     const streamingKey = state.currentGenerationKey
