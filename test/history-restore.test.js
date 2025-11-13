@@ -7,6 +7,12 @@ await register(new URL("./module-mock-loader.js", import.meta.url));
 const extensionSettingsStore = globalThis.__extensionSettingsStore || (globalThis.__extensionSettingsStore = {});
 
 const { restoreSceneOutcomeForMessage, state, extensionName } = await import("../index.js");
+const {
+    applySceneRosterUpdate,
+    resetSceneState,
+    clearLiveTesterOutputs,
+    listRosterMembers,
+} = await import("../src/core/state.js");
 
 const baseSettings = {
     enabled: true,
@@ -72,4 +78,68 @@ test("restoreSceneOutcomeForMessage repopulates recent decision events from stor
         "session decision log should mirror the restored events");
     assert.ok(session.recentDecisionEvents.every(event => event.messageKey === "m42"),
         "session log events should retain the original message key");
+});
+
+test("restoreSceneOutcomeForMessage preserves active roster when stored roster empty", () => {
+    extensionSettingsStore[extensionName] = {
+        ...baseSettings,
+        session: {},
+    };
+
+    state.perMessageBuffers = new Map();
+    state.perMessageStates = new Map();
+    state.messageStats = new Map();
+
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    const seedTimestamp = Date.now();
+
+    applySceneRosterUpdate({
+        key: "m1",
+        messageId: 1,
+        roster: [
+            { name: "Kotori", normalized: "kotori", joinedAt: seedTimestamp - 1000, lastSeenAt: seedTimestamp },
+            { name: "Shido", normalized: "shido", joinedAt: seedTimestamp - 2000, lastSeenAt: seedTimestamp },
+        ],
+        updatedAt: seedTimestamp,
+    });
+
+    const initialMembers = listRosterMembers();
+    assert.equal(initialMembers.every(entry => entry.active), true,
+        "seeded roster members should start active");
+
+    const message = {
+        mesId: 99,
+        is_user: false,
+        mes: "Kotori smiles.",
+        swipe_id: 0,
+        extra: {
+            cs_scene_outcomes: {
+                0: {
+                    version: 1,
+                    messageKey: "m99",
+                    messageId: 99,
+                    roster: [],
+                    displayNames: [],
+                    events: [],
+                    stats: [],
+                    buffer: "Kotori smiles.",
+                    text: "Kotori smiles.",
+                    updatedAt: seedTimestamp + 500,
+                    lastEvent: null,
+                },
+            },
+        },
+    };
+
+    const restored = restoreSceneOutcomeForMessage(message);
+    assert.equal(restored, true, "stored outcome should restore even with an empty roster");
+
+    const refreshedMembers = listRosterMembers();
+    const kotori = refreshedMembers.find(entry => entry.normalized === "kotori");
+    const shido = refreshedMembers.find(entry => entry.normalized === "shido");
+
+    assert.equal(kotori?.active, true, "refresh should not deactivate existing roster members");
+    assert.equal(shido?.active, true, "refresh should not deactivate secondary roster members");
 });

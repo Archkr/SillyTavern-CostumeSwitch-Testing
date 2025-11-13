@@ -8572,6 +8572,8 @@ function restoreSceneOutcomeForMessage(message, {
         }
     }
 
+    const preserveExistingRoster = roster.length === 0;
+
     applySceneRosterUpdate({
         key: messageKey,
         messageId: Number.isFinite(resolvedId) ? resolvedId : extractMessageIdFromKey(messageKey),
@@ -8581,7 +8583,7 @@ function restoreSceneOutcomeForMessage(message, {
         updatedAt: timestamp,
         turnsByMember,
         turnsRemaining,
-    });
+    }, preserveExistingRoster ? { preserveActiveOnEmpty: true } : undefined);
 
     if (immediateRender) {
         requestScenePanelRender("history-restore", { immediate: true });

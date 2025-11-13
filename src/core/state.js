@@ -174,7 +174,8 @@ export function applySceneRosterUpdate({
     updatedAt = Date.now(),
     turnsRemaining = null,
     turnsByMember = null,
-} = {}) {
+} = {}, options = {}) {
+    const { preserveActiveOnEmpty = false } = options || {};
     const normalizedDisplayNames = normalizeDisplayNameMap(displayNames);
     const activeSet = new Set();
     const rosterEntries = [];
@@ -182,6 +183,7 @@ export function applySceneRosterUpdate({
     const perMemberTurns = normalizeTurnsByMember(turnsByMember);
 
     const values = Array.isArray(roster) ? roster : [];
+    const shouldPreserveExisting = preserveActiveOnEmpty && values.length === 0;
     values.forEach((value) => {
         let normalized = null;
         let providedName = null;
@@ -236,14 +238,16 @@ export function applySceneRosterUpdate({
         });
     });
 
-    for (const [normalized, member] of rosterMembers.entries()) {
-        if (!activeSet.has(normalized) && member.active) {
-            rosterMembers.set(normalized, {
-                ...member,
-                active: false,
-                lastLeftAt: updatedAt,
-                turnsRemaining: null,
-            });
+    if (!shouldPreserveExisting) {
+        for (const [normalized, member] of rosterMembers.entries()) {
+            if (!activeSet.has(normalized) && member.active) {
+                rosterMembers.set(normalized, {
+                    ...member,
+                    active: false,
+                    lastLeftAt: updatedAt,
+                    turnsRemaining: null,
+                });
+            }
         }
     }
 
