@@ -16,18 +16,18 @@
     --header-text-subtle: rgba(248, 249, 255, 0.75);
     --cs-hero-gradient: linear-gradient(
         135deg,
-        rgba(211, 108, 255, 0.48) 0%,
-        rgba(102, 171, 255, 0.42) 38%,
-        rgba(120, 255, 214, 0.3) 72%
+        rgba(146, 88, 226, 0.35) 0%,
+        rgba(72, 134, 216, 0.3) 40%,
+        rgba(64, 182, 190, 0.2) 80%
     );
     --cs-hero-base: linear-gradient(
         160deg,
-        rgba(13, 18, 45, 0.98) 0%,
-        rgba(34, 12, 63, 0.96) 45%,
-        rgba(6, 10, 26, 0.99) 100%
+        rgba(6, 10, 24, 0.98) 0%,
+        rgba(20, 9, 38, 0.97) 46%,
+        rgba(3, 6, 16, 0.99) 100%
     );
-    --cs-hero-aurora: radial-gradient(circle at 20% -10%, rgba(151, 109, 255, 0.28), transparent 55%),
-        radial-gradient(circle at 110% 20%, rgba(64, 207, 255, 0.25), transparent 50%);
+    --cs-hero-aurora: radial-gradient(circle at 18% -12%, rgba(138, 96, 226, 0.24), transparent 58%),
+        radial-gradient(circle at 112% 22%, rgba(60, 184, 232, 0.22), transparent 52%);
 }
 
 #costume-switcher-settings.cs-theme .inline-drawer {
@@ -599,12 +599,29 @@
 #costume-switcher-settings.cs-theme .cs-header-ambient::before {
     content: "";
     position: absolute;
-    inset: -16% -14%;
+    inset: -18% -16%;
     background: var(--cs-hero-aurora);
-    opacity: 0.72;
-    filter: blur(20px);
+    opacity: 0.58;
+    filter: blur(28px);
     pointer-events: none;
     mix-blend-mode: screen;
+    z-index: 0;
+    transform: scale(1.08);
+}
+
+#costume-switcher-settings.cs-theme .cs-header-ambient::after {
+    content: "";
+    position: absolute;
+    inset: -12%;
+    background: linear-gradient(
+        150deg,
+        rgba(4, 6, 18, 0.78) 0%,
+        rgba(9, 13, 28, 0.88) 40%,
+        rgba(6, 12, 24, 0.92) 100%
+    );
+    opacity: 0.88;
+    mix-blend-mode: multiply;
+    pointer-events: none;
     z-index: 0;
 }
 
@@ -1715,11 +1732,18 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: var(--cs-hero-aurora);
+    background:
+        radial-gradient(180% 140% at 18% 24%, rgba(147, 104, 232, 0.32), transparent 68%),
+        radial-gradient(140% 120% at 86% 6%, rgba(72, 186, 232, 0.28), transparent 64%),
+        conic-gradient(from 220deg at 72% 42%, rgba(118, 255, 214, 0.18), transparent 40%, rgba(160, 132, 255, 0.22) 78%, transparent 1turn),
+        linear-gradient(140deg, rgba(44, 78, 128, 0.18), rgba(48, 66, 120, 0.08));
+    background-repeat: no-repeat;
+    background-size: 170% 170%, 150% 150%, 210% 210%, 180% 180%;
+    background-position: 18% 34%, 82% 6%, 52% 48%, 32% 74%;
     opacity: 0.7;
     pointer-events: none;
     mix-blend-mode: screen;
-    animation: cs-scene-panel-aurora 14s ease-in-out infinite alternate;
+    animation: cs-scene-panel-aurora 14s ease-in-out infinite alternate, cs-scene-panel-aurora-flow 26s ease-in-out infinite alternate;
     transform-origin: center;
     z-index: -1;
 }
@@ -2461,6 +2485,18 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     100% {
         transform: translate3d(-1%, 4%, 0) scale(1.15);
         opacity: 0.75;
+    }
+}
+
+@keyframes cs-scene-panel-aurora-flow {
+    0% {
+        background-position: 18% 34%, 82% 6%, 52% 48%, 32% 74%;
+    }
+    50% {
+        background-position: 24% 28%, 78% 12%, 46% 58%, 40% 70%;
+    }
+    100% {
+        background-position: 16% 36%, 88% 18%, 58% 44%, 28% 78%;
     }
 }
 
