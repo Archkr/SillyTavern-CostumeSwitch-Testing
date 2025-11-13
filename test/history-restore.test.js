@@ -12,6 +12,8 @@ const {
     resetSceneState,
     clearLiveTesterOutputs,
     listRosterMembers,
+    getCurrentSceneSnapshot,
+    getRosterMembershipSnapshot,
 } = await import("../src/core/state.js");
 
 const baseSettings = {
@@ -78,6 +80,12 @@ test("restoreSceneOutcomeForMessage repopulates recent decision events from stor
         "session decision log should mirror the restored events");
     assert.ok(session.recentDecisionEvents.every(event => event.messageKey === "m42"),
         "session log events should retain the original message key");
+
+    const scene = getCurrentSceneSnapshot();
+    assert.equal(scene.updatedAt, 1700, "restored scene should reuse stored timestamps");
+
+    const rosterSnapshot = getRosterMembershipSnapshot();
+    assert.equal(rosterSnapshot.updatedAt, 1700, "roster snapshot should adopt stored timestamps");
 });
 
 test("restoreSceneOutcomeForMessage preserves active roster when stored roster empty", () => {
@@ -142,4 +150,61 @@ test("restoreSceneOutcomeForMessage preserves active roster when stored roster e
 
     assert.equal(kotori?.active, true, "refresh should not deactivate existing roster members");
     assert.equal(shido?.active, true, "refresh should not deactivate secondary roster members");
+});
+
+test("restoreSceneOutcomeForMessage retains existing timestamp when stored outcome omits it", () => {
+    extensionSettingsStore[extensionName] = {
+        ...baseSettings,
+        session: {},
+    };
+
+    state.perMessageBuffers = new Map();
+    state.perMessageStates = new Map();
+    state.messageStats = new Map();
+
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    const seedTimestamp = 7654;
+
+    applySceneRosterUpdate({
+        key: "m1",
+        messageId: 1,
+        roster: [
+            { name: "Kotori", normalized: "kotori", joinedAt: seedTimestamp - 1000, lastSeenAt: seedTimestamp },
+        ],
+        updatedAt: seedTimestamp,
+    });
+
+    const message = {
+        mesId: 43,
+        is_user: false,
+        mes: "Kotori nods.",
+        swipe_id: 0,
+        extra: {
+            cs_scene_outcomes: {
+                0: {
+                    version: 1,
+                    messageKey: "m43",
+                    messageId: 43,
+                    roster: ["kotori"],
+                    displayNames: [["kotori", "Kotori"]],
+                    events: [],
+                    stats: [],
+                    buffer: "Kotori nods.",
+                    text: "Kotori nods.",
+                    lastEvent: null,
+                },
+            },
+        },
+    };
+
+    const restored = restoreSceneOutcomeForMessage(message);
+    assert.equal(restored, true, "stored outcome without timestamp should still restore");
+
+    const scene = getCurrentSceneSnapshot();
+    assert.equal(scene.updatedAt, seedTimestamp, "scene snapshot should reuse prior timestamp");
+
+    const rosterSnapshot = getRosterMembershipSnapshot();
+    assert.equal(rosterSnapshot.updatedAt, seedTimestamp, "roster snapshot should preserve prior timestamp");
 });

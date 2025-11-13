@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { register } from "node:module";
 
 import { renderActiveCharacters } from "../src/ui/render/activeCharacters.js";
+import { createScenePanelRefreshHandler } from "../src/ui/render/panel.js";
 import { compileProfileRegexes } from "../src/detector-core.js";
 
 await register(new URL("./module-mock-loader.js", import.meta.url));
@@ -19,6 +20,7 @@ const {
     resetSceneState,
     listRosterMembers,
     getCurrentSceneSnapshot,
+    getRosterMembershipSnapshot,
 } = await import("../src/core/state.js");
 
 extensionSettingsStore[extensionName] = {
@@ -639,6 +641,59 @@ test("collectScenePanelState defers stream switch until new data is available", 
     assert.equal(streamingPanelState.analytics.messageKey, "live");
     assert.equal(streamingPanelState.analytics.buffer, "Kotori smiles.");
     assert.equal(streamingPanelState.isStreaming, true);
+});
+
+test("scene panel refresh preserves roster timestamps when already current", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    const seedTimestamp = 9876;
+
+    applySceneRosterUpdate({
+        key: "m1",
+        messageId: 1,
+        roster: [
+            { name: "Kotori", normalized: "kotori", joinedAt: seedTimestamp - 100, lastSeenAt: seedTimestamp },
+        ],
+        updatedAt: seedTimestamp,
+    });
+
+    let restoreInvocations = 0;
+    let renderRequested = false;
+    let rerenderCount = 0;
+    const statusMessages = [];
+
+    const handler = createScenePanelRefreshHandler({
+        restoreLatestSceneOutcome: () => {
+            restoreInvocations += 1;
+            applySceneRosterUpdate({ key: "m1", messageId: 1, roster: ["Kotori"], updatedAt: Date.now() });
+            return true;
+        },
+        requestScenePanelRender: () => {
+            renderRequested = true;
+        },
+        rerenderScenePanelLayer: () => {
+            rerenderCount += 1;
+        },
+        showStatus: (message) => {
+            statusMessages.push(message);
+        },
+        getCurrentSceneSnapshot,
+        getLatestStoredSceneTimestamp: () => seedTimestamp,
+    });
+
+    handler({ preventDefault() {} });
+
+    const scene = getCurrentSceneSnapshot();
+    assert.equal(scene.updatedAt, seedTimestamp, "scene snapshot timestamp should remain unchanged");
+
+    const rosterSnapshot = getRosterMembershipSnapshot();
+    assert.equal(rosterSnapshot.updatedAt, seedTimestamp, "roster snapshot timestamp should remain unchanged");
+
+    assert.equal(restoreInvocations, 0, "refresh handler should skip restoring when timestamps match");
+    assert.equal(renderRequested, false, "manual render should not be requested when already current");
+    assert.equal(statusMessages[0], "Scene panel refreshed.", "refresh handler should still surface status feedback");
+    assert.equal(rerenderCount, 1, "refresh handler should rerender the active layer once");
 });
 
 test("remapMessageKey retargets recent decision events for rendered messages", () => {

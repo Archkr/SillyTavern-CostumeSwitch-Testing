@@ -172,7 +172,7 @@ export function applySceneRosterUpdate({
     roster = [],
     displayNames = null,
     lastMatch = null,
-    updatedAt = Date.now(),
+    updatedAt = null,
     turnsRemaining = null,
     turnsByMember = null,
 } = {}, options = {}) {
@@ -182,6 +182,11 @@ export function applySceneRosterUpdate({
     const rosterEntries = [];
     const sanitizedTurns = Number.isFinite(turnsRemaining) ? Math.max(0, Math.floor(turnsRemaining)) : null;
     const perMemberTurns = normalizeTurnsByMember(turnsByMember);
+
+    const timestampFallback = Number.isFinite(currentScene?.updatedAt) && currentScene.updatedAt > 0
+        ? currentScene.updatedAt
+        : Date.now();
+    const timestamp = Number.isFinite(updatedAt) ? updatedAt : timestampFallback;
 
     const values = Array.isArray(roster) ? roster : [];
     const shouldPreserveExisting = preserveActiveOnEmpty && values.length === 0;
@@ -225,8 +230,8 @@ export function applySceneRosterUpdate({
         }
         const name = providedName || resolveDisplayName(normalized, normalizedDisplayNames);
         const existing = rosterMembers.get(normalized);
-        const joinedAt = providedJoinedAt ?? existing?.joinedAt ?? updatedAt;
-        const lastSeenAt = providedLastSeenAt ?? existing?.lastSeenAt ?? updatedAt;
+        const joinedAt = providedJoinedAt ?? existing?.joinedAt ?? timestamp;
+        const lastSeenAt = providedLastSeenAt ?? existing?.lastSeenAt ?? timestamp;
         const lastLeftAt = providedLastLeftAt ?? existing?.lastLeftAt ?? null;
         let entryTurns = providedTurns;
         if (!Number.isFinite(entryTurns) && perMemberTurns?.has(normalized)) {
@@ -251,7 +256,7 @@ export function applySceneRosterUpdate({
                 rosterMembers.set(normalized, {
                     ...member,
                     active: false,
-                    lastLeftAt: updatedAt,
+                    lastLeftAt: timestamp,
                     turnsRemaining: null,
                 });
             }
@@ -270,16 +275,16 @@ export function applySceneRosterUpdate({
         });
     });
 
-    rosterUpdatedAt = updatedAt;
+    rosterUpdatedAt = timestamp;
 
-    const normalizedEvent = normalizeEvent(lastMatch, updatedAt);
+    const normalizedEvent = normalizeEvent(lastMatch, timestamp);
 
     currentScene = {
         key: key || null,
         messageId: Number.isFinite(messageId) ? messageId : null,
         roster: rosterEntries.map(cloneRosterEntry),
         lastEvent: normalizedEvent ? { ...normalizedEvent } : null,
-        updatedAt,
+        updatedAt: timestamp,
     };
 
     return getCurrentSceneSnapshot();

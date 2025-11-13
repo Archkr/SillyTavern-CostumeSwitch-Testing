@@ -618,16 +618,43 @@ export function createScenePanelRefreshHandler({
     requestScenePanelRender,
     rerenderScenePanelLayer,
     showStatus,
+    getCurrentSceneSnapshot,
+    getLatestStoredSceneTimestamp,
 } = {}) {
     return function handleScenePanelRefresh(event) {
         event?.preventDefault?.();
 
-        const restored = typeof restoreLatestSceneOutcome === "function"
-            ? restoreLatestSceneOutcome({
+        let currentTimestamp = null;
+        if (typeof getCurrentSceneSnapshot === "function") {
+            try {
+                const scene = getCurrentSceneSnapshot();
+                if (Number.isFinite(scene?.updatedAt) && scene.updatedAt > 0) {
+                    currentTimestamp = scene.updatedAt;
+                }
+            } catch (err) {
+            }
+        }
+
+        let storedTimestamp = null;
+        if (typeof getLatestStoredSceneTimestamp === "function") {
+            try {
+                const value = getLatestStoredSceneTimestamp();
+                if (Number.isFinite(value) && value > 0) {
+                    storedTimestamp = value;
+                }
+            } catch (err) {
+            }
+        }
+
+        let restored = false;
+        if (currentTimestamp != null && storedTimestamp != null && currentTimestamp === storedTimestamp) {
+            restored = true;
+        } else if (typeof restoreLatestSceneOutcome === "function") {
+            restored = restoreLatestSceneOutcome({
                 immediateRender: true,
                 preserveStateOnFailure: true,
-            })
-            : false;
+            });
+        }
 
         if (!restored && typeof requestScenePanelRender === "function") {
             requestScenePanelRender("manual-refresh", { immediate: true });

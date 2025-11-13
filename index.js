@@ -2688,6 +2688,8 @@ const handleScenePanelRefresh = createScenePanelRefreshHandler({
     requestScenePanelRender,
     rerenderScenePanelLayer,
     showStatus,
+    getCurrentSceneSnapshot,
+    getLatestStoredSceneTimestamp,
 });
 
 async function handleScenePanelFocusToggle(event) {
@@ -8529,7 +8531,15 @@ function restoreSceneOutcomeForMessage(message, {
         state.messageStats.set(messageKey, fromStatsEntries(stored.stats));
     }
 
-    const timestamp = Number.isFinite(stored?.updatedAt) ? stored.updatedAt : now;
+    const currentSceneSnapshot = typeof getCurrentSceneSnapshot === "function"
+        ? getCurrentSceneSnapshot()
+        : null;
+    const existingUpdatedAt = Number.isFinite(currentSceneSnapshot?.updatedAt)
+        && currentSceneSnapshot.updatedAt > 0
+        ? currentSceneSnapshot.updatedAt
+        : null;
+    const storedTimestamp = Number.isFinite(stored?.updatedAt) ? stored.updatedAt : null;
+    const timestamp = storedTimestamp ?? existingUpdatedAt ?? now;
 
     replaceLiveTesterOutputs(events, {
         roster,
@@ -9343,6 +9353,32 @@ function findAssistantMessageBeforeIndex(index) {
         if (candidate && !candidate.is_user) {
             return candidate;
         }
+    }
+    return null;
+}
+
+function getLatestStoredSceneTimestamp() {
+    try {
+        let ctx = null;
+        if (typeof getContext === "function") {
+            ctx = getContext();
+        } else if (typeof window !== "undefined" && window.SillyTavern && typeof window.SillyTavern.getContext === "function") {
+            ctx = window.SillyTavern.getContext();
+        }
+        const chatLog = ctx?.chat;
+        if (!Array.isArray(chatLog) || chatLog.length === 0) {
+            return null;
+        }
+        const latestAssistant = findAssistantMessageBeforeIndex(chatLog.length - 1);
+        if (!latestAssistant) {
+            return null;
+        }
+        const stored = getStoredSceneOutcome(latestAssistant);
+        if (Number.isFinite(stored?.updatedAt)) {
+            return stored.updatedAt;
+        }
+    } catch (error) {
+        debugLog("Failed to resolve latest stored scene timestamp.", error);
     }
     return null;
 }
