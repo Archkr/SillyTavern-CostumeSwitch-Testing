@@ -13,6 +13,7 @@
 ### Improved
 - **Scene control center aurora parity.** The roster headline now inherits the hero gradient and animated starfield from the main header so the command center shares the same nebula finish.
 - **Scene control center polish.** Refined the panel with a live-status banner, quick section navigation chips, richer hover states, and smoother animations to make the roster workspace feel faster and more intentional.
+- **Coverage toggle in the control center.** Coverage suggestions now share the toolbar's quick toggles so the panel can hide or restore vocabulary guidance without opening settings.
 - **Scene panel master toggle placement.** The hide/show switch now anchors to the base of the hero card so it stays visually connected to the gradient header instead of floating above it.
 - **Adaptive section sizing.** Remaining scene panel sections now stretch to fill the freed space as soon as any module is hidden, so two-up layouts immediately expand instead of waiting until only a single section remains.
 - **Live log export parity.** Copying the live log now produces a full report with detection summaries, switch analytics, skip reasons, and roster state—matching the fidelity of the live pattern tester output.
