@@ -13,6 +13,7 @@
 ### Improved
 - **Scene control center aurora parity.** The roster headline now inherits the hero gradient and animated starfield from the main header so the command center shares the same nebula finish.
 - **Scene control center polish.** Refined the panel with a live-status banner, quick section navigation chips, richer hover states, and smoother animations to make the roster workspace feel faster and more intentional.
+- **Scene panel master toggle placement.** The hide/show switch now anchors to the base of the hero card so it stays visually connected to the gradient header instead of floating above it.
 - **Adaptive section sizing.** Remaining scene panel sections now stretch to fill the freed space as soon as any module is hidden, so two-up layouts immediately expand instead of waiting until only a single section remains.
 - **Live log export parity.** Copying the live log now produces a full report with detection summaries, switch analytics, skip reasons, and roster state—matching the fidelity of the live pattern tester output.
 - **Scene panel layout cleanup.** Retired the legacy collapse handle so the crest header and toolbar own panel visibility, keeping the frame tidy without the extra toggle stub.
@@ -38,6 +39,7 @@
 - **Live log stability.** The live diagnostics panel keeps the prior message data visible until the next stream produces detections, so it no longer flickers "Awaiting detections" while idle.
 - **Live diagnostics retention.** Streaming preserves the full switch history for the active message instead of trimming entries mid-stream, so the log no longer empties before generation ends.
 - **Scene panel hide toggle.** Hiding the command center now removes the panel entirely so no translucent shell remains on screen.
+- **Scene control center button resilience.** Panel and summon buttons now reset their visual styles within the extension so conflicting theme overrides from other mods can no longer hide or neutralize them.
 - **Scene control center refresh.** Event subscriptions now match additional SillyTavern generation hooks, so the roster, live diagnostics, and status copy update right after streaming and message completion without needing manual history edits.
 - **Stream start detection resiliency.** Hidden and symbol-keyed SillyTavern events are now recognised when wiring the integration, keeping the side panel aware of streaming starts even when the host app reshuffles its hooks.
 - **Streaming event detection.** The scene panel now tracks SillyTavern's symbol-based generation events, restoring auto-open behaviour and post-stream analytics updates for live messages.

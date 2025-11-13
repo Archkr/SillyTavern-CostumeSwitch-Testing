@@ -1882,6 +1882,11 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     color: var(--header-text, rgba(248, 249, 255, 0.95));
 }
 
+.cs-scene-panel__headline {
+    position: relative;
+    padding-bottom: calc(14px + 38px + 12px);
+}
+
 .cs-scene-panel__headline > *:not(.cs-scene-panel__ambient),
 .cs-scene-panel__title > *:not(.cs-scene-panel__ambient) {
     position: relative;
@@ -1917,18 +1922,21 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.66);
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 }
 
 .cs-scene-panel__title-copy h3 {
     margin: 0;
     font-size: 1.35rem;
     color: var(--SmartThemeBodyColor, #f3f3f3);
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
 }
 
 .cs-scene-panel__subtitle {
     margin: 0;
     font-size: 0.88rem;
     color: var(--text-color-soft, rgba(255, 255, 255, 0.75));
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 
 .cs-scene-panel__toolbar {
@@ -1936,6 +1944,43 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+.cs-scene-panel__icon-button,
+.cs-scene-panel__text-button,
+.cs-scene-panel__footer-button,
+.cs-scene-panel__summon {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-decoration: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    min-width: 0;
+    appearance: none;
+}
+
+.cs-scene-panel__master-toggle {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    display: flex;
+    justify-content: flex-end;
+    pointer-events: none;
+}
+
+.cs-scene-panel__master-toggle .cs-scene-panel__icon-button {
+    pointer-events: auto;
+    width: 38px;
+    height: 38px;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
 }
 
 .cs-scene-panel__icon-button {
@@ -1968,6 +2013,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     font-size: 0.75rem;
     color: rgba(255, 255, 255, 0.75);
     margin-top: 2px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
 }
 
 .cs-scene-panel__toggle {
