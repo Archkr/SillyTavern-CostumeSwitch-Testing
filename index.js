@@ -81,7 +81,7 @@ import {
     getSceneActiveCards,
     getSceneLiveLog,
 } from "./src/ui/scenePanelState.js";
-import { renderScenePanel } from "./src/ui/render/panel.js";
+import { renderScenePanel, createScenePanelRefreshHandler } from "./src/ui/render/panel.js";
 import { formatRelativeTime } from "./src/ui/render/utils.js";
 
 const extensionName = "SillyTavern-CostumeSwitch-Testing";
@@ -2564,15 +2564,12 @@ function handleScenePanelClearRoster(event) {
     rerenderScenePanelLayer();
 }
 
-function handleScenePanelRefresh(event) {
-    event?.preventDefault?.();
-    const restored = restoreLatestSceneOutcome({ immediateRender: true });
-    if (!restored) {
-        requestScenePanelRender("manual-refresh", { immediate: true });
-    }
-    showStatus("Scene panel refreshed.", "info");
-    rerenderScenePanelLayer();
-}
+const handleScenePanelRefresh = createScenePanelRefreshHandler({
+    restoreLatestSceneOutcome,
+    requestScenePanelRender,
+    rerenderScenePanelLayer,
+    showStatus,
+});
 
 async function handleScenePanelFocusToggle(event) {
     event?.preventDefault?.();
@@ -8154,11 +8151,16 @@ function getStoredSceneOutcome(message) {
     return entry;
 }
 
-function restoreSceneOutcomeForMessage(message, { immediateRender = true } = {}) {
+function restoreSceneOutcomeForMessage(message, {
+    immediateRender = true,
+    preserveStateOnFailure = false,
+} = {}) {
     const now = Date.now();
     if (!message || message.is_user) {
-        resetSceneState();
-        replaceLiveTesterOutputs([], { roster: [] });
+        if (!preserveStateOnFailure) {
+            resetSceneState();
+            replaceLiveTesterOutputs([], { roster: [] });
+        }
         if (immediateRender) {
             requestScenePanelRender("history-reset", { immediate: true });
         }
@@ -8168,8 +8170,10 @@ function restoreSceneOutcomeForMessage(message, { immediateRender = true } = {})
     const fallbackKey = normalizeMessageKey(`m${message.mesId}`);
     const messageKey = normalizeMessageKey(stored?.messageKey || fallbackKey);
     if (!messageKey) {
-        resetSceneState();
-        replaceLiveTesterOutputs([], { roster: [] });
+        if (!preserveStateOnFailure) {
+            resetSceneState();
+            replaceLiveTesterOutputs([], { roster: [] });
+        }
         if (immediateRender) {
             requestScenePanelRender("history-reset", { immediate: true });
         }
@@ -8950,7 +8954,7 @@ function findAssistantMessageBeforeIndex(index) {
     return null;
 }
 
-function restoreLatestSceneOutcome({ immediateRender = true } = {}) {
+function restoreLatestSceneOutcome({ immediateRender = true, preserveStateOnFailure = false } = {}) {
     try {
         let ctx = null;
         if (typeof getContext === "function") {
@@ -8960,8 +8964,10 @@ function restoreLatestSceneOutcome({ immediateRender = true } = {}) {
         }
         const chatLog = ctx?.chat;
         if (!Array.isArray(chatLog) || chatLog.length === 0) {
-            resetSceneState();
-            replaceLiveTesterOutputs([], { roster: [] });
+            if (!preserveStateOnFailure) {
+                resetSceneState();
+                replaceLiveTesterOutputs([], { roster: [] });
+            }
             if (immediateRender) {
                 requestScenePanelRender("history-reset", { immediate: true });
             }
@@ -8969,18 +8975,25 @@ function restoreLatestSceneOutcome({ immediateRender = true } = {}) {
         }
         const latestAssistant = findAssistantMessageBeforeIndex(chatLog.length - 1);
         if (!latestAssistant) {
-            resetSceneState();
-            replaceLiveTesterOutputs([], { roster: [] });
+            if (!preserveStateOnFailure) {
+                resetSceneState();
+                replaceLiveTesterOutputs([], { roster: [] });
+            }
             if (immediateRender) {
                 requestScenePanelRender("history-reset", { immediate: true });
             }
             return false;
         }
-        return restoreSceneOutcomeForMessage(latestAssistant, { immediateRender });
+        return restoreSceneOutcomeForMessage(latestAssistant, {
+            immediateRender,
+            preserveStateOnFailure,
+        });
     } catch (error) {
         console.warn(`${logPrefix} Failed to restore latest scene outcome:`, error);
-        resetSceneState();
-        replaceLiveTesterOutputs([], { roster: [] });
+        if (!preserveStateOnFailure) {
+            resetSceneState();
+            replaceLiveTesterOutputs([], { roster: [] });
+        }
         if (immediateRender) {
             requestScenePanelRender("history-reset", { immediate: true });
         }

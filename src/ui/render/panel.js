@@ -595,3 +595,33 @@ export function renderScenePanel(panelState = {}, { source = "scene" } = {}) {
         }
     }
 }
+
+export function createScenePanelRefreshHandler({
+    restoreLatestSceneOutcome,
+    requestScenePanelRender,
+    rerenderScenePanelLayer,
+    showStatus,
+} = {}) {
+    return function handleScenePanelRefresh(event) {
+        event?.preventDefault?.();
+
+        const restored = typeof restoreLatestSceneOutcome === "function"
+            ? restoreLatestSceneOutcome({
+                immediateRender: true,
+                preserveStateOnFailure: true,
+            })
+            : false;
+
+        if (!restored && typeof requestScenePanelRender === "function") {
+            requestScenePanelRender("manual-refresh", { immediate: true });
+        }
+
+        if (typeof showStatus === "function") {
+            showStatus("Scene panel refreshed.", "info");
+        }
+
+        if (typeof rerenderScenePanelLayer === "function") {
+            rerenderScenePanelLayer();
+        }
+    };
+}
