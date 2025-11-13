@@ -959,6 +959,11 @@
     margin-top: 2px;
 }
 
+#costume-switcher-settings.cs-theme .cs-master-toggle .cs-switch-thumb {
+    align-self: start;
+    margin-top: 6px;
+}
+
 #costume-switcher-settings.cs-theme .cs-switch-thumb::before {
     content: "";
     inline-size: 20px;
