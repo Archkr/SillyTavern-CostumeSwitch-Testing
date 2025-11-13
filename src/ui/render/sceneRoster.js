@@ -9,6 +9,153 @@ import {
     createPlaceholder,
 } from "./utils.js";
 
+function normalizeHistoryName(value) {
+    if (typeof value === "string" && value.trim()) {
+        return value.trim().toLowerCase();
+    }
+    if (value && typeof value === "object") {
+        if (typeof value.normalized === "string" && value.normalized.trim()) {
+            return value.normalized.trim().toLowerCase();
+        }
+        if (typeof value.name === "string" && value.name.trim()) {
+            return value.name.trim().toLowerCase();
+        }
+    }
+    return null;
+}
+
+function sanitizeHistoryTurnValue(value) {
+    if (!Number.isFinite(value)) {
+        return null;
+    }
+    return Math.max(0, Math.floor(value));
+}
+
+function normalizeHistoryRecord(entry) {
+    if (!entry || typeof entry !== "object") {
+        return null;
+    }
+    const record = {
+        key: typeof entry.key === "string" ? entry.key : null,
+        roster: [],
+        turnsByMember: new Map(),
+        turnsRemaining: sanitizeHistoryTurnValue(entry.turnsRemaining),
+        updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : null,
+    };
+
+    const rosterValues = Array.isArray(entry.roster)
+        ? entry.roster
+        : Array.isArray(entry.members)
+            ? entry.members
+            : [];
+    rosterValues.forEach((value) => {
+        const normalized = normalizeHistoryName(value);
+        if (normalized) {
+            record.roster.push(normalized);
+        }
+    });
+
+    const perMember = entry.turnsByMember;
+    if (perMember instanceof Map) {
+        perMember.forEach((value, key) => {
+            const normalized = normalizeHistoryName(key);
+            const sanitized = sanitizeHistoryTurnValue(value);
+            if (normalized && sanitized != null) {
+                record.turnsByMember.set(normalized, sanitized);
+            }
+        });
+    } else if (Array.isArray(perMember)) {
+        perMember.forEach((value) => {
+            if (Array.isArray(value) && value.length >= 2) {
+                const normalized = normalizeHistoryName(value[0]);
+                const sanitized = sanitizeHistoryTurnValue(value[1]);
+                if (normalized && sanitized != null) {
+                    record.turnsByMember.set(normalized, sanitized);
+                }
+                return;
+            }
+            if (value && typeof value === "object") {
+                const normalized = normalizeHistoryName(value.normalized ?? value.name);
+                const sanitized = sanitizeHistoryTurnValue(value.turnsRemaining ?? value.turns);
+                if (normalized && sanitized != null) {
+                    record.turnsByMember.set(normalized, sanitized);
+                }
+            }
+        });
+    } else if (perMember && typeof perMember === "object") {
+        Object.entries(perMember).forEach(([key, raw]) => {
+            const normalized = normalizeHistoryName(key);
+            const sanitized = sanitizeHistoryTurnValue(raw);
+            if (normalized && sanitized != null) {
+                record.turnsByMember.set(normalized, sanitized);
+            }
+        });
+    }
+
+    return record;
+}
+
+function normalizeRosterHistory(history) {
+    if (!history) {
+        return { window: null, messages: [] };
+    }
+    const rawWindow = sanitizeHistoryTurnValue(
+        history.ttlWindow ?? history.window ?? history.turnsRemaining ?? history.ttl,
+    );
+    const source = Array.isArray(history.messages)
+        ? history.messages
+        : Array.isArray(history)
+            ? history
+            : [];
+    const messages = source
+        .map((entry) => normalizeHistoryRecord(entry))
+        .filter(Boolean);
+    if (rawWindow != null && rawWindow > 0 && messages.length > rawWindow) {
+        return {
+            window: rawWindow,
+            messages: messages.slice(-rawWindow),
+        };
+    }
+    return { window: rawWindow, messages };
+}
+
+function findLatestHistoryTurns(messages, normalized) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const entry = messages[i];
+        if (!entry) {
+            continue;
+        }
+        if (entry.turnsByMember instanceof Map && entry.turnsByMember.has(normalized)) {
+            return entry.turnsByMember.get(normalized);
+        }
+        if (Number.isFinite(entry.turnsRemaining) && entry.roster.includes(normalized)) {
+            return entry.turnsRemaining;
+        }
+    }
+    return null;
+}
+
+function resolveTurnsFromWindow(messages, normalized, historyWindow) {
+    if (!Number.isFinite(historyWindow) || historyWindow <= 0) {
+        return null;
+    }
+    let offset = 0;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const entry = messages[i];
+        if (!entry) {
+            continue;
+        }
+        if (Array.isArray(entry.roster) && entry.roster.includes(normalized)) {
+            return Math.max(0, historyWindow - offset);
+        }
+        offset += 1;
+        if (offset >= historyWindow) {
+            break;
+        }
+    }
+    return null;
+}
+
 function buildDisplayName(normalized, fallback, displayNames) {
     if (normalized && displayNames instanceof Map && displayNames.has(normalized)) {
         return displayNames.get(normalized);
@@ -293,12 +440,27 @@ function mergeRosterData(scene, membership, testers, now) {
         });
     }
 
+    const historyData = normalizeRosterHistory(scene?.history || membership?.history || null);
+    const historyMessages = historyData.messages;
+    const historyWindow = historyData.window;
+
     const latestMatch = scene?.lastEvent?.normalized
         ? scene.lastEvent.normalized.toLowerCase()
         : null;
 
     const entries = Array.from(map.values()).map((entry) => {
         const tester = entry.normalized ? testerMap.get(entry.normalized) : null;
+        if (!Number.isFinite(entry.turnsRemaining)) {
+            const fromHistory = findLatestHistoryTurns(historyMessages, entry.normalized);
+            if (fromHistory != null) {
+                entry.turnsRemaining = fromHistory;
+            } else {
+                const fallbackTurns = resolveTurnsFromWindow(historyMessages, entry.normalized, historyWindow);
+                if (fallbackTurns != null) {
+                    entry.turnsRemaining = fallbackTurns;
+                }
+            }
+        }
         return {
             ...entry,
             tester,
@@ -361,3 +523,5 @@ export function renderSceneRoster(target, panelState = {}) {
 
     appendContent(container, fragment);
 }
+
+export const __testables = { mergeRosterData };
