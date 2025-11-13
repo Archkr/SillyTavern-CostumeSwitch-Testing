@@ -563,7 +563,7 @@
 }
 
 #costume-switcher-settings.cs-theme .cs-header-ambient.organic-flow {
-    background: linear-gradient(135deg, #1a2a3a, #2d1b3d, #3d2b4d);
+    background: linear-gradient(140deg, rgba(156, 125, 255, 0.32), rgba(64, 180, 255, 0.2));
 }
 
 #costume-switcher-settings.cs-theme .cs-header-intro,
@@ -645,48 +645,118 @@
   z-index: 2;
 }
 
-#costume-switcher-settings.cs-theme .cs-header-ambient .flow-element {
-    position: absolute;
-    border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
-    background: linear-gradient(45deg, rgba(255, 255, 255, 0.15), transparent);
-    animation: organic-morph 8s infinite ease-in-out;
-    transform: translate(-50%, -50%);
-}
-
-#costume-switcher-settings.cs-theme .cs-header-ambient .flow-element::before {
+#costume-switcher-settings.cs-theme .cs-header-ambient::after {
     content: "";
     position: absolute;
-    inset: 20%;
-    background: inherit;
-    border-radius: inherit;
-    animation: organic-morph-inner 6s infinite ease-in-out reverse;
+    inset: -25% -10% 10% -10%;
+    background: radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.22), transparent 62%),
+        radial-gradient(circle at 70% 60%, rgba(126, 213, 255, 0.18), transparent 68%);
+    opacity: 0.8;
+    mix-blend-mode: screen;
+    pointer-events: none;
+    filter: blur(12px);
+    z-index: 1;
 }
 
-@keyframes organic-morph {
-  0%,
-  100% {
-    border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
-    transform: translate(0, 0) scale(1) rotate(0deg);
-  }
-  33% {
-    border-radius: 70% 30% 40% 60% / 60% 40% 50% 40%;
-    transform: translate(50px, -30px) scale(1.2) rotate(120deg);
-  }
-  66% {
-    border-radius: 30% 70% 60% 40% / 50% 60% 40% 60%;
-    transform: translate(-30px, 50px) scale(0.8) rotate(240deg);
-  }
+#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-layer {
+    position: absolute;
+    width: var(--ripple-size, 320px);
+    height: var(--ripple-size, 320px);
+    left: var(--ripple-left, 50%);
+    top: var(--ripple-top, 50%);
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    overflow: hidden;
+    opacity: var(--ripple-opacity, 0.65);
+    filter: blur(var(--ripple-blur, 0px));
+    mix-blend-mode: screen;
+    animation: ripple-wave var(--ripple-duration, 18s) ease-in-out infinite;
+    animation-delay: var(--ripple-delay, 0s);
 }
 
-@keyframes organic-morph-inner {
-  0%,
-  100% {
-    border-radius: inherit;
-    transform: rotate(0deg) scale(1);
-  }
-  50% {
-    transform: rotate(180deg) scale(1.3);
-  }
+#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-layer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.15) 38%, rgba(255, 255, 255, 0.05) 56%, transparent 72%),
+        radial-gradient(circle at 30% 65%, rgba(120, 205, 255, 0.32), transparent 68%),
+        radial-gradient(circle at 72% 32%, rgba(177, 156, 255, 0.36), transparent 65%);
+}
+
+#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-layer::after {
+    content: "";
+    position: absolute;
+    inset: -18%;
+    border-radius: 50%;
+    background: conic-gradient(from 180deg at 50% 50%, rgba(255, 255, 255, 0) 0deg, rgba(255, 255, 255, 0.25) 82deg, rgba(255, 255, 255, 0) 160deg, rgba(64, 180, 255, 0.22) 220deg, rgba(255, 255, 255, 0) 360deg);
+    mix-blend-mode: screen;
+    opacity: 0.8;
+    animation: ripple-sheen calc(var(--ripple-duration, 18s) * 1.15) linear infinite;
+    animation-delay: calc(var(--ripple-delay, 0s) * 1.05);
+}
+
+@keyframes ripple-wave {
+    0% {
+        transform: translate(-50%, -50%) scale(var(--ripple-scale-start, 0.45));
+        opacity: 0;
+    }
+    20% {
+        opacity: var(--ripple-opacity, 0.65);
+    }
+    55% {
+        opacity: calc(var(--ripple-opacity, 0.65) + 0.08);
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(var(--ripple-scale-end, 1.4));
+        opacity: 0;
+    }
+}
+
+@keyframes ripple-sheen {
+    0% {
+        transform: rotate(0deg) scale(0.92);
+    }
+    50% {
+        transform: rotate(180deg) scale(1);
+    }
+    100% {
+        transform: rotate(360deg) scale(0.92);
+    }
+}
+
+#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-spark {
+    position: absolute;
+    width: var(--spark-size, 180px);
+    height: var(--spark-size, 180px);
+    left: var(--spark-left, 52%);
+    top: var(--spark-top, 48%);
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.12) 48%, transparent 75%);
+    mix-blend-mode: screen;
+    filter: blur(18px);
+    opacity: var(--spark-opacity, 0.5);
+    animation: ripple-sparkle var(--spark-duration, 10s) ease-in-out infinite;
+    animation-delay: var(--spark-delay, 0s);
+}
+
+@keyframes ripple-sparkle {
+    0% {
+        transform: translate(-50%, -50%) scale(0.85);
+        opacity: 0;
+    }
+    25% {
+        opacity: var(--spark-opacity, 0.5);
+    }
+    55% {
+        transform: translate(-48%, -52%) scale(1.05);
+        opacity: calc(var(--spark-opacity, 0.5) * 0.6);
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1.25);
+        opacity: 0;
+    }
 }
 
 #costume-switcher-settings.cs-theme .cs-header-intro {
