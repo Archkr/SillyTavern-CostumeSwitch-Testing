@@ -14,8 +14,18 @@
     --text-subtle: var(--text-color-soft-extra, rgba(255, 255, 255, 0.6));
     --header-text: rgba(248, 249, 255, 0.95);
     --header-text-subtle: rgba(248, 249, 255, 0.75);
-    --cs-hero-gradient: linear-gradient(140deg, rgba(156, 125, 255, 0.48), rgba(64, 180, 255, 0.28));
-    --cs-hero-base: linear-gradient(155deg, rgba(18, 30, 54, 0.94), rgba(15, 24, 44, 0.96));
+    --cs-hero-gradient: linear-gradient(
+        135deg,
+        rgba(211, 108, 255, 0.48) 0%,
+        rgba(102, 171, 255, 0.42) 38%,
+        rgba(120, 255, 214, 0.3) 72%
+    );
+    --cs-hero-base: linear-gradient(
+        160deg,
+        rgba(13, 18, 45, 0.98) 0%,
+        rgba(34, 12, 63, 0.96) 45%,
+        rgba(6, 10, 26, 0.99) 100%
+    );
 }
 
 #costume-switcher-settings.cs-theme .inline-drawer {
@@ -554,10 +564,20 @@
     min-height: clamp(180px, 22vw, 230px);
     background: var(
         --cs-hero-gradient,
-        linear-gradient(140deg, rgba(156, 125, 255, 0.48), rgba(64, 180, 255, 0.28))
+        linear-gradient(
+            135deg,
+            rgba(211, 108, 255, 0.48) 0%,
+            rgba(102, 171, 255, 0.42) 38%,
+            rgba(120, 255, 214, 0.3) 72%
+        )
     ), var(
         --cs-hero-base,
-        linear-gradient(155deg, rgba(18, 30, 54, 0.94), rgba(15, 24, 44, 0.96))
+        linear-gradient(
+            160deg,
+            rgba(13, 18, 45, 0.98) 0%,
+            rgba(34, 12, 63, 0.96) 45%,
+            rgba(6, 10, 26, 0.99) 100%
+        )
     );
     color: var(--header-text);
 }
@@ -578,10 +598,11 @@
     content: "";
     position: absolute;
     inset: -14% -12%;
-    background: radial-gradient(circle at 24% 22%, rgba(132, 176, 255, 0.22), transparent 62%),
-        radial-gradient(circle at 78% 68%, rgba(173, 146, 255, 0.18), transparent 74%);
-    opacity: 0.85;
-    filter: blur(16px);
+    background: radial-gradient(circle at 22% 30%, rgba(255, 141, 255, 0.4), transparent 64%),
+        radial-gradient(circle at 76% 24%, rgba(118, 210, 255, 0.32), transparent 72%),
+        radial-gradient(circle at 60% 82%, rgba(120, 255, 214, 0.26), transparent 70%);
+    opacity: 0.9;
+    filter: blur(18px);
     pointer-events: none;
     z-index: 0;
 }
@@ -669,12 +690,19 @@
     content: "";
     position: absolute;
     inset: -18% -8% 16% -8%;
-    background: radial-gradient(circle at 32% 36%, rgba(255, 255, 255, 0.2), transparent 60%),
-        radial-gradient(circle at 74% 62%, rgba(114, 205, 255, 0.16), transparent 68%);
-    opacity: 0.55;
+    background: radial-gradient(circle at 32% 34%, rgba(255, 182, 255, 0.4), transparent 62%),
+        radial-gradient(circle at 74% 62%, rgba(138, 214, 255, 0.28), transparent 70%),
+        conic-gradient(
+            from 180deg at 50% 50%,
+            rgba(255, 255, 255, 0) 0deg,
+            rgba(255, 163, 255, 0.28) 120deg,
+            rgba(122, 222, 255, 0.25) 220deg,
+            rgba(255, 255, 255, 0) 360deg
+        );
+    opacity: 0.62;
     mix-blend-mode: screen;
     pointer-events: none;
-    filter: blur(14px);
+    filter: blur(16px);
     z-index: 2;
 }
 
@@ -687,8 +715,8 @@
     transform: translate(-50%, -50%);
     border-radius: 50%;
     overflow: hidden;
-    opacity: var(--ripple-opacity, 0.45);
-    filter: blur(var(--ripple-blur, 0px));
+    opacity: var(--ripple-opacity, 0.5);
+    filter: blur(var(--ripple-blur, 2px));
     mix-blend-mode: screen;
     animation: ripple-wave var(--ripple-duration, 18s) ease-in-out infinite;
     animation-delay: var(--ripple-delay, 0s);
@@ -701,9 +729,9 @@
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    background: radial-gradient(circle at 52% 46%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.08) 38%, rgba(255, 255, 255, 0.03) 56%, transparent 74%),
-        radial-gradient(circle at 28% 68%, rgba(128, 205, 255, 0.18), transparent 70%),
-        radial-gradient(circle at 74% 34%, rgba(173, 156, 255, 0.2), transparent 68%);
+    background: radial-gradient(circle at 48% 42%, rgba(255, 195, 255, 0.32) 0%, rgba(255, 195, 255, 0.12) 36%, rgba(255, 195, 255, 0.04) 58%, transparent 78%),
+        radial-gradient(circle at 28% 70%, rgba(132, 222, 255, 0.28), transparent 70%),
+        radial-gradient(circle at 76% 30%, rgba(164, 143, 255, 0.32), transparent 68%);
 }
 
 #costume-switcher-settings.cs-theme .cs-header-ambient .ripple-layer::after {
@@ -711,9 +739,17 @@
     position: absolute;
     inset: -18%;
     border-radius: 50%;
-    background: conic-gradient(from 190deg at 50% 50%, rgba(255, 255, 255, 0) 0deg, rgba(255, 255, 255, 0.18) 78deg, rgba(255, 255, 255, 0) 164deg, rgba(74, 182, 255, 0.18) 230deg, rgba(255, 255, 255, 0) 360deg);
+    background: conic-gradient(
+        from 200deg at 50% 50%,
+        rgba(255, 255, 255, 0) 0deg,
+        rgba(255, 189, 255, 0.32) 82deg,
+        rgba(108, 205, 255, 0.28) 162deg,
+        rgba(255, 255, 255, 0) 240deg,
+        rgba(123, 255, 219, 0.22) 310deg,
+        rgba(255, 255, 255, 0) 360deg
+    );
     mix-blend-mode: screen;
-    opacity: 0.38;
+    opacity: 0.48;
     animation: ripple-sheen calc(var(--ripple-duration, 18s) * 1.2) linear infinite;
     animation-delay: calc(var(--ripple-delay, 0s) * 1.05);
 }
@@ -724,13 +760,13 @@
         opacity: 0;
     }
     18% {
-        opacity: var(--ripple-opacity, 0.45);
+        opacity: var(--ripple-opacity, 0.5);
     }
     48% {
-        opacity: calc(var(--ripple-opacity, 0.45) + 0.02);
+        opacity: calc(var(--ripple-opacity, 0.5) + 0.02);
     }
     78% {
-        opacity: calc(var(--ripple-opacity, 0.45) * 0.4);
+        opacity: calc(var(--ripple-opacity, 0.5) * 0.4);
     }
     100% {
         transform: translate(-50%, -50%) scale(var(--ripple-scale-end, 1.4));
@@ -758,7 +794,8 @@
     top: var(--spark-top, 48%);
     transform: translate(-50%, -50%);
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.08) 48%, transparent 75%);
+    background: radial-gradient(circle at 46% 42%, rgba(255, 205, 255, 0.45) 0%, rgba(255, 205, 255, 0.16) 42%, transparent 78%),
+        radial-gradient(circle at 60% 68%, rgba(134, 234, 255, 0.32) 0%, rgba(134, 234, 255, 0.1) 48%, transparent 80%);
     mix-blend-mode: screen;
     filter: blur(16px);
     opacity: var(--spark-opacity, 0.35);
@@ -1719,10 +1756,20 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     border-radius: 16px;
     background: var(
         --cs-hero-gradient,
-        linear-gradient(140deg, rgba(156, 125, 255, 0.48), rgba(64, 180, 255, 0.28))
+        linear-gradient(
+            135deg,
+            rgba(211, 108, 255, 0.48) 0%,
+            rgba(102, 171, 255, 0.42) 38%,
+            rgba(120, 255, 214, 0.3) 72%
+        )
     ), var(
         --cs-hero-base,
-        linear-gradient(155deg, rgba(18, 30, 54, 0.94), rgba(15, 24, 44, 0.96))
+        linear-gradient(
+            160deg,
+            rgba(13, 18, 45, 0.98) 0%,
+            rgba(34, 12, 63, 0.96) 45%,
+            rgba(6, 10, 26, 0.99) 100%
+        )
     );
     border: 1px solid rgba(255, 255, 255, 0.16);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
