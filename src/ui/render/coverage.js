@@ -43,9 +43,10 @@ function renderList(target, values = [], type, { hasBuffer }) {
     const normalizedValues = normalizeValues(values);
     if (normalizedValues.length === 0) {
         const message = hasBuffer
-            ? "No gaps detected."
-            : "Awaiting an assistant message.";
-        renderPlaceholder(container, message);
+            ? "No coverage gaps detected."
+            : "Coverage suggestions will appear after the next assistant message.";
+        const tone = hasBuffer ? "informative" : "muted";
+        renderPlaceholder(container, message, tone);
         return;
     }
     const list = createElement("div", "cs-coverage-list");

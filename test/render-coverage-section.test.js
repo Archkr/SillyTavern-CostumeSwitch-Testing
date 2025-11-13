@@ -124,7 +124,8 @@ test("renderCoverageSection renders suggestions and updates state", () => {
 
         const actionPlaceholder = action.children[0];
         assert.ok(actionPlaceholder, "action placeholder should render when empty");
-        assert.equal(actionPlaceholder.textContent, "No gaps detected.");
+        assert.equal(actionPlaceholder.textContent, "No coverage gaps detected.");
+        assert.equal(actionPlaceholder.dataset.tone, "informative");
     });
 });
 
@@ -147,11 +148,11 @@ test("renderCoverageSection shows awaiting message when no buffer", () => {
 
         const pronounPlaceholder = pronouns.children[0];
         assert.ok(pronounPlaceholder, "pronoun placeholder should render when waiting");
-        assert.equal(pronounPlaceholder.textContent, "Awaiting an assistant message.");
+        assert.equal(pronounPlaceholder.textContent, "Coverage suggestions will appear after the next assistant message.");
 
         const attributionPlaceholder = attribution.children[0];
-        assert.equal(attributionPlaceholder.textContent, "Awaiting an assistant message.");
+        assert.equal(attributionPlaceholder.textContent, "Coverage suggestions will appear after the next assistant message.");
         const actionPlaceholder = action.children[0];
-        assert.equal(actionPlaceholder.textContent, "Awaiting an assistant message.");
+        assert.equal(actionPlaceholder.textContent, "Coverage suggestions will appear after the next assistant message.");
     });
 });
