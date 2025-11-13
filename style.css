@@ -2017,6 +2017,10 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     border-color: rgba(255, 255, 255, 0.35) !important;
 }
 
+#cs-scene-panel .cs-scene-panel__icon-button--disabled {
+    display: none !important;
+}
+
 .cs-scene-panel__helper {
     font-size: 0.75rem;
     color: rgba(255, 255, 255, 0.75);
@@ -2162,9 +2166,18 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 }
 
 .cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-panel {
-    display: grid;
-    gap: 12px;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-panel > div {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-panel h5 {
@@ -2177,7 +2190,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 .cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
 }
 
 .cs-scene-panel__section[data-scene-panel="coverage"] .cs-coverage-pill {
