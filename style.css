@@ -706,119 +706,145 @@
     z-index: 2;
 }
 
-#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-layer {
+#costume-switcher-settings.cs-theme .cs-header-ambient .nebula-cloud {
     position: absolute;
-    width: var(--ripple-size, 320px);
-    height: var(--ripple-size, 320px);
-    left: var(--ripple-left, 50%);
-    top: var(--ripple-top, 50%);
+    width: var(--cloud-size, 320px);
+    height: var(--cloud-size, 320px);
+    left: var(--cloud-left, 50%);
+    top: var(--cloud-top, 50%);
     transform: translate(-50%, -50%);
     border-radius: 50%;
-    overflow: hidden;
-    opacity: var(--ripple-opacity, 0.5);
-    filter: blur(var(--ripple-blur, 2px));
+    background:
+        radial-gradient(circle at 32% 38%, var(--cloud-color-primary, rgba(118, 210, 255, 0.38)) 0%, transparent 66%),
+        radial-gradient(circle at 70% 64%, var(--cloud-color-secondary, rgba(238, 168, 255, 0.28)) 0%, transparent 72%);
+    opacity: var(--cloud-opacity, 0.48);
+    filter: blur(var(--cloud-blur, 32px));
     mix-blend-mode: screen;
-    animation: ripple-wave var(--ripple-duration, 18s) ease-in-out infinite;
-    animation-delay: var(--ripple-delay, 0s);
+    animation: nebula-drift var(--cloud-duration, 46s) ease-in-out infinite;
+    animation-delay: var(--cloud-delay, 0s);
     z-index: 3;
     will-change: transform, opacity;
 }
 
-#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-layer::before {
+#costume-switcher-settings.cs-theme .cs-header-ambient .nebula-cloud::before {
     content: "";
     position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: radial-gradient(circle at 48% 42%, rgba(255, 195, 255, 0.32) 0%, rgba(255, 195, 255, 0.12) 36%, rgba(255, 195, 255, 0.04) 58%, transparent 78%),
-        radial-gradient(circle at 28% 70%, rgba(132, 222, 255, 0.28), transparent 70%),
-        radial-gradient(circle at 76% 30%, rgba(164, 143, 255, 0.32), transparent 68%);
-}
-
-#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-layer::after {
-    content: "";
-    position: absolute;
-    inset: -18%;
-    border-radius: 50%;
+    inset: -22%;
+    border-radius: inherit;
     background: conic-gradient(
-        from 200deg at 50% 50%,
+        from 140deg at 50% 50%,
         rgba(255, 255, 255, 0) 0deg,
-        rgba(255, 189, 255, 0.32) 82deg,
-        rgba(108, 205, 255, 0.28) 162deg,
-        rgba(255, 255, 255, 0) 240deg,
-        rgba(123, 255, 219, 0.22) 310deg,
+        color-mix(in srgb, var(--cloud-color-primary, rgba(118, 210, 255, 0.38)) 70%, transparent) 110deg,
+        color-mix(in srgb, var(--cloud-color-secondary, rgba(238, 168, 255, 0.28)) 65%, transparent) 220deg,
         rgba(255, 255, 255, 0) 360deg
     );
+    opacity: 0.65;
+    filter: blur(18px);
     mix-blend-mode: screen;
-    opacity: 0.48;
-    animation: ripple-sheen calc(var(--ripple-duration, 18s) * 1.2) linear infinite;
-    animation-delay: calc(var(--ripple-delay, 0s) * 1.05);
+    animation: nebula-shimmer calc(var(--cloud-duration, 46s) * 1.4) linear infinite;
+    animation-delay: var(--cloud-delay, 0s);
+    will-change: transform, opacity;
 }
 
-@keyframes ripple-wave {
+@keyframes nebula-drift {
     0% {
-        transform: translate(-50%, -50%) scale(var(--ripple-scale-start, 0.45));
-        opacity: 0;
-    }
-    18% {
-        opacity: var(--ripple-opacity, 0.5);
+        transform: translate(-50%, -50%) rotate(var(--cloud-rotation-start, -6deg)) scale(var(--cloud-scale-start, 0.96));
+        opacity: calc(var(--cloud-opacity, 0.48) * 0.8);
     }
     48% {
-        opacity: calc(var(--ripple-opacity, 0.5) + 0.02);
-    }
-    78% {
-        opacity: calc(var(--ripple-opacity, 0.5) * 0.4);
+        transform: translate(calc(-50% + 3%), calc(-50% - 2%)) rotate(var(--cloud-rotation-mid, 18deg)) scale(var(--cloud-scale-mid, 1.12));
+        opacity: calc(var(--cloud-opacity, 0.48) * 1.1);
     }
     100% {
-        transform: translate(-50%, -50%) scale(var(--ripple-scale-end, 1.4));
-        opacity: 0;
+        transform: translate(-50%, -50%) rotate(var(--cloud-rotation-end, 32deg)) scale(var(--cloud-scale-end, 0.94));
+        opacity: calc(var(--cloud-opacity, 0.48) * 0.86);
     }
 }
 
-@keyframes ripple-sheen {
+@keyframes nebula-shimmer {
     0% {
-        transform: rotate(0deg) scale(0.92);
+        transform: rotate(0deg) scale(0.96);
+        opacity: 0.55;
     }
     50% {
-        transform: rotate(180deg) scale(1);
+        transform: rotate(180deg) scale(1.04);
+        opacity: 0.85;
     }
     100% {
-        transform: rotate(360deg) scale(0.92);
+        transform: rotate(360deg) scale(0.96);
+        opacity: 0.55;
     }
 }
 
-#costume-switcher-settings.cs-theme .cs-header-ambient .ripple-spark {
+#costume-switcher-settings.cs-theme .cs-header-ambient .nebula-star {
     position: absolute;
-    width: var(--spark-size, 180px);
-    height: var(--spark-size, 180px);
-    left: var(--spark-left, 52%);
-    top: var(--spark-top, 48%);
+    width: var(--star-size, 12px);
+    height: var(--star-size, 12px);
+    left: var(--star-left, 50%);
+    top: var(--star-top, 50%);
     transform: translate(-50%, -50%);
     border-radius: 50%;
-    background: radial-gradient(circle at 46% 42%, rgba(255, 205, 255, 0.45) 0%, rgba(255, 205, 255, 0.16) 42%, transparent 78%),
-        radial-gradient(circle at 60% 68%, rgba(134, 234, 255, 0.32) 0%, rgba(134, 234, 255, 0.1) 48%, transparent 80%);
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.4) 36%, transparent 74%);
+    opacity: var(--star-opacity, 0.82);
     mix-blend-mode: screen;
-    filter: blur(16px);
-    opacity: var(--spark-opacity, 0.35);
-    animation: ripple-sparkle var(--spark-duration, 10s) ease-in-out infinite;
-    animation-delay: var(--spark-delay, 0s);
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.7));
+    animation: nebula-star-twinkle var(--star-duration, 18s) ease-in-out infinite;
+    animation-delay: var(--star-delay, 0s);
     z-index: 4;
+    will-change: transform, opacity;
 }
 
-@keyframes ripple-sparkle {
+#costume-switcher-settings.cs-theme .cs-header-ambient .nebula-star::after {
+    content: "";
+    position: absolute;
+    inset: -60%;
+    background:
+        radial-gradient(circle, rgba(255, 255, 255, 0.45) 0%, transparent 60%),
+        linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.55) 50%, rgba(255, 255, 255, 0) 100%),
+        linear-gradient(0deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.45) 50%, rgba(255, 255, 255, 0) 100%);
+    mix-blend-mode: screen;
+    opacity: 0.55;
+    transform: rotate(15deg);
+    animation: nebula-star-glint calc(var(--star-duration, 18s) * 0.65) ease-in-out infinite;
+    animation-delay: calc(var(--star-delay, 0s) * 0.85);
+    pointer-events: none;
+}
+
+@keyframes nebula-star-twinkle {
     0% {
-        transform: translate(-50%, -50%) scale(0.85);
-        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: calc(var(--star-opacity, 0.82) * 0.4);
     }
-    25% {
-        opacity: var(--spark-opacity, 0.35);
+    35% {
+        transform: translate(calc(-50% - 6px), calc(-50% - 4px)) scale(1.05);
+        opacity: calc(var(--star-opacity, 0.82) * 0.85);
     }
     55% {
-        transform: translate(-48%, -52%) scale(1.05);
-        opacity: calc(var(--spark-opacity, 0.35) * 0.6);
+        transform: translate(calc(-50% + 5px), calc(-50% + 3px)) scale(1.28);
+        opacity: var(--star-opacity, 0.82);
+    }
+    78% {
+        transform: translate(calc(-50% + 1px), calc(-50% - 2px)) scale(1.02);
+        opacity: calc(var(--star-opacity, 0.82) * 0.7);
     }
     100% {
-        transform: translate(-50%, -50%) scale(1.25);
-        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.88);
+        opacity: calc(var(--star-opacity, 0.82) * 0.45);
+    }
+}
+
+@keyframes nebula-star-glint {
+    0% {
+        opacity: 0.2;
+        transform: rotate(0deg) scale(0.75);
+    }
+    50% {
+        opacity: 0.8;
+        transform: rotate(180deg) scale(1.05);
+    }
+    100% {
+        opacity: 0.2;
+        transform: rotate(360deg) scale(0.75);
     }
 }
 
