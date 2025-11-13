@@ -1279,6 +1279,9 @@ const SCENE_PANEL_NEBULA_STAR_BLUEPRINTS = [
 ];
 let scenePanelRenderTimer = null;
 let scenePanelRenderPending = false;
+let scenePanelRenderLastReason = "update";
+let scenePanelRenderLastSource = "scene";
+let lastCollectedScenePanelState = null;
 let scenePanelUiWired = false;
 let scenePanelLayerMode = null;
 let scenePanelLayerReturnFocus = null;
@@ -1501,7 +1504,10 @@ function computeAnalyticsUpdatedAt({
     return Math.max(...candidates);
 }
 
-function collectScenePanelState() {
+function collectScenePanelState(options = {}) {
+    if (options?.source === "tester" && lastCollectedScenePanelState) {
+        return lastCollectedScenePanelState;
+    }
     const settings = getSettings?.();
     const panelSettings = ensureScenePanelSettings(settings || {});
     const scene = getCurrentSceneSnapshot();
@@ -1632,7 +1638,7 @@ function collectScenePanelState() {
         };
     });
 
-    return {
+    const panelState = {
         scene,
         membership,
         settings: panelSettings,
@@ -1653,39 +1659,50 @@ function collectScenePanelState() {
         testers: null,
         coverage,
     };
+    lastCollectedScenePanelState = panelState;
+    return panelState;
 }
 
-function performScenePanelRender() {
+function performScenePanelRender(options = {}) {
     if (typeof document === "undefined") {
+        return;
+    }
+    if (options?.source === "tester") {
         return;
     }
     const container = getScenePanelContainer?.();
     if (!container || (typeof container.length === "number" && container.length === 0)) {
         return;
     }
-    const panelState = collectScenePanelState();
-    renderScenePanel(panelState);
+    const panelState = collectScenePanelState(options);
+    renderScenePanel(panelState, options);
 }
 
-function requestScenePanelRender(reason = "update", { immediate = false } = {}) {
+function requestScenePanelRender(reason = "update", { immediate = false, source = "scene" } = {}) {
     if (typeof document === "undefined") {
+        return;
+    }
+    if (source === "tester") {
         return;
     }
     const container = getScenePanelContainer?.();
     if (!container || (typeof container.length === "number" && container.length === 0)) {
         return;
     }
+    scenePanelRenderLastReason = reason;
+    scenePanelRenderLastSource = source;
     const shouldImmediate = immediate || reason === "mount" || reason === "collapse";
     if (reason !== "collapse" && reason !== "mount") {
         triggerScenePanelUpdateCue();
     }
+    const options = { reason, source };
     if (shouldImmediate) {
         if (scenePanelRenderTimer) {
             clearTimeout(scenePanelRenderTimer);
             scenePanelRenderTimer = null;
         }
         scenePanelRenderPending = false;
-        performScenePanelRender();
+        performScenePanelRender(options);
         return;
     }
     if (scenePanelRenderTimer) {
@@ -1695,10 +1712,13 @@ function requestScenePanelRender(reason = "update", { immediate = false } = {}) 
     scenePanelRenderPending = false;
     scenePanelRenderTimer = setTimeout(() => {
         scenePanelRenderTimer = null;
-        performScenePanelRender();
+        performScenePanelRender({
+            reason: scenePanelRenderLastReason,
+            source: scenePanelRenderLastSource,
+        });
         if (scenePanelRenderPending) {
             scenePanelRenderPending = false;
-            requestScenePanelRender("follow-up");
+            requestScenePanelRender("follow-up", { source: scenePanelRenderLastSource });
         }
     }, SCENE_PANEL_RENDER_DEBOUNCE_MS);
 }
@@ -6442,7 +6462,7 @@ function simulateTesterStream(combined, profile, bufKey) {
     const msgState = state.perMessageStates.get(normalizedKey);
     if (!msgState) {
         replaceLiveTesterOutputs([], { roster: [] });
-        requestScenePanelRender("tester-reset");
+        requestScenePanelRender("tester-reset", { source: "tester" });
         return { events, finalState: null, rosterTimeline: [], rosterWarnings: [] };
     }
 
@@ -6469,7 +6489,7 @@ function simulateTesterStream(combined, profile, bufKey) {
             roster: rosterSnapshot,
             displayNames: rosterDisplayNames,
         });
-        requestScenePanelRender("tester-stream");
+        requestScenePanelRender("tester-stream", { source: "tester" });
         return result;
     };
 
@@ -6771,7 +6791,7 @@ function testRegexPattern() {
     renderTesterRosterTimeline(null, null);
     renderCoverageDiagnostics(null);
     clearLiveTesterOutputs();
-    requestScenePanelRender("tester-reset", { immediate: true });
+    requestScenePanelRender("tester-reset", { immediate: true, source: "tester" });
     const text = $("#cs-regex-test-input").val();
     if (!text) {
         $("#cs-test-all-detections, #cs-test-winner-list").html('<li class="cs-tester-list-placeholder">Enter text to test.</li>');
@@ -6830,7 +6850,7 @@ function testRegexPattern() {
         renderTesterRosterTimeline([], []);
         renderCoverageDiagnostics(coverage);
         replaceLiveTesterOutputs(vetoEvents, { roster: [] });
-        requestScenePanelRender("tester-veto");
+        requestScenePanelRender("tester-veto", { source: "tester" });
         const skipSummary = summarizeSkipReasonsForReport(vetoEvents);
         state.lastTesterReport = { ...reportBase, vetoed: true, vetoMatch, events: vetoEvents, matches: [], topCharacters: [], rosterTimeline: [], rosterWarnings: [], scoreDetails: [], coverage, skipSummary };
         updateTesterTopCharactersDisplay([]);

@@ -380,6 +380,37 @@ test("collectScenePanelState analytics updatedAt reflects latest scene activity"
     assert.equal(panelWithoutEvents.analytics.updatedAt, rankingTimestamp);
 });
 
+test("collectScenePanelState ignores tester-sourced refresh requests", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    state.recentDecisionEvents = [];
+    state.messageStats = new Map();
+    state.topSceneRanking = new Map();
+    state.topSceneRankingUpdatedAt = new Map();
+    state.perMessageBuffers = new Map();
+    state.perMessageStates = new Map();
+    state.latestTopRanking = { bufKey: null, ranking: [], fullRanking: [], updatedAt: 0 };
+    state.currentGenerationKey = null;
+
+    const baseline = collectScenePanelState();
+    assert.equal(Array.isArray(baseline.analytics.events) ? baseline.analytics.events.length : 0, 0);
+
+    const messageKey = "m1";
+    state.recentDecisionEvents = [
+        { type: "switch", messageKey, name: "Kotori", normalized: "kotori" },
+    ];
+    state.messageStats = new Map([[messageKey, { updatedAt: Date.now() }]]);
+
+    const testerSnapshot = collectScenePanelState({ source: "tester" });
+    assert.strictEqual(testerSnapshot, baseline);
+    assert.equal(testerSnapshot.analytics.events.length, 0);
+
+    const refreshed = collectScenePanelState();
+    assert.notStrictEqual(refreshed, baseline);
+    assert.equal(refreshed.analytics.events.length, 1);
+});
+
 test("collectScenePanelState defers stream switch until new data is available", () => {
     resetSceneState();
     clearLiveTesterOutputs();

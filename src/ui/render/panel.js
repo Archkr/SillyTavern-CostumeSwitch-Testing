@@ -442,8 +442,11 @@ function updateStatusCopy(enabled) {
     }
 }
 
-export function renderScenePanel(panelState = {}) {
+export function renderScenePanel(panelState = {}, { source = "scene" } = {}) {
     if (typeof document === "undefined") {
+        return;
+    }
+    if (source === "tester") {
         return;
     }
     const container = getScenePanelContainer?.();
