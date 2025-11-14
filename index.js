@@ -9110,6 +9110,40 @@ function resolveMessageRoleFromArgs(args) {
 
     const visited = new Set();
     const queue = [...args];
+
+    const inspectContainer = (container) => {
+        if (!container || typeof container !== "object") {
+            return null;
+        }
+
+        const flagged = resolveFlaggedRole(container);
+        if (flagged) {
+            return flagged;
+        }
+
+        queue.push(container);
+
+        if (typeof container.message === "object" && container.message !== null) {
+            const nestedFlagged = resolveFlaggedRole(container.message);
+            if (nestedFlagged) {
+                return nestedFlagged;
+            }
+            queue.push(container.message);
+        }
+
+        if (Array.isArray(container.messages) && container.messages.length > 0) {
+            for (const message of container.messages) {
+                const nestedFlagged = resolveFlaggedRole(message);
+                if (nestedFlagged) {
+                    return nestedFlagged;
+                }
+            }
+            queue.push(...container.messages);
+        }
+
+        return null;
+    };
+
     while (queue.length > 0) {
         const value = queue.shift();
 
@@ -9176,27 +9210,11 @@ function resolveMessageRoleFromArgs(args) {
             }
             queue.push(...value.messages);
         }
-        if (typeof value.detail === "object" && value.detail !== null) {
-            const detailFlagged = resolveFlaggedRole(value.detail);
-            if (detailFlagged) {
-                return detailFlagged;
-            }
-            queue.push(value.detail);
-            if (typeof value.detail.message === "object" && value.detail.message !== null) {
-                const nestedDetailFlagged = resolveFlaggedRole(value.detail.message);
-                if (nestedDetailFlagged) {
-                    return nestedDetailFlagged;
-                }
-                queue.push(value.detail.message);
-            }
-            if (Array.isArray(value.detail.messages) && value.detail.messages.length > 0) {
-                for (const message of value.detail.messages) {
-                    const nestedDetailFlagged = resolveFlaggedRole(message);
-                    if (nestedDetailFlagged) {
-                        return nestedDetailFlagged;
-                    }
-                }
-                queue.push(...value.detail.messages);
+        const nestedContainers = [value.detail, value.payload, value.event, value.data];
+        for (const container of nestedContainers) {
+            const nestedRole = inspectContainer(container);
+            if (nestedRole) {
+                return nestedRole;
             }
         }
     }
@@ -9359,6 +9377,7 @@ function createMessageState(profile, bufKey, options = {}) {
 }
 
 __testables.createMessageState = createMessageState;
+__testables.resolveMessageRoleFromArgs = resolveMessageRoleFromArgs;
 __testables.findAssistantMessageBeforeIndex = findAssistantMessageBeforeIndex;
 __testables.resolveAssistantHistoryMessage = resolveAssistantHistoryMessage;
 __testables.findChatMessageById = findChatMessageById;
