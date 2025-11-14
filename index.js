@@ -9663,19 +9663,53 @@ const handleStream = (...args) => {
             return;
         }
 
+        const messageRole = resolveMessageRoleFromArgs(args);
+        if (messageRole && messageRole !== "assistant") {
+            return;
+        }
+
         if (!state.currentGenerationKey) {
             let fallbackKey = null;
+            let fallbackReference = null;
             for (const arg of args) {
-                const { key } = parseMessageReference(arg);
+                const reference = parseMessageReference(arg);
+                const { key } = reference;
                 if (key) {
                     fallbackKey = key;
+                    fallbackReference = reference;
                     break;
                 }
             }
             if (fallbackKey) {
                 const normalizedFallback = normalizeMessageKey(fallbackKey) || fallbackKey;
-                state.currentGenerationKey = normalizedFallback;
-                debugLog(`Adopted ${normalizedFallback} as stream key from token payload.`);
+                let resolvedMessage = null;
+                const resolvedId = Number.isFinite(fallbackReference?.messageId)
+                    ? fallbackReference.messageId
+                    : extractMessageIdFromKey(normalizedFallback);
+                if (Number.isFinite(resolvedId)) {
+                    resolvedMessage = findChatMessageById(resolvedId);
+                }
+                if (!resolvedMessage) {
+                    resolvedMessage = findChatMessageByKey(normalizedFallback);
+                }
+                if (!resolvedMessage && Number.isFinite(resolvedId)) {
+                    const { chat } = getContext();
+                    if (Array.isArray(chat)) {
+                        resolvedMessage = chat.find((message) => Number.isFinite(message?.mesId) && message.mesId === resolvedId) || null;
+                    }
+                }
+
+                let locatedRole = resolvedMessage ? resolveMessageRoleFromArgs([resolvedMessage]) : null;
+                if (!locatedRole && resolvedMessage?.is_user) {
+                    locatedRole = "user";
+                }
+
+                if (locatedRole && locatedRole !== "assistant") {
+                    debugLog(`Skipping stream tracking for ${normalizedFallback} due to ${locatedRole} role.`);
+                } else {
+                    state.currentGenerationKey = normalizedFallback;
+                    debugLog(`Adopted ${normalizedFallback} as stream key from token payload.`);
+                }
             }
         }
 
@@ -9693,7 +9727,7 @@ const handleStream = (...args) => {
 
         let msgState = state.perMessageStates.get(bufKey);
         if (!msgState) {
-            const { state: createdState, rosterCleared } = createMessageState(profile, bufKey, { messageRole: "assistant" });
+            const { state: createdState, rosterCleared } = createMessageState(profile, bufKey, { messageRole: messageRole || "assistant" });
             msgState = createdState;
             if (rosterCleared && msgState) {
                 const normalized = normalizeMessageKey(bufKey) || bufKey;

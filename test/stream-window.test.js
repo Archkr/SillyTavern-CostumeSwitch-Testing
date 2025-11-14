@@ -357,6 +357,45 @@ test("handleStream infers message key from token event payloads", () => {
     }
 });
 
+test("handleStream ignores non-assistant streaming payloads", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    state.perMessageStates = new Map();
+    state.perMessageBuffers = new Map();
+    state.currentGenerationKey = null;
+    state.recentDecisionEvents = [];
+
+    globalThis.__mockContext = {
+        chat: [
+            { mesId: 101, mes: "User says hi", is_user: true },
+            { mesId: 102, mes: "System directive", is_system: true },
+            { mesId: 103, mes: "Narrator note", extra: { type: "narrator" } },
+        ],
+    };
+
+    const initialKey = state.currentGenerationKey;
+    const initialBuffersSize = state.perMessageBuffers.size;
+    const initialStatesSize = state.perMessageStates.size;
+    const initialEventsLength = state.recentDecisionEvents.length;
+
+    try {
+        handleStream({ token: "ignored", role: "user", key: "m101" });
+        handleStream({ token: "ignored", key: "m101" });
+        handleStream({ token: "ignored", role: "system", key: "m102" });
+        handleStream({ token: "ignored", key: "m102" });
+        handleStream({ token: "ignored", role: "narrator", key: "m103" });
+        handleStream({ token: "ignored", key: "m103" });
+    } finally {
+        delete globalThis.__mockContext;
+    }
+
+    assert.equal(state.currentGenerationKey, initialKey);
+    assert.equal(state.perMessageBuffers.size, initialBuffersSize);
+    assert.equal(state.perMessageStates.size, initialStatesSize);
+    assert.equal(state.recentDecisionEvents.length, initialEventsLength);
+});
+
 test("handleStream records veto phrase and recent events", () => {
     const original$ = globalThis.$;
     const statusMessages = [];
