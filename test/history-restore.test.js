@@ -6,7 +6,7 @@ await register(new URL("./module-mock-loader.js", import.meta.url));
 
 const extensionSettingsStore = globalThis.__extensionSettingsStore || (globalThis.__extensionSettingsStore = {});
 
-const { restoreSceneOutcomeForMessage, state, extensionName } = await import("../index.js");
+const { restoreSceneOutcomeForMessage, state, extensionName, __testables } = await import("../index.js");
 const {
     applySceneRosterUpdate,
     resetSceneState,
@@ -207,4 +207,115 @@ test("restoreSceneOutcomeForMessage retains existing timestamp when stored outco
 
     const rosterSnapshot = getRosterMembershipSnapshot();
     assert.equal(rosterSnapshot.updatedAt, seedTimestamp, "roster snapshot should preserve prior timestamp");
+});
+
+test("findAssistantMessageBeforeIndex skips system and narrator entries", () => {
+    extensionSettingsStore[extensionName] = {
+        ...baseSettings,
+        session: {},
+    };
+
+    globalThis.__mockContext = {
+        chat: [
+            { mesId: 1, is_user: false, mes: "Kotori reports in.", swipe_id: 0 },
+            { mesId: 2, is_user: false, is_system: true, mes: "System note." },
+            { mesId: 3, is_user: false, mes: "Narration arrives.", extra: { type: "narrator" } },
+        ],
+    };
+
+    const assistant = __testables.findAssistantMessageBeforeIndex(2);
+    assert.equal(assistant?.mesId, 1, "should resolve the latest assistant message before system/narrator entries");
+
+    const narratorLookup = __testables.findChatMessageByKey("m3");
+    assert.equal(narratorLookup, null, "narrator messages should be ignored when searching by key");
+
+    const assistantLookup = __testables.findChatMessageByKey("m1");
+    assert.equal(assistantLookup?.mesId, 1, "assistant messages should still resolve by key");
+
+    globalThis.__mockContext = null;
+});
+
+test("resolveHistoryTargetMessage falls back before system and narrator messages", () => {
+    extensionSettingsStore[extensionName] = {
+        ...baseSettings,
+        session: {},
+    };
+
+    const assistantMessage = { mesId: 10, is_user: false, mes: "Kotori salutes.", swipe_id: 0 };
+    globalThis.__mockContext = {
+        chat: [
+            assistantMessage,
+            { mesId: 11, is_user: false, mes: "Narrator speaks.", extra: { type: "narrator" } },
+            { mesId: 12, is_user: false, is_system: true, mes: "System announcement." },
+        ],
+    };
+
+    const resolvedFromNarrator = __testables.resolveHistoryTargetMessage([{ index: 1 }]);
+    assert.equal(resolvedFromNarrator?.mesId, assistantMessage.mesId,
+        "narrator targets should resolve to the prior assistant message");
+
+    const resolvedFromSystem = __testables.resolveHistoryTargetMessage([{ index: 2 }]);
+    assert.equal(resolvedFromSystem?.mesId, assistantMessage.mesId,
+        "system targets should resolve to the prior assistant message");
+
+    globalThis.__mockContext = null;
+});
+
+test("restoreLatestSceneOutcome restores the last assistant when newer posts are narrator/system", () => {
+    extensionSettingsStore[extensionName] = {
+        ...baseSettings,
+        session: {},
+    };
+
+    state.perMessageBuffers = new Map();
+    state.perMessageStates = new Map();
+    state.messageStats = new Map();
+
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    const restoredOutcome = {
+        version: 1,
+        messageKey: "m25",
+        messageId: 25,
+        roster: ["kotori"],
+        displayNames: [["kotori", "Kotori"]],
+        events: [],
+        stats: [],
+        buffer: "Kotori waves.",
+        text: "Kotori waves.",
+        updatedAt: 4242,
+        lastEvent: null,
+    };
+
+    const assistantMessage = {
+        mesId: 25,
+        is_user: false,
+        mes: "Kotori waves.",
+        swipe_id: 0,
+        extra: { cs_scene_outcomes: { 0: restoredOutcome } },
+    };
+
+    globalThis.__mockContext = {
+        chat: [
+            assistantMessage,
+            { mesId: 26, is_user: false, mes: "Narrator elaborates.", extra: { type: "narrator" } },
+            { mesId: 27, is_user: false, is_system: true, mes: "System declaration." },
+        ],
+    };
+
+    const restored = __testables.restoreLatestSceneOutcome({ immediateRender: false });
+    assert.equal(restored, true, "restoring should succeed when an assistant message exists in history");
+
+    const sceneSnapshot = getCurrentSceneSnapshot();
+    assert.equal(sceneSnapshot?.key, "m25", "scene snapshot should reference the assistant message");
+
+    const rosterSnapshot = getRosterMembershipSnapshot();
+    assert.equal(rosterSnapshot.members.some((entry) => entry.normalized === "kotori"), true,
+        "restored roster should preserve assistant detections");
+
+    assert.equal(state.perMessageBuffers instanceof Map && state.perMessageBuffers.has("m25"), true,
+        "assistant buffers should be retained after restore");
+
+    globalThis.__mockContext = null;
 });

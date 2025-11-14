@@ -37,6 +37,7 @@
 - **Scene panel analytics remapping.** Detection events recorded during streaming now follow the rendered message key, restoring roster/results feeds that previously appeared empty after generation finished.
 - **Scene panel mounting.** Resolving pre-fetched container references no longer breaks roster rendering, fixing the empty panel and console error triggered when the UI initializes.
 - **Scene panel rehydration.** Switching chats or waiting for autosaves now restores the latest assistant message so the roster, active characters, and live log remain populated instead of clearing after a few seconds.
+- **Narrator/system guard in scene restore.** Scene reconciliation ignores narrator and system posts while selecting the latest assistant result, keeping costumes from resetting when the host inserts metadata messages.
 - **Live log stability.** The live diagnostics panel keeps the prior message data visible until the next stream produces detections, so it no longer flickers "Awaiting detections" while idle.
 - **Live diagnostics retention.** Streaming preserves the full switch history for the active message instead of trimming entries mid-stream, so the log no longer empties before generation ends.
 - **Scene panel hide toggle.** Hiding the command center now removes the panel entirely so no translucent shell remains on screen.

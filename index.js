@@ -8515,6 +8515,38 @@ function collectDecisionEventsForKey(bufKey) {
         .filter(Boolean);
 }
 
+function isSystemMessage(message) {
+    return Boolean(message?.is_system);
+}
+
+function isNarratorMessage(message) {
+    if (!message || typeof message !== "object") {
+        return false;
+    }
+    const narratorType = system_message_types?.NARRATOR;
+    if (typeof narratorType !== "string" || !message.extra || typeof message.extra !== "object") {
+        return false;
+    }
+    return message.extra.type === narratorType;
+}
+
+function isSystemOrNarratorMessage(message) {
+    return isSystemMessage(message) || isNarratorMessage(message);
+}
+
+function isAssistantLikeMessage(message) {
+    if (!message || typeof message !== "object") {
+        return false;
+    }
+    if (message.is_user) {
+        return false;
+    }
+    if (isSystemOrNarratorMessage(message)) {
+        return false;
+    }
+    return true;
+}
+
 function findChatMessageById(messageId) {
     if (!Number.isFinite(messageId)) {
         return null;
@@ -8523,7 +8555,14 @@ function findChatMessageById(messageId) {
     if (!Array.isArray(chat)) {
         return null;
     }
-    return chat.find((message) => message && message.mesId === messageId) || null;
+    const candidate = chat.find((message) => message && message.mesId === messageId) || null;
+    if (!candidate) {
+        return null;
+    }
+    if (isSystemOrNarratorMessage(candidate)) {
+        return null;
+    }
+    return candidate;
 }
 
 function findChatMessageByKey(key) {
@@ -8533,7 +8572,7 @@ function findChatMessageByKey(key) {
     }
     const resolvedId = extractMessageIdFromKey(normalizedKey);
     const direct = findChatMessageById(resolvedId);
-    if (direct) {
+    if (direct && isAssistantLikeMessage(direct)) {
         return direct;
     }
     const { chat } = getContext();
@@ -8542,7 +8581,7 @@ function findChatMessageByKey(key) {
     }
     for (let i = chat.length - 1; i >= 0; i -= 1) {
         const message = chat[i];
-        if (!message || message.is_user) {
+        if (!isAssistantLikeMessage(message)) {
             continue;
         }
         const candidateKey = normalizeMessageKey(message?.message_key || message?.key || `m${message.mesId}`);
@@ -8600,7 +8639,7 @@ function getOutcomeBucket(message, create = false) {
 }
 
 function persistSceneOutcome(message, swipeId, outcome) {
-    if (!message || typeof message !== "object" || message.is_user) {
+    if (!message || typeof message !== "object" || message.is_user || isSystemOrNarratorMessage(message)) {
         return;
     }
     const bucket = getOutcomeBucket(message, true);
@@ -8619,8 +8658,8 @@ function captureSceneOutcomeForMessage(reference) {
     const normalizedKey = normalizeMessageKey(bufKey);
     const resolvedId = Number.isFinite(messageId) ? messageId : extractMessageIdFromKey(normalizedKey);
     const message = findChatMessageById(resolvedId) || findChatMessageByKey(normalizedKey);
-    if (message?.is_user) {
-        debugLog(`Skipping scene outcome capture for user-authored message ${normalizedKey}.`);
+    if (message?.is_user || isSystemOrNarratorMessage(message)) {
+        debugLog(`Skipping scene outcome capture for non-assistant message ${normalizedKey}.`);
         return;
     }
     const swipeId = Number.isFinite(message?.swipe_id) ? message.swipe_id : 0;
@@ -8703,7 +8742,7 @@ function restoreSceneOutcomeForMessage(message, {
     preserveStateOnFailure = false,
 } = {}) {
     const now = Date.now();
-    if (!message || message.is_user) {
+    if (!message || message.is_user || isSystemOrNarratorMessage(message)) {
         if (!preserveStateOnFailure) {
             resetSceneState();
             replaceLiveTesterOutputs([], { roster: [] });
@@ -9320,6 +9359,10 @@ function createMessageState(profile, bufKey, options = {}) {
 }
 
 __testables.createMessageState = createMessageState;
+__testables.findAssistantMessageBeforeIndex = findAssistantMessageBeforeIndex;
+__testables.findChatMessageById = findChatMessageById;
+__testables.findChatMessageByKey = findChatMessageByKey;
+__testables.resolveHistoryTargetMessage = resolveHistoryTargetMessage;
 
 function remapMessageKey(oldKey, newKey) {
     if (!oldKey || !newKey || oldKey === newKey) return;
@@ -9597,6 +9640,7 @@ const handleGenerationStart = (...args) => {
 };
 
 __testables.handleGenerationStart = handleGenerationStart;
+__testables.restoreLatestSceneOutcome = restoreLatestSceneOutcome;
 
 const handleStream = (...args) => {
     try {
@@ -9800,7 +9844,7 @@ function findAssistantMessageBeforeIndex(index) {
     const startIndex = Number.isFinite(index) ? Math.min(index, chat.length - 1) : chat.length - 1;
     for (let i = startIndex; i >= 0; i -= 1) {
         const candidate = chat[i];
-        if (candidate && !candidate.is_user) {
+        if (isAssistantLikeMessage(candidate)) {
             return candidate;
         }
     }
@@ -9890,6 +9934,9 @@ function resolveHistoryTargetMessage(args) {
 
     const tryAssign = (message) => {
         if (!target && message) {
+            if (isSystemOrNarratorMessage(message)) {
+                return;
+            }
             target = message;
         }
     };
@@ -9984,7 +10031,7 @@ function resolveHistoryTargetMessage(args) {
         target = findAssistantMessageBeforeIndex(chat.length - 1);
     }
 
-    if (target && target.is_user) {
+    if (target && (target.is_user || isSystemOrNarratorMessage(target))) {
         const index = chat.indexOf(target);
         const fallback = findAssistantMessageBeforeIndex(index - 1);
         if (fallback) {
@@ -9992,7 +10039,7 @@ function resolveHistoryTargetMessage(args) {
         }
     }
 
-    if (target && target.is_user) {
+    if (target && (target.is_user || isSystemOrNarratorMessage(target))) {
         return findAssistantMessageBeforeIndex(chat.indexOf(target) - 1);
     }
 
@@ -10114,7 +10161,7 @@ const handleHistoryChange = (...args) => {
         }
         const chatLog = ctx?.chat;
         const hasAssistantMessages = Array.isArray(chatLog)
-            && chatLog.some((message) => message && !message.is_user);
+            && chatLog.some((message) => isAssistantLikeMessage(message));
 
         if (!hasAssistantMessages) {
             resetSceneState();
@@ -10172,8 +10219,8 @@ const handleMessageRendered = (...args) => {
         renderedMessage = findChatMessageByKey(finalKey);
     }
 
-    if (renderedMessage?.is_user) {
-        debugLog(`Skipping scene panel sync for user-authored message ${finalKey}.`);
+    if (renderedMessage?.is_user || isSystemOrNarratorMessage(renderedMessage)) {
+        debugLog(`Skipping scene panel sync for non-assistant message ${finalKey}.`);
         state.currentGenerationKey = null;
         return;
     }
@@ -10243,6 +10290,8 @@ const resetGlobalState = ({ immediateRender = true } = {}) => {
         requestScenePanelRender("global-reset", { immediate: true });
     }
 };
+
+__testables.resetGlobalState = resetGlobalState;
 
 export {
     resolveOutfitForMatch,
