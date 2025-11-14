@@ -11,5 +11,5 @@
 - Document noteworthy changes in CHANGELOG.md to contribute to the future releases changelog. If CHANGELOG.md is still set for the previous or currently released version, then reset it and prep it for future release.
 - Use `rpg-companion-sillytavern/` for help if needed. Remember, `rpg-companion-sillytavern/` is for reference ONLY, and not to be touched.
 
-# CostumeSwitch-v3.4.0
-- `CostumeSwitch-v3.4.0/` is what is currently released to the public. Do not edit anything in this directory. When asked to make a changelog, this is where you'll compare what we currently have to the older version, to make the changelog.
+# Expressions
+- `expressions/` is the character expressions extension. This is the extension Costume Switcher was made to interact with with the /costume command. You will use this for reference only.
