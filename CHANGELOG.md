@@ -21,6 +21,7 @@
 - **Scene panel layout cleanup.** Retired the legacy collapse handle so the crest header and toolbar own panel visibility, keeping the frame tidy without the extra toggle stub.
 
 ### Fixed
+- **Regex script imports.** Corrected the regex engine import path so script collections load in SillyTavern without triggering MIME type errors.
 - **Toggle styling isolation.** Master and inline switches now render with self-contained tracks so other extensions can no longer distort their shape.
 - **Scene panel user message handling.** User-authored chat updates no longer trigger roster wipes or scene panel refreshes, so the control center stays stable and message counters persist while players talk.
 - **Scene panel idle refresh.** Chat-change hooks now ignore updates that don't alter the latest assistant message, so editing system prompts or sending player chatter no longer clears or replays roster detections.
