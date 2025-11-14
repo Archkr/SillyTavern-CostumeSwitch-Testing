@@ -3,6 +3,7 @@ function createSceneSnapshot() {
         key: null,
         messageId: null,
         roster: [],
+        displayNames: [],
         lastEvent: null,
         updatedAt: 0,
     };
@@ -64,7 +65,8 @@ function normalizeEvent(event, fallbackTimestamp) {
 }
 
 let currentScene = createSceneSnapshot();
-const rosterMembers = new Map();
+const sceneMembers = new Map();
+const sceneDisplayNames = new Map();
 let rosterUpdatedAt = 0;
 const liveTesterOutputs = new Map();
 let liveTesterUpdatedAt = 0;
@@ -73,7 +75,10 @@ function resolveDisplayName(normalized, displayNames) {
     if (displayNames.has(normalized)) {
         return displayNames.get(normalized);
     }
-    const existing = rosterMembers.get(normalized);
+    if (sceneDisplayNames.has(normalized)) {
+        return sceneDisplayNames.get(normalized);
+    }
+    const existing = sceneMembers.get(normalized);
     if (existing?.name) {
         return existing.name;
     }
@@ -87,19 +92,8 @@ function cloneRosterEntry(entry) {
         joinedAt: entry.joinedAt,
         lastSeenAt: entry.lastSeenAt,
         lastLeftAt: entry.lastLeftAt,
+        active: Boolean(entry.active),
         turnsRemaining: Number.isFinite(entry.turnsRemaining) ? entry.turnsRemaining : null,
-    };
-}
-
-function cloneRosterMember(member) {
-    return {
-        name: member.name,
-        normalized: member.normalized,
-        joinedAt: member.joinedAt,
-        lastSeenAt: member.lastSeenAt,
-        lastLeftAt: member.lastLeftAt,
-        active: member.active,
-        turnsRemaining: Number.isFinite(member.turnsRemaining) ? member.turnsRemaining : null,
     };
 }
 
@@ -149,9 +143,17 @@ function cloneTesterOutput(entry) {
     };
 }
 
+function sanitizeTurnValue(value) {
+    if (!Number.isFinite(value)) {
+        return null;
+    }
+    return Math.max(0, Math.floor(value));
+}
+
 export function resetSceneState() {
     currentScene = createSceneSnapshot();
-    rosterMembers.clear();
+    sceneMembers.clear();
+    sceneDisplayNames.clear();
     rosterUpdatedAt = Date.now();
     return getCurrentSceneSnapshot();
 }
@@ -160,7 +162,8 @@ export function getCurrentSceneSnapshot() {
     return {
         key: currentScene.key,
         messageId: currentScene.messageId,
-        roster: currentScene.roster.map(cloneRosterEntry),
+        roster: Array.from(sceneMembers.values()).map(cloneRosterEntry),
+        displayNames: new Map(sceneDisplayNames),
         lastEvent: currentScene.lastEvent ? { ...currentScene.lastEvent } : null,
         updatedAt: currentScene.updatedAt,
     };
@@ -179,7 +182,6 @@ export function applySceneRosterUpdate({
     const { preserveActiveOnEmpty = false } = options || {};
     const normalizedDisplayNames = normalizeDisplayNameMap(displayNames);
     const activeSet = new Set();
-    const rosterEntries = [];
     const sanitizedTurns = Number.isFinite(turnsRemaining) ? Math.max(0, Math.floor(turnsRemaining)) : null;
     const perMemberTurns = normalizeTurnsByMember(turnsByMember);
 
@@ -229,11 +231,11 @@ export function applySceneRosterUpdate({
             normalizedDisplayNames.set(normalized, providedName);
         }
         const name = providedName || resolveDisplayName(normalized, normalizedDisplayNames);
-        const existing = rosterMembers.get(normalized);
+        const existing = sceneMembers.get(normalized);
         const joinedAt = providedJoinedAt ?? existing?.joinedAt ?? timestamp;
         const lastSeenAt = Number.isFinite(providedLastSeenAt)
             ? providedLastSeenAt
-            : timestamp;
+            : (Number.isFinite(existing?.lastSeenAt) ? Math.max(existing.lastSeenAt, timestamp) : timestamp);
         const lastLeftAt = Number.isFinite(providedLastLeftAt)
             ? providedLastLeftAt
             : (Number.isFinite(existing?.lastLeftAt) ? existing.lastLeftAt : null);
@@ -244,20 +246,22 @@ export function applySceneRosterUpdate({
         if (!Number.isFinite(entryTurns)) {
             entryTurns = sanitizedTurns;
         }
-        rosterEntries.push({
+        sceneMembers.set(normalized, {
             name,
             normalized,
             joinedAt,
             lastSeenAt,
             lastLeftAt,
+            active: true,
             turnsRemaining: Number.isFinite(entryTurns) ? entryTurns : null,
         });
+        sceneDisplayNames.set(normalized, name);
     });
 
     if (!shouldPreserveExisting) {
-        for (const [normalized, member] of rosterMembers.entries()) {
+        for (const [normalized, member] of sceneMembers.entries()) {
             if (!activeSet.has(normalized) && member.active) {
-                rosterMembers.set(normalized, {
+                sceneMembers.set(normalized, {
                     ...member,
                     active: false,
                     lastLeftAt: timestamp,
@@ -265,18 +269,19 @@ export function applySceneRosterUpdate({
                 });
             }
         }
+    } else {
+        for (const normalized of activeSet.values()) {
+            const member = sceneMembers.get(normalized);
+            if (member) {
+                member.active = true;
+            }
+        }
     }
 
-    rosterEntries.forEach((entry) => {
-        rosterMembers.set(entry.normalized, {
-            name: entry.name,
-            normalized: entry.normalized,
-            joinedAt: rosterMembers.get(entry.normalized)?.joinedAt ?? entry.joinedAt,
-            lastSeenAt: entry.lastSeenAt,
-            lastLeftAt: Number.isFinite(entry.lastLeftAt) ? entry.lastLeftAt : null,
-            active: true,
-            turnsRemaining: entry.turnsRemaining,
-        });
+    normalizedDisplayNames.forEach((value, normalized) => {
+        if (!sceneDisplayNames.has(normalized)) {
+            sceneDisplayNames.set(normalized, value);
+        }
     });
 
     rosterUpdatedAt = timestamp;
@@ -286,7 +291,8 @@ export function applySceneRosterUpdate({
     currentScene = {
         key: key || null,
         messageId: Number.isFinite(messageId) ? messageId : null,
-        roster: rosterEntries.map(cloneRosterEntry),
+        roster: Array.from(sceneMembers.values()).map(cloneRosterEntry),
+        displayNames: Array.from(sceneDisplayNames.entries()),
         lastEvent: normalizedEvent ? { ...normalizedEvent } : null,
         updatedAt: timestamp,
     };
@@ -297,12 +303,12 @@ export function applySceneRosterUpdate({
 export function getRosterMembershipSnapshot() {
     return {
         updatedAt: rosterUpdatedAt,
-        members: Array.from(rosterMembers.values()).map(cloneRosterMember),
+        members: Array.from(sceneMembers.values()).map(cloneRosterEntry),
     };
 }
 
 export function listRosterMembers() {
-    return Array.from(rosterMembers.values()).map(cloneRosterMember);
+    return Array.from(sceneMembers.values()).map(cloneRosterEntry);
 }
 
 export function setRosterMember(name, data = {}) {
@@ -311,7 +317,7 @@ export function setRosterMember(name, data = {}) {
         return null;
     }
     const now = Date.now();
-    const existing = rosterMembers.get(normalized);
+    const existing = sceneMembers.get(normalized);
     const turnsRemaining = Number.isFinite(data.turnsRemaining)
         ? Math.max(0, Math.floor(data.turnsRemaining))
         : Number.isFinite(existing?.turnsRemaining)
@@ -330,9 +336,16 @@ export function setRosterMember(name, data = {}) {
         entry.lastLeftAt = entry.lastSeenAt;
         entry.turnsRemaining = null;
     }
-    rosterMembers.set(normalized, entry);
+    sceneMembers.set(normalized, entry);
+    sceneDisplayNames.set(normalized, entry.name);
     rosterUpdatedAt = now;
-    return cloneRosterMember(entry);
+    currentScene = {
+        ...currentScene,
+        roster: Array.from(sceneMembers.values()).map(cloneRosterEntry),
+        displayNames: Array.from(sceneDisplayNames.entries()),
+        updatedAt: now,
+    };
+    return cloneRosterEntry(entry);
 }
 
 export function removeRosterMember(name) {
@@ -340,16 +353,30 @@ export function removeRosterMember(name) {
     if (!normalized) {
         return false;
     }
-    const removed = rosterMembers.delete(normalized);
+    const removed = sceneMembers.delete(normalized);
     if (removed) {
         rosterUpdatedAt = Date.now();
+        sceneDisplayNames.delete(normalized);
+        currentScene = {
+            ...currentScene,
+            roster: Array.from(sceneMembers.values()).map(cloneRosterEntry),
+            displayNames: Array.from(sceneDisplayNames.entries()),
+            updatedAt: rosterUpdatedAt,
+        };
     }
     return removed;
 }
 
 export function clearRosterMembership() {
-    rosterMembers.clear();
+    sceneMembers.clear();
+    sceneDisplayNames.clear();
     rosterUpdatedAt = Date.now();
+    currentScene = {
+        ...currentScene,
+        roster: [],
+        displayNames: [],
+        updatedAt: rosterUpdatedAt,
+    };
     return rosterUpdatedAt;
 }
 
@@ -466,11 +493,175 @@ export function getRosterMember(name) {
     if (!normalized) {
         return null;
     }
-    const entry = rosterMembers.get(normalized);
-    return entry ? cloneRosterMember(entry) : null;
+    const entry = sceneMembers.get(normalized);
+    return entry ? cloneRosterEntry(entry) : null;
 }
 
 export function getRosterMembersMap() {
-    return new Map(Array.from(rosterMembers.entries()).map(([key, value]) => [key, cloneRosterMember(value)]));
+    return new Map(Array.from(sceneMembers.entries()).map(([key, value]) => [key, cloneRosterEntry(value)]));
+}
+
+export function deriveSceneRosterState({
+    messageState = null,
+    sceneSnapshot = null,
+    testerSnapshot = null,
+    now = Date.now(),
+} = {}) {
+    const scene = sceneSnapshot || getCurrentSceneSnapshot();
+    const displayNames = scene.displayNames instanceof Map
+        ? new Map(scene.displayNames)
+        : Array.isArray(scene.displayNames)
+            ? new Map(scene.displayNames)
+            : new Map();
+
+    const removedNames = messageState?.removedRoster instanceof Set
+        ? new Set(Array.from(messageState.removedRoster).map(normalizeKey).filter(Boolean))
+        : null;
+    const rosterByName = new Map();
+    const baseRoster = Array.isArray(scene.roster) ? scene.roster : [];
+    baseRoster.forEach((entry) => {
+        if (!entry || typeof entry !== "object") {
+            return;
+        }
+        const normalized = normalizeKey(entry.normalized ?? entry.name);
+        if (!normalized) {
+            return;
+        }
+        if (removedNames?.has(normalized)) {
+            return;
+        }
+        const name = entry.name || displayNames.get(normalized) || normalized;
+        displayNames.set(normalized, name);
+        rosterByName.set(normalized, {
+            name,
+            normalized,
+            joinedAt: Number.isFinite(entry.joinedAt) ? entry.joinedAt : null,
+            lastSeenAt: Number.isFinite(entry.lastSeenAt) ? entry.lastSeenAt : null,
+            lastLeftAt: Number.isFinite(entry.lastLeftAt) ? entry.lastLeftAt : null,
+            active: Boolean(entry.active),
+            turnsRemaining: Number.isFinite(entry.turnsRemaining)
+                ? Math.max(0, Math.floor(entry.turnsRemaining))
+                : null,
+        });
+    });
+
+    const testerMap = new Map();
+    if (testerSnapshot && Array.isArray(testerSnapshot.entries)) {
+        testerSnapshot.entries.forEach((entry) => {
+            if (!entry || typeof entry !== "object") {
+                return;
+            }
+            const normalized = normalizeKey(entry.normalized ?? entry.name);
+            if (!normalized) {
+                return;
+            }
+            testerMap.set(normalized, cloneTesterOutput(entry));
+            if (entry.name && !displayNames.has(normalized)) {
+                displayNames.set(normalized, entry.name);
+            }
+        });
+    }
+
+    const activeNames = new Set();
+    if (messageState?.sceneRoster instanceof Set) {
+        messageState.sceneRoster.forEach((value) => {
+            const normalized = normalizeKey(value);
+            if (!normalized) {
+                return;
+            }
+            if (removedNames?.has(normalized)) {
+                return;
+            }
+            activeNames.add(normalized);
+            const current = rosterByName.get(normalized) || {
+                name: displayNames.get(normalized) || (typeof value === "string" ? value : normalized),
+                normalized,
+                joinedAt: null,
+                lastSeenAt: null,
+                lastLeftAt: null,
+                active: true,
+                turnsRemaining: null,
+            };
+            current.active = true;
+            if (!Number.isFinite(current.lastSeenAt)) {
+                const fallback = Number.isFinite(scene.updatedAt) ? scene.updatedAt : now;
+                current.lastSeenAt = fallback;
+            }
+            rosterByName.set(normalized, current);
+        });
+    }
+
+    if (messageState?.sceneRoster instanceof Set) {
+        rosterByName.forEach((entry, normalized) => {
+            if (!activeNames.has(normalized)) {
+                entry.active = false;
+            }
+        });
+    }
+
+    const perMemberTurns = messageState?.rosterTurns instanceof Map
+        ? messageState.rosterTurns
+        : null;
+    if (perMemberTurns) {
+        perMemberTurns.forEach((value, key) => {
+            const normalized = normalizeKey(key);
+            if (!normalized) {
+                return;
+            }
+            const entry = rosterByName.get(normalized);
+            if (!entry) {
+                return;
+            }
+            const sanitized = sanitizeTurnValue(value);
+            if (sanitized != null) {
+                entry.turnsRemaining = sanitized;
+            }
+        });
+    }
+
+    const defaultTurns = sanitizeTurnValue(messageState?.defaultRosterTTL);
+    if (defaultTurns != null) {
+        rosterByName.forEach((entry, normalized) => {
+            if (activeNames.has(normalized) && !Number.isFinite(entry.turnsRemaining)) {
+                entry.turnsRemaining = defaultTurns;
+            }
+        });
+    }
+
+    const latestNormalized = scene?.lastEvent?.normalized
+        ? normalizeKey(scene.lastEvent.normalized)
+        : null;
+
+    rosterByName.forEach((entry, normalized) => {
+        if (!displayNames.has(normalized)) {
+            displayNames.set(normalized, entry.name || normalized);
+        }
+        entry.tester = testerMap.get(normalized) || null;
+        entry.isLatest = latestNormalized ? normalized === latestNormalized : false;
+    });
+
+    const finalRoster = Array.from(rosterByName.entries())
+        .filter(([normalized]) => !(removedNames && removedNames.has(normalized)))
+        .map(([, entry]) => entry);
+    finalRoster.sort((a, b) => {
+        if (a.active !== b.active) {
+            return a.active ? -1 : 1;
+        }
+        const aSeen = Number.isFinite(a.lastSeenAt) ? a.lastSeenAt : 0;
+        const bSeen = Number.isFinite(b.lastSeenAt) ? b.lastSeenAt : 0;
+        if (aSeen !== bSeen) {
+            return bSeen - aSeen;
+        }
+        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
+
+    return {
+        key: scene.key || null,
+        messageId: Number.isFinite(scene.messageId) ? scene.messageId : null,
+        roster: finalRoster,
+        displayNames,
+        lastEvent: scene.lastEvent ? { ...scene.lastEvent } : null,
+        updatedAt: Number.isFinite(scene.updatedAt) ? scene.updatedAt : null,
+    };
 }
 

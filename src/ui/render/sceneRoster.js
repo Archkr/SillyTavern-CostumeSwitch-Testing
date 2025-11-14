@@ -9,158 +9,21 @@ import {
     createPlaceholder,
 } from "./utils.js";
 
-function normalizeHistoryName(value) {
-    if (typeof value === "string" && value.trim()) {
-        return value.trim().toLowerCase();
+function buildDisplayName(entry, displayNames) {
+    if (!entry) {
+        return "Unknown";
     }
-    if (value && typeof value === "object") {
-        if (typeof value.normalized === "string" && value.normalized.trim()) {
-            return value.normalized.trim().toLowerCase();
-        }
-        if (typeof value.name === "string" && value.name.trim()) {
-            return value.name.trim().toLowerCase();
-        }
-    }
-    return null;
-}
-
-function sanitizeHistoryTurnValue(value) {
-    if (!Number.isFinite(value)) {
-        return null;
-    }
-    return Math.max(0, Math.floor(value));
-}
-
-function normalizeHistoryRecord(entry) {
-    if (!entry || typeof entry !== "object") {
-        return null;
-    }
-    const record = {
-        key: typeof entry.key === "string" ? entry.key : null,
-        roster: [],
-        turnsByMember: new Map(),
-        turnsRemaining: sanitizeHistoryTurnValue(entry.turnsRemaining),
-        updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : null,
-    };
-
-    const rosterValues = Array.isArray(entry.roster)
-        ? entry.roster
-        : Array.isArray(entry.members)
-            ? entry.members
-            : [];
-    rosterValues.forEach((value) => {
-        const normalized = normalizeHistoryName(value);
-        if (normalized) {
-            record.roster.push(normalized);
-        }
-    });
-
-    const perMember = entry.turnsByMember;
-    if (perMember instanceof Map) {
-        perMember.forEach((value, key) => {
-            const normalized = normalizeHistoryName(key);
-            const sanitized = sanitizeHistoryTurnValue(value);
-            if (normalized && sanitized != null) {
-                record.turnsByMember.set(normalized, sanitized);
-            }
-        });
-    } else if (Array.isArray(perMember)) {
-        perMember.forEach((value) => {
-            if (Array.isArray(value) && value.length >= 2) {
-                const normalized = normalizeHistoryName(value[0]);
-                const sanitized = sanitizeHistoryTurnValue(value[1]);
-                if (normalized && sanitized != null) {
-                    record.turnsByMember.set(normalized, sanitized);
-                }
-                return;
-            }
-            if (value && typeof value === "object") {
-                const normalized = normalizeHistoryName(value.normalized ?? value.name);
-                const sanitized = sanitizeHistoryTurnValue(value.turnsRemaining ?? value.turns);
-                if (normalized && sanitized != null) {
-                    record.turnsByMember.set(normalized, sanitized);
-                }
-            }
-        });
-    } else if (perMember && typeof perMember === "object") {
-        Object.entries(perMember).forEach(([key, raw]) => {
-            const normalized = normalizeHistoryName(key);
-            const sanitized = sanitizeHistoryTurnValue(raw);
-            if (normalized && sanitized != null) {
-                record.turnsByMember.set(normalized, sanitized);
-            }
-        });
-    }
-
-    return record;
-}
-
-function normalizeRosterHistory(history) {
-    if (!history) {
-        return { window: null, messages: [] };
-    }
-    const rawWindow = sanitizeHistoryTurnValue(
-        history.ttlWindow ?? history.window ?? history.turnsRemaining ?? history.ttl,
-    );
-    const source = Array.isArray(history.messages)
-        ? history.messages
-        : Array.isArray(history)
-            ? history
-            : [];
-    const messages = source
-        .map((entry) => normalizeHistoryRecord(entry))
-        .filter(Boolean);
-    if (rawWindow != null && rawWindow > 0 && messages.length > rawWindow) {
-        return {
-            window: rawWindow,
-            messages: messages.slice(-rawWindow),
-        };
-    }
-    return { window: rawWindow, messages };
-}
-
-function findLatestHistoryTurns(messages, normalized) {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-        const entry = messages[i];
-        if (!entry) {
-            continue;
-        }
-        if (entry.turnsByMember instanceof Map && entry.turnsByMember.has(normalized)) {
-            return entry.turnsByMember.get(normalized);
-        }
-        if (Number.isFinite(entry.turnsRemaining) && entry.roster.includes(normalized)) {
-            return entry.turnsRemaining;
-        }
-    }
-    return null;
-}
-
-function resolveTurnsFromWindow(messages, normalized, historyWindow) {
-    if (!Number.isFinite(historyWindow) || historyWindow <= 0) {
-        return null;
-    }
-    let offset = 0;
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-        const entry = messages[i];
-        if (!entry) {
-            continue;
-        }
-        if (Array.isArray(entry.roster) && entry.roster.includes(normalized)) {
-            return Math.max(0, historyWindow - offset);
-        }
-        offset += 1;
-        if (offset >= historyWindow) {
-            break;
-        }
-    }
-    return null;
-}
-
-function buildDisplayName(normalized, fallback, displayNames) {
+    const normalized = typeof entry.normalized === "string" ? entry.normalized : null;
     if (normalized && displayNames instanceof Map && displayNames.has(normalized)) {
         return displayNames.get(normalized);
     }
-    return fallback || normalized || "Unknown";
+    if (typeof entry.name === "string" && entry.name.trim()) {
+        return entry.name.trim();
+    }
+    if (normalized) {
+        return normalized;
+    }
+    return "Unknown";
 }
 
 function formatRosterMeta(entry, now) {
@@ -270,7 +133,7 @@ function renderRosterRow(entry, { displayNames, showAvatars, now }) {
     if (turnsRemaining != null) {
         container.dataset.turnsRemaining = String(turnsRemaining);
     }
-    const displayName = buildDisplayName(entry.normalized, entry.name, displayNames);
+    const displayName = buildDisplayName(entry, displayNames);
     const avatar = resolveAvatarElement(displayName, showAvatars);
     if (avatar) {
         container.appendChild(avatar);
@@ -340,149 +203,6 @@ function renderRosterRow(entry, { displayNames, showAvatars, now }) {
     return container;
 }
 
-function normalizeMember(member) {
-    if (!member || typeof member !== "object") {
-        return null;
-    }
-    const normalized = typeof member.normalized === "string" && member.normalized.trim()
-        ? member.normalized.trim().toLowerCase()
-        : typeof member.name === "string" && member.name.trim()
-            ? member.name.trim().toLowerCase()
-            : null;
-    if (!normalized) {
-        return null;
-    }
-    const turnsRemaining = Number.isFinite(member.turnsRemaining)
-        ? Math.max(0, Math.floor(member.turnsRemaining))
-        : null;
-    return {
-        name: member.name || normalized,
-        normalized,
-        joinedAt: Number.isFinite(member.joinedAt) ? member.joinedAt : null,
-        lastSeenAt: Number.isFinite(member.lastSeenAt) ? member.lastSeenAt : null,
-        lastLeftAt: Number.isFinite(member.lastLeftAt) ? member.lastLeftAt : null,
-        active: Boolean(member.active),
-        turnsRemaining,
-    };
-}
-
-function mergeRosterData(scene, membership, testers, now) {
-    const map = new Map();
-    if (membership && Array.isArray(membership.members)) {
-        membership.members.forEach((member) => {
-            const normalized = normalizeMember(member);
-            if (!normalized) {
-                return;
-            }
-            map.set(normalized.normalized, normalized);
-        });
-    }
-
-    const sceneActive = new Set();
-    if (scene && Array.isArray(scene.roster)) {
-        scene.roster.forEach((entry) => {
-            const normalized = normalizeMember(entry);
-            if (!normalized) {
-                return;
-            }
-            const existing = map.get(normalized.normalized) || normalized;
-            existing.active = true;
-            if (Number.isFinite(normalized.lastSeenAt)) {
-                existing.lastSeenAt = Math.max(existing.lastSeenAt || 0, normalized.lastSeenAt);
-            }
-            if (Number.isFinite(normalized.joinedAt)) {
-                existing.joinedAt = existing.joinedAt || normalized.joinedAt;
-            }
-            const normalizedTurns = Number.isFinite(normalized.turnsRemaining)
-                ? Math.max(0, Math.floor(normalized.turnsRemaining))
-                : null;
-            if (normalizedTurns != null) {
-                existing.turnsRemaining = normalizedTurns;
-            } else if (!Number.isFinite(existing.turnsRemaining)) {
-                existing.turnsRemaining = null;
-            }
-            existing.lastLeftAt = null;
-            sceneActive.add(existing.normalized);
-            map.set(normalized.normalized, existing);
-        });
-    }
-
-    for (const [normalized, entry] of map.entries()) {
-        const inScene = sceneActive.has(normalized);
-        if (inScene) {
-            entry.active = true;
-            entry.lastLeftAt = null;
-            continue;
-        }
-        if (!entry.active) {
-            entry.turnsRemaining = null;
-            if (!Number.isFinite(entry.lastLeftAt) && Number.isFinite(entry.lastSeenAt)) {
-                entry.lastLeftAt = entry.lastSeenAt;
-            }
-        }
-    }
-
-    const testerMap = new Map();
-    if (testers && Array.isArray(testers.entries)) {
-        testers.entries.forEach((entry) => {
-            if (!entry || typeof entry !== "object") {
-                return;
-            }
-            const normalized = typeof entry.normalized === "string" && entry.normalized.trim()
-                ? entry.normalized.trim().toLowerCase()
-                : typeof entry.name === "string" && entry.name.trim()
-                    ? entry.name.trim().toLowerCase()
-                    : null;
-            if (!normalized) {
-                return;
-            }
-            testerMap.set(normalized, entry);
-        });
-    }
-
-    const historyData = normalizeRosterHistory(scene?.history || membership?.history || null);
-    const historyMessages = historyData.messages;
-    const historyWindow = historyData.window;
-
-    const latestMatch = scene?.lastEvent?.normalized
-        ? scene.lastEvent.normalized.toLowerCase()
-        : null;
-
-    const entries = Array.from(map.values()).map((entry) => {
-        const tester = entry.normalized ? testerMap.get(entry.normalized) : null;
-        if (!Number.isFinite(entry.turnsRemaining)) {
-            const fromHistory = findLatestHistoryTurns(historyMessages, entry.normalized);
-            if (fromHistory != null) {
-                entry.turnsRemaining = fromHistory;
-            } else {
-                const fallbackTurns = resolveTurnsFromWindow(historyMessages, entry.normalized, historyWindow);
-                if (fallbackTurns != null) {
-                    entry.turnsRemaining = fallbackTurns;
-                }
-            }
-        }
-        return {
-            ...entry,
-            tester,
-            isLatest: latestMatch && entry.normalized === latestMatch,
-        };
-    });
-
-    entries.sort((a, b) => {
-        if (a.active !== b.active) {
-            return a.active ? -1 : 1;
-        }
-        const aSeen = Number.isFinite(a.lastSeenAt) ? a.lastSeenAt : 0;
-        const bSeen = Number.isFinite(b.lastSeenAt) ? b.lastSeenAt : 0;
-        if (aSeen !== bSeen) {
-            return bSeen - aSeen;
-        }
-        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-    });
-
-    return entries;
-}
-
 export function renderSceneRoster(target, panelState = {}) {
     if (typeof document === "undefined") {
         return;
@@ -494,7 +214,7 @@ export function renderSceneRoster(target, panelState = {}) {
     clearContainer(container);
 
     const now = Number.isFinite(panelState.now) ? panelState.now : Date.now();
-    const entries = mergeRosterData(panelState.scene, panelState.membership, panelState.testers, now);
+    const entries = Array.isArray(panelState.scene?.roster) ? panelState.scene.roster : [];
     const showAvatars = panelState.settings?.showRosterAvatars !== false;
 
     if (panelState.isStreaming && entries.length === 0) {
@@ -523,5 +243,3 @@ export function renderSceneRoster(target, panelState = {}) {
 
     appendContent(container, fragment);
 }
-
-export const __testables = { mergeRosterData };

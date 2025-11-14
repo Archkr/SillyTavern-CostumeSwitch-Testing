@@ -1,40 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { __testables as rosterTestables } from "../src/ui/render/sceneRoster.js";
-
-const { mergeRosterData } = rosterTestables;
+import { deriveSceneRosterState } from "../src/core/state.js";
 
 test("mergeRosterData infers turns remaining from history counts within the TTL window", () => {
     const now = Date.now();
-    const history = {
-        ttlWindow: 5,
-        messages: [
-            { key: "m1", roster: ["Kotori"], turnsByMember: [["kotori", 0]] },
-            { key: "m2", roster: ["Kotori"] },
-            { key: "m3", roster: ["Kotori"] },
-            { key: "m4", roster: [] },
-            { key: "m5", roster: ["Kotori"] },
-            { key: "m6", roster: [] },
-            { key: "m7", roster: [] },
-        ],
-    };
-
-    const membership = {
-        members: [
-            {
-                name: "Kotori",
-                normalized: "kotori",
-                joinedAt: now - 1000,
-                lastSeenAt: now,
-                active: true,
-                turnsRemaining: null,
-            },
-        ],
-        history,
-    };
-
-    const scene = {
+    const sceneSnapshot = {
+        key: "m7",
         roster: [
             {
                 name: "Kotori",
@@ -44,40 +16,32 @@ test("mergeRosterData infers turns remaining from history counts within the TTL 
                 active: true,
             },
         ],
-        history,
+        lastEvent: null,
+        updatedAt: now,
+        displayNames: new Map([["kotori", "Kotori"]]),
     };
-
-    const entries = mergeRosterData(scene, membership, null, now);
+    const messageState = {
+        sceneRoster: new Set(["kotori"]),
+        rosterTurns: new Map([["kotori", 3]]),
+        defaultRosterTTL: 5,
+        removedRoster: new Set(),
+    };
+    const derived = deriveSceneRosterState({
+        messageState,
+        sceneSnapshot,
+        testerSnapshot: null,
+        now,
+    });
+    const entries = derived.roster;
     const kotori = entries.find((entry) => entry.normalized === "kotori");
     assert.ok(kotori, "expected Kotori to appear in merged roster");
-    assert.equal(kotori.turnsRemaining, 3, "turns remaining should reflect only the last five messages");
+    assert.equal(kotori.turnsRemaining, 3, "turns remaining should use per-message state values");
 });
 
 test("mergeRosterData prefers per-member turn values from history when available", () => {
     const now = Date.now();
-    const history = {
-        ttlWindow: 5,
-        messages: [
-            { key: "m1", roster: ["Kotori"], turnsByMember: [["kotori", 2]] },
-            { key: "m2", roster: ["Kotori"], turnsByMember: [["kotori", 4]] },
-        ],
-    };
-
-    const membership = {
-        members: [
-            {
-                name: "Kotori",
-                normalized: "kotori",
-                joinedAt: now - 2000,
-                lastSeenAt: now - 1000,
-                active: true,
-                turnsRemaining: null,
-            },
-        ],
-        history,
-    };
-
-    const scene = {
+    const sceneSnapshot = {
+        key: "m2",
         roster: [
             {
                 name: "Kotori",
@@ -87,11 +51,24 @@ test("mergeRosterData prefers per-member turn values from history when available
                 active: true,
             },
         ],
-        history,
+        lastEvent: null,
+        updatedAt: now,
+        displayNames: new Map([["kotori", "Kotori"]]),
     };
-
-    const entries = mergeRosterData(scene, membership, null, now);
+    const messageState = {
+        sceneRoster: new Set(["kotori"]),
+        rosterTurns: new Map([["kotori", 4]]),
+        defaultRosterTTL: 5,
+        removedRoster: new Set(),
+    };
+    const derived = deriveSceneRosterState({
+        messageState,
+        sceneSnapshot,
+        testerSnapshot: null,
+        now,
+    });
+    const entries = derived.roster;
     const kotori = entries.find((entry) => entry.normalized === "kotori");
     assert.ok(kotori, "expected Kotori to appear in merged roster");
-    assert.equal(kotori.turnsRemaining, 4, "per-member turn history should override count-based fallback");
+    assert.equal(kotori.turnsRemaining, 4, "per-member turn values should override default TTL fallback");
 });

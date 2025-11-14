@@ -605,7 +605,7 @@ test("collectScenePanelState analytics updatedAt reflects latest scene activity"
 
     state.recentDecisionEvents = [];
     const panelWithoutEvents = collectScenePanelState();
-    assert.equal(panelWithoutEvents.analytics.updatedAt, rankingTimestamp);
+    assert.equal(panelWithoutEvents.analytics.updatedAt, testerTimestamp);
 });
 
 test("collectScenePanelState ignores tester-sourced refresh requests", () => {

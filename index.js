@@ -39,10 +39,8 @@ import {
     replaceLiveTesterOutputs,
     clearLiveTesterOutputs,
     getCurrentSceneSnapshot,
-    getRosterMembershipSnapshot,
-    clearRosterMembership,
-    setRosterMember,
-    removeRosterMember,
+    getLiveTesterOutputsSnapshot,
+    deriveSceneRosterState,
 } from "./src/core/state.js";
 import { registerSillyTavernIntegration, unregisterSillyTavernIntegration } from "./src/systems/integration/sillytavern.js";
 import {
@@ -1429,50 +1427,6 @@ function maybeAutoExpandScenePanel(reason = "result") {
     setScenePanelCollapsed(false);
 }
 
-function buildDisplayNameMap(scene, membership, testers) {
-    const map = new Map();
-    const register = (normalized, name) => {
-        if (!normalized || !name) {
-            return;
-        }
-        const key = normalized.toLowerCase();
-        if (!map.has(key)) {
-            map.set(key, name);
-        }
-    };
-    if (scene && Array.isArray(scene.roster)) {
-        scene.roster.forEach((entry) => {
-            if (!entry) {
-                return;
-            }
-            if (typeof entry.normalized === "string") {
-                register(entry.normalized, entry.name || entry.normalized);
-            }
-        });
-    }
-    if (membership && Array.isArray(membership.members)) {
-        membership.members.forEach((member) => {
-            if (!member) {
-                return;
-            }
-            if (typeof member.normalized === "string") {
-                register(member.normalized, member.name || member.normalized);
-            }
-        });
-    }
-    if (testers && Array.isArray(testers.entries)) {
-        testers.entries.forEach((entry) => {
-            if (!entry) {
-                return;
-            }
-            if (typeof entry.normalized === "string") {
-                register(entry.normalized, entry.name || entry.normalized);
-            }
-        });
-    }
-    return map;
-}
-
 function getRankingUpdatedAtForKey(bufKey) {
     const normalizedKey = normalizeMessageKey(bufKey);
     if (!normalizedKey) {
@@ -1542,106 +1496,37 @@ function computeAnalyticsUpdatedAt({
     return Math.max(...candidates);
 }
 
-function collectRosterHistorySnapshot() {
-    if (!(state.perMessageStates instanceof Map) || state.perMessageStates.size === 0) {
-        return null;
-    }
-    const queue = ensureMessageQueue();
-    if (!Array.isArray(queue) || queue.length === 0) {
-        return null;
-    }
-
-    const messages = [];
-    let ttlWindow = null;
-
-    queue.forEach((key) => {
-        const msgState = state.perMessageStates.get(key);
-        if (!msgState) {
-            return;
-        }
-        const roster = msgState.sceneRoster instanceof Set
-            ? Array.from(msgState.sceneRoster).map((value) => normalizeRosterKey(value)).filter(Boolean)
-            : [];
-        const turnsByMember = [];
-        if (msgState.rosterTurns instanceof Map) {
-            msgState.rosterTurns.forEach((turns, name) => {
-                const normalized = normalizeRosterKey(name);
-                const sanitized = sanitizeRosterTurnValue(turns);
-                if (normalized && sanitized != null) {
-                    turnsByMember.push([normalized, sanitized]);
-                }
-            });
-        }
-        const defaultTTL = Number.isFinite(msgState.defaultRosterTTL)
-            ? Math.max(0, Math.floor(msgState.defaultRosterTTL))
-            : null;
-        if (Number.isFinite(defaultTTL)) {
-            ttlWindow = defaultTTL;
-        }
-        if (!roster.length && turnsByMember.length === 0) {
-            return;
-        }
-        const entry = {
-            key,
-            roster,
-            turnsByMember,
-        };
-        if (Number.isFinite(defaultTTL)) {
-            entry.turnsRemaining = defaultTTL;
-        }
-        if (Number.isFinite(msgState.lastAcceptedTs) && msgState.lastAcceptedTs > 0) {
-            entry.updatedAt = msgState.lastAcceptedTs;
-        }
-        messages.push(entry);
-    });
-
-    if (!messages.length) {
-        return null;
-    }
-
-    const normalizedWindow = Number.isFinite(ttlWindow) ? Math.max(0, Math.floor(ttlWindow)) : null;
-    const trimmed = normalizedWindow != null && normalizedWindow > 0 && messages.length > normalizedWindow
-        ? messages.slice(-normalizedWindow)
-        : messages;
-
-    return {
-        ttlWindow: normalizedWindow,
-        messages: trimmed,
-    };
-}
-
 function collectScenePanelState(options = {}) {
     if (options?.source === "tester" && lastCollectedScenePanelState) {
         return lastCollectedScenePanelState;
     }
     const settings = getSettings?.();
     const panelSettings = ensureScenePanelSettings(settings || {});
-    const scene = getCurrentSceneSnapshot();
-    const membership = getRosterMembershipSnapshot();
-    const displayNames = buildDisplayNameMap(scene, membership, null);
-    const rosterHistory = collectRosterHistorySnapshot();
-    if (rosterHistory) {
-        const cloneHistoryMessages = () => rosterHistory.messages.map((entry) => ({
-            key: entry.key || null,
-            roster: Array.isArray(entry.roster) ? entry.roster.slice() : [],
-            turnsByMember: Array.isArray(entry.turnsByMember)
-                ? entry.turnsByMember.map(([name, turns]) => [name, turns])
-                : [],
-            turnsRemaining: Number.isFinite(entry.turnsRemaining)
-                ? entry.turnsRemaining
-                : null,
-            updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : null,
-        }));
-        const ttlWindow = Number.isFinite(rosterHistory.ttlWindow) ? rosterHistory.ttlWindow : null;
-        scene.history = {
-            ttlWindow,
-            messages: cloneHistoryMessages(),
-        };
-        membership.history = {
-            ttlWindow,
-            messages: cloneHistoryMessages(),
-        };
+    const now = Date.now();
+    const sceneSnapshot = getCurrentSceneSnapshot();
+    const testersSnapshot = getLiveTesterOutputsSnapshot();
+    let messageState = null;
+    if (sceneSnapshot?.key && state.perMessageStates instanceof Map) {
+        messageState = state.perMessageStates.get(sceneSnapshot.key) || null;
     }
+    if (!messageState && state.perMessageStates instanceof Map && state.perMessageStates.size > 0) {
+        messageState = Array.from(state.perMessageStates.values()).pop();
+    }
+    const derivedScene = deriveSceneRosterState({
+        messageState,
+        sceneSnapshot,
+        testerSnapshot: testersSnapshot,
+        now,
+    });
+    const scene = {
+        key: derivedScene.key,
+        messageId: derivedScene.messageId,
+        roster: derivedScene.roster,
+        lastEvent: derivedScene.lastEvent,
+        updatedAt: derivedScene.updatedAt,
+    };
+    const displayNames = derivedScene.displayNames;
+    const testers = testersSnapshot;
     const ranking = getLastTopCharacters(4);
 
     const streamingKey = state.currentGenerationKey
@@ -1737,8 +1622,8 @@ function collectScenePanelState(options = {}) {
         events,
         rankingUpdatedAt: activeRankingUpdatedAt,
         scene,
-        membership,
-        testers: null,
+        membership: null,
+        testers,
     });
 
     const profileForCoverage = getActiveProfile();
@@ -1769,7 +1654,7 @@ function collectScenePanelState(options = {}) {
 
     const panelState = {
         scene,
-        membership,
+        membership: null,
         settings: panelSettings,
         ranking: preparedRanking,
         displayNames,
@@ -1782,10 +1667,10 @@ function collectScenePanelState(options = {}) {
             matches,
             updatedAt,
         },
-        now: Date.now(),
+        now,
         isStreaming: Boolean(state.currentGenerationKey && shouldUseStreamingKey),
         collapsed: isScenePanelCollapsed(),
-        testers: null,
+        testers,
         coverage,
     };
     lastCollectedScenePanelState = panelState;
@@ -2094,10 +1979,10 @@ function renderSceneRosterManagerLayer() {
         return;
     }
     body.textContent = "";
-    const membership = typeof getRosterMembershipSnapshot === "function"
-        ? getRosterMembershipSnapshot()
+    const sceneSnapshot = typeof getCurrentSceneSnapshot === "function"
+        ? getCurrentSceneSnapshot()
         : null;
-    const members = Array.isArray(membership?.members) ? membership.members.slice() : [];
+    const members = Array.isArray(sceneSnapshot?.roster) ? sceneSnapshot.roster.slice() : [];
     const now = Date.now();
     members.sort((a, b) => {
         if ((a?.active ? 1 : 0) !== (b?.active ? 1 : 0)) {
@@ -2402,52 +2287,35 @@ function renderSceneSettingsLayer() {
 }
 
 function syncSceneRosterFromMembership({ message } = {}) {
-    const membership = typeof getRosterMembershipSnapshot === "function"
-        ? getRosterMembershipSnapshot()
+    const now = Date.now();
+    const sceneSnapshot = typeof getCurrentSceneSnapshot === "function"
+        ? getCurrentSceneSnapshot()
         : null;
-    const members = Array.isArray(membership?.members) ? membership.members : [];
-    const activeMembers = members.filter((member) => member && member.active);
-    const rosterEntries = activeMembers
-        .map((member) => {
-            if (!member) {
-                return null;
-            }
-            const normalized = typeof member.normalized === "string" && member.normalized.trim()
-                ? member.normalized.trim().toLowerCase()
-                : (typeof member.name === "string" && member.name.trim()
-                    ? member.name.trim().toLowerCase()
-                    : null);
-            if (!normalized) {
-                return null;
-            }
-            const turnsRemaining = Number.isFinite(member.turnsRemaining)
-                ? Math.max(0, Math.floor(member.turnsRemaining))
-                : null;
-            const joinedAt = Number.isFinite(member.joinedAt) ? member.joinedAt : null;
-            const lastSeenAt = Number.isFinite(member.lastSeenAt) ? member.lastSeenAt : null;
-            const lastLeftAt = Number.isFinite(member.lastLeftAt) ? member.lastLeftAt : null;
-            return {
-                name: member.name || member.normalized || normalized,
-                normalized,
-                joinedAt,
-                lastSeenAt,
-                lastLeftAt,
-                turnsRemaining,
-            };
-        })
-        .filter(Boolean);
-    const displayNames = new Map();
-    rosterEntries.forEach((entry) => {
-        displayNames.set(entry.normalized, entry.name);
+    const testersSnapshot = typeof getLiveTesterOutputsSnapshot === "function"
+        ? getLiveTesterOutputsSnapshot()
+        : null;
+    let messageState = null;
+    if (sceneSnapshot?.key && state.perMessageStates instanceof Map) {
+        messageState = state.perMessageStates.get(sceneSnapshot.key) || null;
+    }
+    if (!messageState && state.perMessageStates instanceof Map && state.perMessageStates.size > 0) {
+        messageState = Array.from(state.perMessageStates.values()).pop();
+    }
+    const derived = deriveSceneRosterState({
+        messageState,
+        sceneSnapshot,
+        testerSnapshot: testersSnapshot,
+        now,
     });
-    const scene = typeof getCurrentSceneSnapshot === "function" ? getCurrentSceneSnapshot() : {};
     applySceneRosterUpdate({
-        key: scene.key,
-        messageId: scene.messageId,
-        roster: rosterEntries,
-        displayNames,
-        lastMatch: scene.lastEvent,
-        updatedAt: Number.isFinite(membership?.updatedAt) ? membership.updatedAt : Date.now(),
+        key: derived.key,
+        messageId: derived.messageId,
+        roster: derived.roster,
+        displayNames: derived.displayNames,
+        lastMatch: derived.lastEvent,
+        updatedAt: now,
+        turnsByMember: messageState?.rosterTurns,
+        turnsRemaining: messageState?.defaultRosterTTL,
     });
     requestScenePanelRender("roster-manager", { immediate: true });
     if (message) {
@@ -2465,7 +2333,6 @@ function buildSceneLogCopy(panelState = collectScenePanelState()) {
     const stats = analytics.stats instanceof Map ? analytics.stats : null;
     const ranking = Array.isArray(analytics.ranking) ? analytics.ranking : [];
     const rosterEntries = Array.isArray(panelState.scene?.roster) ? panelState.scene.roster : [];
-    const membership = Array.isArray(panelState.membership?.members) ? panelState.membership.members : [];
     const lines = [];
 
     lines.push("Scene Panel Report");
@@ -2491,7 +2358,7 @@ function buildSceneLogCopy(panelState = collectScenePanelState()) {
         lastSeenAt: Number.isFinite(entry.lastSeenAt) ? entry.lastSeenAt : null,
         turnsRemaining: Number.isFinite(entry.turnsRemaining) ? Math.max(0, entry.turnsRemaining) : null,
     }));
-    const inactiveMembers = membership
+    const inactiveMembers = rosterEntries
         .filter((member) => member && member.active === false)
         .map((member) => ({
             name: member.name || member.normalized || "Unknown",
@@ -2688,8 +2555,15 @@ function handleScenePanelClearRoster(event) {
     if (!confirm("Clear the entire scene roster?")) {
         return;
     }
-    if (typeof clearRosterMembership === "function") {
-        clearRosterMembership();
+    const { messageState } = resolveSceneManagerState();
+    if (messageState.sceneRoster instanceof Set) {
+        messageState.sceneRoster.clear();
+    }
+    if (messageState.rosterTurns instanceof Map) {
+        messageState.rosterTurns.clear();
+    }
+    if (messageState.removedRoster instanceof Set) {
+        messageState.removedRoster.clear();
     }
     syncSceneRosterFromMembership({ message: "Scene roster cleared." });
     rerenderScenePanelLayer();
@@ -2807,17 +2681,32 @@ function handleSceneManagerSubmit(event) {
         showStatus("Enter a character name to add.", "info");
         return;
     }
-    const added = typeof setRosterMember === "function"
-        ? setRosterMember(name, { name, active: true, lastSeenAt: Date.now(), joinedAt: Date.now() })
-        : null;
-    if (!added) {
+    const { messageState } = resolveSceneManagerState();
+    const normalized = normalizeRosterKey(name);
+    if (!normalized) {
         showStatus("Unable to add that name to the roster.", "error");
         return;
+    }
+    if (!(messageState.sceneRoster instanceof Set)) {
+        messageState.sceneRoster = new Set();
+    }
+    messageState.sceneRoster.add(normalized);
+    if (messageState.removedRoster instanceof Set) {
+        messageState.removedRoster.delete(normalized);
+    }
+    const defaultTTL = sanitizeRosterTurnValue(messageState.defaultRosterTTL);
+    if (!(messageState.rosterTurns instanceof Map)) {
+        messageState.rosterTurns = new Map();
+    }
+    if (defaultTTL != null) {
+        messageState.rosterTurns.set(normalized, defaultTTL);
+    } else {
+        messageState.rosterTurns.delete(normalized);
     }
     if (input) {
         input.value = "";
     }
-    syncSceneRosterFromMembership({ message: `${escapeHtml(added.name)} added to the scene roster.` });
+    syncSceneRosterFromMembership({ message: `${escapeHtml(name)} added to the scene roster.` });
     rerenderScenePanelLayer();
 }
 
@@ -2828,26 +2717,33 @@ function handleSceneManagerToggle(event) {
     if (!name) {
         return;
     }
-    const membership = typeof getRosterMembershipSnapshot === "function"
-        ? getRosterMembershipSnapshot()
-        : null;
-    const members = Array.isArray(membership?.members) ? membership.members : [];
-    const normalizedTarget = name.toLowerCase();
-    const member = members.find((entry) => {
-        if (!entry) {
-            return false;
+    const { messageState } = resolveSceneManagerState();
+    const normalized = normalizeRosterKey(name);
+    if (!normalized) {
+        return;
+    }
+    if (!(messageState.sceneRoster instanceof Set)) {
+        messageState.sceneRoster = new Set();
+    }
+    const isActive = messageState.sceneRoster.has(normalized);
+    const nextActive = !isActive;
+    if (nextActive) {
+        messageState.sceneRoster.add(normalized);
+        if (messageState.removedRoster instanceof Set) {
+            messageState.removedRoster.delete(normalized);
         }
-        const normalized = (entry.name || entry.normalized || "").toLowerCase();
-        return normalized === normalizedTarget;
-    });
-    const nextActive = !(member?.active);
-    if (typeof setRosterMember === "function") {
-        setRosterMember(name, {
-            name,
-            active: nextActive,
-            lastSeenAt: Date.now(),
-            lastLeftAt: !nextActive ? Date.now() : member?.lastLeftAt ?? null,
-        });
+        const defaultTTL = sanitizeRosterTurnValue(messageState.defaultRosterTTL);
+        if (!(messageState.rosterTurns instanceof Map)) {
+            messageState.rosterTurns = new Map();
+        }
+        if (defaultTTL != null) {
+            messageState.rosterTurns.set(normalized, defaultTTL);
+        }
+    } else {
+        messageState.sceneRoster.delete(normalized);
+        if (messageState.rosterTurns instanceof Map) {
+            messageState.rosterTurns.delete(normalized);
+        }
     }
     syncSceneRosterFromMembership({
         message: nextActive
@@ -2867,8 +2763,19 @@ function handleSceneManagerRemove(event) {
     if (!confirm(`Remove ${name} from the scene roster?`)) {
         return;
     }
-    if (typeof removeRosterMember === "function") {
-        removeRosterMember(name);
+    const { messageState } = resolveSceneManagerState();
+    const normalized = normalizeRosterKey(name);
+    if (normalized) {
+        if (messageState.sceneRoster instanceof Set) {
+            messageState.sceneRoster.delete(normalized);
+        }
+        if (messageState.rosterTurns instanceof Map) {
+            messageState.rosterTurns.delete(normalized);
+        }
+        if (!(messageState.removedRoster instanceof Set)) {
+            messageState.removedRoster = new Set();
+        }
+        messageState.removedRoster.add(normalized);
     }
     syncSceneRosterFromMembership({ message: `${escapeHtml(name)} removed from the scene roster.` });
     rerenderScenePanelLayer();
@@ -2878,6 +2785,45 @@ function handleSceneManagerRemove(event) {
 // ======================================================================
 // UTILITY & HELPER FUNCTIONS
 // ======================================================================
+function resolveSceneManagerState() {
+    const sceneSnapshot = typeof getCurrentSceneSnapshot === "function"
+        ? getCurrentSceneSnapshot()
+        : null;
+    const normalizedSceneKey = sceneSnapshot?.key ? normalizeMessageKey(sceneSnapshot.key) : null;
+    if (!(state.perMessageStates instanceof Map)) {
+        state.perMessageStates = new Map();
+    }
+    let messageKey = normalizedSceneKey;
+    let messageState = messageKey ? state.perMessageStates.get(messageKey) || null : null;
+    if (!messageState && state.perMessageStates.size > 0) {
+        const lastEntry = Array.from(state.perMessageStates.entries()).pop();
+        if (lastEntry) {
+            [messageKey, messageState] = lastEntry;
+        }
+    }
+    if (!messageState) {
+        messageKey = normalizedSceneKey || `manual:${Date.now()}`;
+        messageState = {
+            sceneRoster: new Set(),
+            rosterTurns: new Map(),
+            defaultRosterTTL: null,
+            removedRoster: new Set(),
+        };
+        state.perMessageStates.set(messageKey, messageState);
+    } else {
+        if (!(messageState.sceneRoster instanceof Set)) {
+            messageState.sceneRoster = new Set(messageState.sceneRoster || []);
+        }
+        if (!(messageState.rosterTurns instanceof Map)) {
+            messageState.rosterTurns = new Map(messageState.rosterTurns || []);
+        }
+        if (!(messageState.removedRoster instanceof Set)) {
+            messageState.removedRoster = new Set(messageState.removedRoster || []);
+        }
+    }
+    return { sceneSnapshot, messageState, messageKey };
+}
+
 function escapeHtml(str) {
     if (typeof document === "undefined" || typeof document.createElement !== "function") {
         const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
@@ -9258,6 +9204,7 @@ function createMessageState(profile, bufKey, options = {}) {
         processedLength: 0,
         lastAcceptedIndex: -1,
         bufferOffset: 0,
+        removedRoster: new Set(oldState?.removedRoster || []),
     };
 
     let rosterCleared = false;
