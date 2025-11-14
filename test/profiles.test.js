@@ -93,6 +93,15 @@ test('normalizeProfile preserves non-enumerable mapping identifiers', () => {
     assert.ok(descriptor && descriptor.enumerable === false, 'card identifier should remain non-enumerable');
 });
 
+test('normalizeProfile normalizes script collection opt-ins', () => {
+    const normalized = normalizeProfile({
+        scriptCollections: { global: true, preset: true, scoped: false },
+    }, PROFILE_DEFAULTS);
+
+    assert.deepEqual(normalized.scriptCollections, ['global', 'preset'],
+        'script collections should normalize to an ordered opt-in list');
+});
+
 test('mappingHasIdentity accepts partially configured character slots', () => {
     assert.equal(mappingHasIdentity({}), false, 'empty mapping should not persist');
     assert.equal(mappingHasIdentity({ name: 'Draft Character' }), true, 'name-only mapping should persist');

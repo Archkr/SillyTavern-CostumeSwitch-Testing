@@ -219,6 +219,8 @@ test("simulateTesterStream records per-character tester outputs", () => {
     assert.ok(kotoriEntry, "expected Kotori to appear in tester outputs");
     assert.ok(kotoriEntry.summary.switches + kotoriEntry.summary.skips + kotoriEntry.summary.vetoes > 0,
         "expected Kotori tester summary to track events");
+    assert.equal(snapshot.preprocessedText, state.lastPreprocessedText,
+        "tester snapshot should expose the latest preprocessed buffer");
 });
 
 test("simulateTesterStream syncs tester events into the shared decision log", () => {

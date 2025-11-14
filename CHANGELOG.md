@@ -9,6 +9,7 @@
 - **Roster expiry counter.** Every roster entry now displays the remaining message count before it expires, making it easy to spot characters that are about to drop from the scene.
 - **Aurora side panel finish.** The roster workspace picked up animated lighting, hover glows, and a responsive section scaffold so the settings footer stays anchored and never falls off-screen.
 - **Coverage suggestions in the scene panel.** Vocabulary guidance from the live tester now appears alongside the roster with quick-add pills that update in real time as chats roll in.
+- **Regex preprocessor opt-ins.** Profiles can opt into allowed global, preset, and scoped regex scripts, and the Live Tester now reveals the preprocessed text they run against.
 
 ### Improved
 - **Scene control center aurora parity.** The roster headline now inherits the hero gradient and animated starfield from the main header so the command center shares the same nebula finish.

@@ -1,10 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-
-import {
-    compileProfileRegexes,
-    collectDetections,
-} from '../src/detector-core.js';
+import { register } from 'node:module';
 import {
     DEFAULT_ACTION_VERBS_PRESENT,
     DEFAULT_ACTION_VERBS_THIRD_PERSON,
@@ -17,6 +13,13 @@ import {
     DEFAULT_ATTRIBUTION_VERBS_PAST_PARTICIPLE,
     DEFAULT_ATTRIBUTION_VERBS_PRESENT_PARTICIPLE,
 } from '../verbs.js';
+
+await register(new URL('./module-mock-loader.js', import.meta.url));
+
+const {
+    compileProfileRegexes,
+    collectDetections,
+} = await import('../src/detector-core.js');
 
 const buildVerbList = (...lists) => Array.from(new Set(lists.flat().filter(Boolean)));
 

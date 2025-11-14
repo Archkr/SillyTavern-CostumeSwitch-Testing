@@ -1305,6 +1305,29 @@
   font-size: 0.95rem;
 }
 
+#costume-switcher-settings.cs-theme .cs-tester-preprocessed {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+#costume-switcher-settings.cs-theme .cs-tester-preprocessed__output {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 160px;
+    overflow-y: auto;
+    color: var(--text-color);
+}
+
 #costume-switcher-settings.cs-theme .cs-tester-list {
   list-style: none;
   margin: 0;

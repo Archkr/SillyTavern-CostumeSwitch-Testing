@@ -1,3 +1,5 @@
+import { collectProfilePreprocessorScripts, applyPreprocessorScripts } from "./core/script-preprocessor.js";
+
 const DEFAULT_UNICODE_WORD_PATTERN = "[\\p{L}\\p{M}\\p{N}_]";
 const WORD_CHAR_REGEX = /[\p{L}\p{M}\p{N}]/u;
 const DEFAULT_BOUNDARY_LOOKBEHIND = "(?<![A-Za-z0-9_'’])";
@@ -419,18 +421,29 @@ export function compileProfileRegexes(profile = {}, options = {}) {
         vetoRegex: buildGenericRegex(profile.vetoPatterns),
     };
 
+    const preprocessorScripts = collectProfilePreprocessorScripts(profile);
+    regexes.preprocessorScripts = preprocessorScripts;
+
     return {
         regexes,
         effectivePatterns,
         pronounPattern,
+        preprocessorScripts,
     };
 }
 
 export function collectDetections(text, profile = {}, regexes = {}, options = {}) {
-    if (!text || !profile) {
-        return [];
+    const matches = [];
+    const originalText = typeof text === "string" ? text : String(text ?? "");
+    matches.originalText = originalText;
+    matches.preprocessedText = originalText;
+    if (!originalText || !profile) {
+        return matches;
     }
-    const sourceText = typeof text === "string" ? text : String(text ?? "");
+    const pipeline = Array.isArray(regexes.preprocessorScripts) ? regexes.preprocessorScripts : [];
+    const preprocessorResult = applyPreprocessorScripts(originalText, pipeline);
+    const sourceText = typeof preprocessorResult?.text === "string" ? preprocessorResult.text : originalText;
+    matches.preprocessedText = sourceText;
     const bufferOffset = Number.isFinite(options.bufferOffset) ? Math.max(0, Math.floor(options.bufferOffset)) : 0;
     const quoteState = typeof options.quoteState === "object" && options.quoteState ? options.quoteState : null;
     let quoteRanges;
@@ -465,7 +478,6 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         ? Math.max(0, Math.floor(options.minIndex))
         : null;
     const matchOptions = { startIndex, minIndex };
-    const matches = [];
 
     const addMatch = (name, matchKind, index, priority, length = null) => {
         const trimmedName = String(name ?? "").trim();

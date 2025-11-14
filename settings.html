@@ -521,56 +521,61 @@
                             <p class="cs-summary-help">Use the score, roster, and coverage panes below to focus your next tweaks.</p>
                         </div>
                     </div>
-                  <div class="cs-tester-panels">
+                <div class="cs-tester-panels">
                     <section class="cs-tester-panel cs-tester-panel--flow">
-                      <header class="cs-tester-panel-header">
-                        <h4>Match Flow</h4>
-                        <p>Follow detections through to the costume decision.</p>
-                      </header>
-                      <div class="cs-tester-split">
-                        <div class="cs-tester-pane">
-                          <div class="cs-tester-title">All Detections</div>
-                          <p class="cs-helper-text">Every detection we spotted, in order.</p>
-                          <ul id="cs-test-all-detections" class="cs-tester-list">
-                            <li class="cs-tester-list-placeholder">Results will appear here.</li>
-                          </ul>
+                        <header class="cs-tester-panel-header">
+                            <h4>Match Flow</h4>
+                            <p>Follow detections through to the costume decision.</p>
+                        </header>
+                        <div class="cs-tester-preprocessed">
+                            <div class="cs-tester-title">Preprocessed Text</div>
+                            <p class="cs-helper-text">Buffer after running allowed regex scripts.</p>
+                            <pre id="cs-test-preprocessed" class="cs-tester-preprocessed__output cs-tester-list-placeholder" data-placeholder="No scripts applied yet.">No scripts applied yet.</pre>
                         </div>
-                        <div class="cs-tester-pane">
-                          <div class="cs-tester-title">Live Switch Decisions</div>
-                          <p class="cs-helper-text">Who would have received the costume change.</p>
-                          <ul id="cs-test-winner-list" class="cs-tester-list">
-                            <li class="cs-tester-list-placeholder">Stream results will appear here.</li>
-                          </ul>
+                        <div class="cs-tester-split">
+                            <div class="cs-tester-pane">
+                                <div class="cs-tester-title">All Detections</div>
+                                <p class="cs-helper-text">Every detection we spotted, in order.</p>
+                                <ul id="cs-test-all-detections" class="cs-tester-list">
+                                    <li class="cs-tester-list-placeholder">Results will appear here.</li>
+                                </ul>
+                            </div>
+                            <div class="cs-tester-pane">
+                                <div class="cs-tester-title">Live Switch Decisions</div>
+                                <p class="cs-helper-text">Who would have received the costume change.</p>
+                                <ul id="cs-test-winner-list" class="cs-tester-list">
+                                    <li class="cs-tester-list-placeholder">Stream results will appear here.</li>
+                                </ul>
+                            </div>
                         </div>
-                      </div>
                     </section>
                     <section class="cs-tester-panel cs-tester-panel--roster">
-                      <header class="cs-tester-panel-header">
-                        <h4>Scene Roster</h4>
-                        <p>Check for churn or TTL gaps that could impact switching.</p>
-                      </header>
-                      <div class="cs-tester-stack">
-                        <ul id="cs-test-roster-timeline" class="cs-tester-list">
-                          <li class="cs-tester-list-placeholder">Run the tester to see roster events.</li>
-                        </ul>
-                        <div class="cs-roster-health">
-                          <div class="cs-tester-title cs-tester-title--sub">Roster Health</div>
-                          <div id="cs-test-roster-warning" class="cs-roster-warning">No TTL warnings triggered.</div>
+                        <header class="cs-tester-panel-header">
+                            <h4>Scene Roster</h4>
+                            <p>Check for churn or TTL gaps that could impact switching.</p>
+                        </header>
+                        <div class="cs-tester-stack">
+                            <ul id="cs-test-roster-timeline" class="cs-tester-list">
+                                <li class="cs-tester-list-placeholder">Run the tester to see roster events.</li>
+                            </ul>
+                            <div class="cs-roster-health">
+                                <div class="cs-tester-title cs-tester-title--sub">Roster Health</div>
+                                <div id="cs-test-roster-warning" class="cs-roster-warning">No TTL warnings triggered.</div>
+                            </div>
                         </div>
-                      </div>
                     </section>
                     <section class="cs-tester-panel cs-tester-panel--score">
-                      <header class="cs-tester-panel-header">
-                        <h4>Score Breakdown</h4>
-                        <p>Scroll to compare how each detection contributed.</p>
-                      </header>
-                      <div class="cs-score-scroll">
-                        <table id="cs-test-score-breakdown" class="cs-score-table">
-                          <tbody>
-                            <tr><td colspan="3" class="cs-tester-list-placeholder">Run the tester to see weighted scores.</td></tr>
-                          </tbody>
-                        </table>
-                      </div>
+                        <header class="cs-tester-panel-header">
+                            <h4>Score Breakdown</h4>
+                            <p>Scroll to compare how each detection contributed.</p>
+                        </header>
+                        <div class="cs-score-scroll">
+                            <table id="cs-test-score-breakdown" class="cs-score-table">
+                                <tbody>
+                                    <tr><td colspan="3" class="cs-tester-list-placeholder">Run the tester to see weighted scores.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </section>
                     <section class="cs-tester-panel cs-tester-panel--coverage">
                       <header class="cs-tester-panel-header">

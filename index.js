@@ -343,6 +343,7 @@ const PROFILE_DEFAULTS = {
     patterns: [],
     ignorePatterns: [],
     vetoPatterns: ["OOC:", "(OOC)"],
+    scriptCollections: [],
     defaultCostume: "",
     debug: false,
     globalCooldownMs: 1200,
@@ -505,6 +506,7 @@ const state = {
     statusTimer: null,
     testerTimers: [],
     lastTesterReport: null,
+    lastPreprocessedText: "",
     recentDecisionEvents: [],
     lastVetoMatch: null,
     buildMeta: null,
@@ -907,13 +909,21 @@ function findAllMatches(combined, options = {}) {
         detectionOptions.lastIndex = Math.floor(options.lastIndex);
     }
 
-    return collectDetections(combined, profile, compiledRegexes, detectionOptions);
+    const matches = collectDetections(combined, profile, compiledRegexes, detectionOptions);
+    const processed = typeof matches?.preprocessedText === "string"
+        ? matches.preprocessedText
+        : combined;
+    state.lastPreprocessedText = processed;
+    return matches;
 }
 
 function findBestMatch(combined, precomputedMatches = null, options = {}) {
     const profile = getActiveProfile();
     if (!profile) return null;
     const allMatches = Array.isArray(precomputedMatches) ? precomputedMatches : findAllMatches(combined);
+    if (Array.isArray(precomputedMatches) && typeof precomputedMatches.preprocessedText === "string") {
+        state.lastPreprocessedText = precomputedMatches.preprocessedText;
+    }
     if (allMatches.length === 0) return null;
 
     let rosterSet = null;
@@ -5905,6 +5915,21 @@ function updateTesterTopCharactersDisplay(entries) {
     el.classList.remove('cs-tester-list-placeholder');
 }
 
+function updateTesterPreprocessedDisplay(text) {
+    const el = $('#cs-test-preprocessed');
+    if (!el.length) {
+        return;
+    }
+    const placeholder = el.attr('data-placeholder') || 'No scripts applied yet.';
+    if (typeof text === 'string' && text.length > 0) {
+        el.removeClass('cs-tester-list-placeholder');
+        el.text(text);
+    } else {
+        el.addClass('cs-tester-list-placeholder');
+        el.text(placeholder);
+    }
+}
+
 function renderTesterScoreBreakdown(details) {
     const table = $('#cs-test-score-breakdown');
     if (!table.length) return;
@@ -6553,8 +6578,9 @@ function simulateTesterStream(combined, profile, bufKey) {
     const events = [];
     const normalizedKey = normalizeMessageKey(bufKey) || bufKey;
     const msgState = state.perMessageStates.get(normalizedKey);
+    state.lastPreprocessedText = typeof combined === "string" ? combined : "";
     if (!msgState) {
-        replaceLiveTesterOutputs([], { roster: [] });
+        replaceLiveTesterOutputs([], { roster: [], preprocessedText: state.lastPreprocessedText });
         requestScenePanelRender("tester-reset", { source: "tester" });
         return { events, finalState: null, rosterTimeline: [], rosterWarnings: [] };
     }
@@ -6572,15 +6598,19 @@ function simulateTesterStream(combined, profile, bufKey) {
     const testerMessageKey = normalizedTesterKey.startsWith("tester:")
         ? normalizedTesterKey
         : `tester:${normalizedTesterKey}`;
-    const finalizeResult = (result) => {
+    const finalizeResult = (result, extra = {}) => {
         const rosterSnapshot = Array.isArray(result?.finalState?.sceneRoster)
             ? result.finalState.sceneRoster
             : Array.from(msgState?.sceneRoster || []);
         const eventList = Array.isArray(result?.events) ? result.events : events;
+        const preprocessedText = typeof extra.preprocessedText === "string"
+            ? extra.preprocessedText
+            : state.lastPreprocessedText;
         overwriteRecentDecisionEvents(testerMessageKey, eventList);
         replaceLiveTesterOutputs(eventList, {
             roster: rosterSnapshot,
             displayNames: rosterDisplayNames,
+            preprocessedText,
         });
         requestScenePanelRender("tester-stream", { source: "tester" });
         return result;
@@ -6893,6 +6923,7 @@ function testRegexPattern() {
     state.lastTesterReport = null;
     updateTesterCopyButton();
     updateTesterTopCharactersDisplay(null);
+    updateTesterPreprocessedDisplay(null);
     $("#cs-test-veto-result").text('N/A').css('color', 'var(--text-color-soft)');
     renderTesterScoreBreakdown(null);
     renderTesterRosterTimeline(null, null);
@@ -6904,6 +6935,7 @@ function testRegexPattern() {
         $("#cs-test-all-detections, #cs-test-winner-list").html('<li class="cs-tester-list-placeholder">Enter text to test.</li>');
         updateTesterTopCharactersDisplay(null);
         updateSkipReasonSummaryDisplay([]);
+        updateTesterPreprocessedDisplay(null);
         return;
     }
 
@@ -6951,21 +6983,24 @@ function testRegexPattern() {
         $("#cs-test-veto-result").html(`Vetoed by: <b style="color: var(--red);">${vetoMatch}</b>`);
         allDetectionsList.html('<li class="cs-tester-list-placeholder">Message vetoed.</li>');
         const vetoEvents = [{ type: 'veto', match: vetoMatch, charIndex: combined.length - 1 }];
+        state.lastPreprocessedText = combined;
+        updateTesterPreprocessedDisplay(combined);
         renderTesterStream(streamList, vetoEvents);
         updateSkipReasonSummaryDisplay(vetoEvents);
         renderTesterScoreBreakdown([]);
         renderTesterRosterTimeline([], []);
         renderCoverageDiagnostics(coverage);
-        replaceLiveTesterOutputs(vetoEvents, { roster: [] });
+        replaceLiveTesterOutputs(vetoEvents, { roster: [], preprocessedText: state.lastPreprocessedText });
         requestScenePanelRender("tester-veto", { source: "tester" });
         const skipSummary = summarizeSkipReasonsForReport(vetoEvents);
-        state.lastTesterReport = { ...reportBase, vetoed: true, vetoMatch, events: vetoEvents, matches: [], topCharacters: [], rosterTimeline: [], rosterWarnings: [], scoreDetails: [], coverage, skipSummary };
+        state.lastTesterReport = { ...reportBase, vetoed: true, vetoMatch, events: vetoEvents, matches: [], topCharacters: [], rosterTimeline: [], rosterWarnings: [], scoreDetails: [], coverage, skipSummary, preprocessedText: state.lastPreprocessedText };
         updateTesterTopCharactersDisplay([]);
         updateTesterCopyButton();
     } else {
         $("#cs-test-veto-result").text('No veto phrases matched.').css('color', 'var(--green)');
 
         const allMatches = findAllMatches(combined).sort((a, b) => a.matchIndex - b.matchIndex);
+        updateTesterPreprocessedDisplay(state.lastPreprocessedText);
         allDetectionsList.empty();
         if (allMatches.length > 0) {
             allMatches.forEach(m => {
@@ -6981,6 +7016,7 @@ function testRegexPattern() {
         const events = Array.isArray(simulationResult?.events) ? simulationResult.events : [];
         renderTesterStream(streamList, events);
         updateSkipReasonSummaryDisplay(events);
+        updateTesterPreprocessedDisplay(state.lastPreprocessedText);
         const testerRoster = simulationResult?.finalState?.sceneRoster || [];
         const topCharacters = rankSceneCharacters(allMatches, {
             rosterSet: testerRoster,
@@ -7028,6 +7064,7 @@ function testRegexPattern() {
             rosterWarnings: Array.isArray(simulationResult?.rosterWarnings) ? simulationResult.rosterWarnings.map(warn => ({ ...warn })) : [],
             scoreDetails: detailedScores.map(detail => ({ ...detail })),
             coverage,
+            preprocessedText: state.lastPreprocessedText,
         };
         updateTesterCopyButton();
     }
@@ -8707,6 +8744,7 @@ function captureSceneOutcomeForMessage(reference) {
         roster,
         displayNames,
         timestamp,
+        preprocessedText: state.lastPreprocessedText,
     });
 
     applySceneRosterUpdate({
@@ -8733,6 +8771,7 @@ function captureSceneOutcomeForMessage(reference) {
         events: events.map((event) => ({ ...event, messageKey: normalizedKey })),
         stats: toStatsEntries(stats),
         buffer,
+        preprocessedText: state.lastPreprocessedText,
         text: message?.mes || "",
         updatedAt: timestamp,
         lastEvent: events.length ? { ...events[events.length - 1] } : null,
@@ -8770,7 +8809,7 @@ function restoreSceneOutcomeForMessage(message, {
     if (!message || message.is_user || isSystemOrNarratorMessage(message)) {
         if (!preserveStateOnFailure) {
             resetSceneState();
-            replaceLiveTesterOutputs([], { roster: [] });
+            replaceLiveTesterOutputs([], { roster: [], preprocessedText: "" });
         }
         if (immediateRender) {
             requestScenePanelRender("history-reset", { immediate: true });
@@ -8783,7 +8822,7 @@ function restoreSceneOutcomeForMessage(message, {
     if (!messageKey) {
         if (!preserveStateOnFailure) {
             resetSceneState();
-            replaceLiveTesterOutputs([], { roster: [] });
+            replaceLiveTesterOutputs([], { roster: [], preprocessedText: "" });
         }
         if (immediateRender) {
             requestScenePanelRender("history-reset", { immediate: true });
@@ -8843,10 +8882,14 @@ function restoreSceneOutcomeForMessage(message, {
     const storedTimestamp = Number.isFinite(stored?.updatedAt) ? stored.updatedAt : null;
     const timestamp = storedTimestamp ?? existingUpdatedAt ?? now;
 
+    const restoredPreprocessed = typeof stored?.preprocessedText === 'string'
+        ? stored.preprocessedText
+        : buffer;
     replaceLiveTesterOutputs(events, {
         roster,
         displayNames,
         timestamp,
+        preprocessedText: restoredPreprocessed,
     });
 
     const resolvedId = Number.isFinite(stored?.messageId) ? stored.messageId : message.mesId;
@@ -10011,7 +10054,7 @@ function restoreLatestSceneOutcome({ immediateRender = true, preserveStateOnFail
         if (!Array.isArray(chatLog) || chatLog.length === 0) {
             if (!preserveStateOnFailure) {
                 resetSceneState();
-                replaceLiveTesterOutputs([], { roster: [] });
+                replaceLiveTesterOutputs([], { roster: [], preprocessedText: "" });
             }
             if (immediateRender) {
                 requestScenePanelRender("history-reset", { immediate: true });
@@ -10022,7 +10065,7 @@ function restoreLatestSceneOutcome({ immediateRender = true, preserveStateOnFail
         if (!latestAssistant) {
             if (!preserveStateOnFailure) {
                 resetSceneState();
-                replaceLiveTesterOutputs([], { roster: [] });
+                replaceLiveTesterOutputs([], { roster: [], preprocessedText: "" });
             }
             if (immediateRender) {
                 requestScenePanelRender("history-reset", { immediate: true });
@@ -10037,7 +10080,7 @@ function restoreLatestSceneOutcome({ immediateRender = true, preserveStateOnFail
         console.warn(`${logPrefix} Failed to restore latest scene outcome:`, error);
         if (!preserveStateOnFailure) {
             resetSceneState();
-            replaceLiveTesterOutputs([], { roster: [] });
+            replaceLiveTesterOutputs([], { roster: [], preprocessedText: "" });
         }
         if (immediateRender) {
             requestScenePanelRender("history-reset", { immediate: true });
@@ -10290,7 +10333,7 @@ const handleHistoryChange = (...args) => {
 
         if (!hasAssistantMessages) {
             resetSceneState();
-            replaceLiveTesterOutputs([], { roster: [] });
+            replaceLiveTesterOutputs([], { roster: [], preprocessedText: "" });
             requestScenePanelRender("history-reset", { immediate: true });
         } else {
             debugLog("History change did not resolve to an assistant message; preserving scene panel state.", args);
