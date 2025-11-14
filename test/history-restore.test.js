@@ -319,3 +319,60 @@ test("restoreLatestSceneOutcome restores the last assistant when newer posts are
 
     globalThis.__mockContext = null;
 });
+
+test("handleHistoryChange restores prior assistant outcomes when narrator/system are most recent", () => {
+    extensionSettingsStore[extensionName] = {
+        ...baseSettings,
+        session: {},
+    };
+
+    state.perMessageBuffers = new Map();
+    state.perMessageStates = new Map();
+    state.messageStats = new Map();
+
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    const restoredOutcome = {
+        version: 1,
+        messageKey: "m50",
+        messageId: 50,
+        roster: ["kotori"],
+        displayNames: [["kotori", "Kotori"]],
+        events: [],
+        stats: [],
+        buffer: "Kotori smiles brightly.",
+        text: "Kotori smiles brightly.",
+        updatedAt: 1111,
+        lastEvent: null,
+    };
+
+    const assistantMessage = {
+        mesId: 50,
+        is_user: false,
+        mes: "Kotori smiles brightly.",
+        swipe_id: 0,
+        extra: { cs_scene_outcomes: { 0: restoredOutcome } },
+    };
+
+    globalThis.__mockContext = {
+        chat: [
+            assistantMessage,
+            { mesId: 51, is_user: false, mes: "Narrator elaborates further.", extra: { type: "narrator" } },
+            { mesId: 52, is_user: false, is_system: true, mes: "System reminder." },
+        ],
+    };
+
+    __testables.handleHistoryChange([{ index: 2 }]);
+
+    const sceneSnapshot = getCurrentSceneSnapshot();
+    assert.equal(sceneSnapshot?.key, "m50", "history change should restore the prior assistant outcome");
+    assert.equal(sceneSnapshot?.updatedAt, restoredOutcome.updatedAt,
+        "restored scene snapshot should reuse stored timestamps");
+
+    const rosterSnapshot = getRosterMembershipSnapshot();
+    assert.equal(rosterSnapshot.members.some((entry) => entry.normalized === "kotori"), true,
+        "roster membership should reflect restored assistant state");
+
+    globalThis.__mockContext = null;
+});

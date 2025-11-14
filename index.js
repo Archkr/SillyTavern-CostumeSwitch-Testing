@@ -9360,6 +9360,7 @@ function createMessageState(profile, bufKey, options = {}) {
 
 __testables.createMessageState = createMessageState;
 __testables.findAssistantMessageBeforeIndex = findAssistantMessageBeforeIndex;
+__testables.resolveAssistantHistoryMessage = resolveAssistantHistoryMessage;
 __testables.findChatMessageById = findChatMessageById;
 __testables.findChatMessageByKey = findChatMessageByKey;
 __testables.resolveHistoryTargetMessage = resolveHistoryTargetMessage;
@@ -9836,12 +9837,31 @@ const handleStream = (...args) => {
     } catch (err) { console.error(`${logPrefix} stream handler error:`, err); }
 };
 
-function findAssistantMessageBeforeIndex(index) {
-    const { chat } = getContext();
+function resolveChatLog(chatOverride = null) {
+    if (Array.isArray(chatOverride)) {
+        return chatOverride;
+    }
+    let ctx = null;
+    if (typeof getContext === "function") {
+        ctx = getContext();
+    } else if (typeof window !== "undefined" && window.SillyTavern && typeof window.SillyTavern.getContext === "function") {
+        ctx = window.SillyTavern.getContext();
+    }
+    if (!ctx || !Array.isArray(ctx.chat)) {
+        return null;
+    }
+    return ctx.chat;
+}
+
+function findAssistantMessageBeforeIndex(index, chatOverride = null) {
+    const chat = resolveChatLog(chatOverride);
     if (!Array.isArray(chat) || chat.length === 0) {
         return null;
     }
     const startIndex = Number.isFinite(index) ? Math.min(index, chat.length - 1) : chat.length - 1;
+    if (startIndex < 0) {
+        return null;
+    }
     for (let i = startIndex; i >= 0; i -= 1) {
         const candidate = chat[i];
         if (isAssistantLikeMessage(candidate)) {
@@ -9849,6 +9869,30 @@ function findAssistantMessageBeforeIndex(index) {
         }
     }
     return null;
+}
+
+function resolveAssistantHistoryMessage({ chat = null, candidate = null, beforeIndex = null } = {}) {
+    const chatLog = resolveChatLog(chat);
+    if (!Array.isArray(chatLog) || chatLog.length === 0) {
+        return null;
+    }
+    if (candidate && isAssistantLikeMessage(candidate) && chatLog.includes(candidate)) {
+        return candidate;
+    }
+    let searchIndex = Number.isFinite(beforeIndex) ? beforeIndex : null;
+    if (!Number.isFinite(searchIndex) && candidate) {
+        const candidateIndex = chatLog.indexOf(candidate);
+        if (candidateIndex >= 0) {
+            searchIndex = candidateIndex - 1;
+        }
+    }
+    if (!Number.isFinite(searchIndex)) {
+        searchIndex = chatLog.length - 1;
+    }
+    if (searchIndex < 0) {
+        return null;
+    }
+    return findAssistantMessageBeforeIndex(searchIndex, chatLog);
 }
 
 function getLatestStoredSceneTimestamp() {
@@ -9879,13 +9923,7 @@ function getLatestStoredSceneTimestamp() {
 
 function restoreLatestSceneOutcome({ immediateRender = true, preserveStateOnFailure = false } = {}) {
     try {
-        let ctx = null;
-        if (typeof getContext === "function") {
-            ctx = getContext();
-        } else if (typeof window !== "undefined" && window.SillyTavern && typeof window.SillyTavern.getContext === "function") {
-            ctx = window.SillyTavern.getContext();
-        }
-        const chatLog = ctx?.chat;
+        const chatLog = resolveChatLog();
         if (!Array.isArray(chatLog) || chatLog.length === 0) {
             if (!preserveStateOnFailure) {
                 resetSceneState();
@@ -9896,7 +9934,7 @@ function restoreLatestSceneOutcome({ immediateRender = true, preserveStateOnFail
             }
             return false;
         }
-        const latestAssistant = findAssistantMessageBeforeIndex(chatLog.length - 1);
+        const latestAssistant = resolveAssistantHistoryMessage({ chat: chatLog });
         if (!latestAssistant) {
             if (!preserveStateOnFailure) {
                 resetSceneState();
@@ -9925,18 +9963,31 @@ function restoreLatestSceneOutcome({ immediateRender = true, preserveStateOnFail
 }
 
 function resolveHistoryTargetMessage(args) {
-    const { chat } = getContext();
+    const chat = resolveChatLog();
     if (!Array.isArray(chat) || chat.length === 0) {
         return null;
     }
     const values = Array.isArray(args) ? args : [];
     let target = null;
+    let fallbackIndex = null;
+
+    const captureIndexHint = (index) => {
+        if (!Number.isFinite(index)) {
+            return;
+        }
+        const normalized = Math.max(0, Math.min(index, chat.length - 1));
+        fallbackIndex = normalized;
+    };
 
     const tryAssign = (message) => {
-        if (!target && message) {
-            if (isSystemOrNarratorMessage(message)) {
-                return;
-            }
+        if (!message) {
+            return;
+        }
+        const messageIndex = chat.indexOf(message);
+        if (messageIndex >= 0) {
+            captureIndexHint(messageIndex);
+        }
+        if (!target && !isSystemOrNarratorMessage(message)) {
             target = message;
         }
     };
@@ -9946,6 +9997,7 @@ function resolveHistoryTargetMessage(args) {
             return;
         }
         if (typeof arg === "number" && chat[arg]) {
+            captureIndexHint(arg);
             tryAssign(chat[arg]);
             return;
         }
@@ -9956,6 +10008,7 @@ function resolveHistoryTargetMessage(args) {
             return;
         }
         if (Number.isFinite(arg.index) && chat[arg.index]) {
+            captureIndexHint(arg.index);
             tryAssign(chat[arg.index]);
         }
         if (target) {
@@ -10024,26 +10077,14 @@ function resolveHistoryTargetMessage(args) {
     });
 
     if (!target && values.length === 1 && Array.isArray(values[0])) {
-        target = resolveHistoryTargetMessage(values[0]);
+        return resolveHistoryTargetMessage(values[0]);
     }
 
-    if (!target) {
-        target = findAssistantMessageBeforeIndex(chat.length - 1);
-    }
-
-    if (target && (target.is_user || isSystemOrNarratorMessage(target))) {
-        const index = chat.indexOf(target);
-        const fallback = findAssistantMessageBeforeIndex(index - 1);
-        if (fallback) {
-            target = fallback;
-        }
-    }
-
-    if (target && (target.is_user || isSystemOrNarratorMessage(target))) {
-        return findAssistantMessageBeforeIndex(chat.indexOf(target) - 1);
-    }
-
-    return target;
+    return resolveAssistantHistoryMessage({
+        chat,
+        candidate: target,
+        beforeIndex: fallbackIndex,
+    });
 }
 
 function hasForceSceneRefreshFlag(value, depth = 0) {
@@ -10174,6 +10215,8 @@ const handleHistoryChange = (...args) => {
         console.warn(`${logPrefix} Failed to reconcile history change:`, error);
     }
 };
+
+__testables.handleHistoryChange = handleHistoryChange;
 
 const handleMessageRendered = (...args) => {
     const tempKey = state.currentGenerationKey;
