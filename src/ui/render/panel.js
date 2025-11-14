@@ -25,6 +25,7 @@ let scenePanelSummonButtonObserver = null;
 let scenePanelSummonParentObserver = null;
 let scenePanelSummonParentObserverTarget = null;
 let scenePanelSummonRestoring = false;
+let scenePanelSummonIntegrityInterval = null;
 let lastScenePanelSummonState = {
     enabled: false,
     collapsed: false,
@@ -63,6 +64,8 @@ function restoreScenePanelSummonButton() {
         if (!button.classList.contains("cs-scene-panel__summon")) {
             button.classList.add("cs-scene-panel__summon");
         }
+        attachScenePanelSummonHoverHandlers(button);
+        enforceScenePanelSummonStyles(button, lastScenePanelSummonState);
         updateScenePanelSummonVisibility(lastScenePanelSummonState.enabled, {
             collapsed: lastScenePanelSummonState.collapsed,
         });
@@ -107,6 +110,11 @@ function observeScenePanelSummonButton(button) {
                         || visibility === "hidden"
                         || visibility === "collapse"
                         || opacity === "0"
+                        || target.style.clipPath
+                        || target.style.clip
+                        || target.style.filter
+                        || (typeof target.style.transform === "string"
+                            && target.style.transform.toLowerCase().includes("scale"))
                     ) {
                         requiresRestore = true;
                         break;
@@ -184,6 +192,8 @@ function startScenePanelSummonGuards(button) {
     }
     observeScenePanelSummonButton(button);
     observeScenePanelSummonParent(button);
+    attachScenePanelSummonHoverHandlers(button);
+    startScenePanelSummonIntegrityCheck();
 }
 let lastRosterRevision = null;
 let lastActiveRevision = null;
@@ -201,6 +211,7 @@ function ensureScenePanelSummonButton() {
     if (existing) {
         scenePanelSummonButton = existing;
         startScenePanelSummonGuards(scenePanelSummonButton);
+        attachScenePanelSummonHoverHandlers(scenePanelSummonButton);
         return scenePanelSummonButton;
     }
     const button = createElement("button", "cs-scene-panel__summon");
@@ -234,6 +245,7 @@ function ensureScenePanelSummonButton() {
     }
     scenePanelSummonButton = button;
     startScenePanelSummonGuards(scenePanelSummonButton);
+    attachScenePanelSummonHoverHandlers(scenePanelSummonButton);
     return scenePanelSummonButton;
 }
 
@@ -255,14 +267,7 @@ function updateScenePanelSummonVisibility(enabled, { collapsed = false } = {}) {
     button.hidden = false;
     button.removeAttribute("hidden");
     button.removeAttribute("aria-hidden");
-    if (button.style) {
-        try {
-            button.style.setProperty("display", "inline-flex", "important");
-            button.style.setProperty("visibility", "visible", "important");
-            button.style.setProperty("opacity", "1", "important");
-        } catch (err) {
-        }
-    }
+    enforceScenePanelSummonStyles(button, lastScenePanelSummonState);
     button.setAttribute("aria-pressed", enabled ? "true" : "false");
     button.setAttribute("aria-label", enabled ? "Hide scene panel" : "Show scene panel");
     button.title = enabled ? "Hide scene panel" : "Show scene panel";
@@ -288,6 +293,132 @@ function updateScenePanelSummonVisibility(enabled, { collapsed = false } = {}) {
             }
         }
     }
+}
+
+function attachScenePanelSummonHoverHandlers(button) {
+    if (!button) {
+        return;
+    }
+    if (button.dataset && button.dataset.csSummonHoverBound === "true") {
+        return;
+    }
+    const handleEnter = () => {
+        if (!scenePanelSummonButton || !scenePanelSummonButton.style) {
+            return;
+        }
+        try {
+            scenePanelSummonButton.style.setProperty("opacity", "1", "important");
+            scenePanelSummonButton.style.setProperty("transform", "translateY(-2px)", "important");
+        } catch (err) {
+        }
+    };
+    const handleLeave = () => {
+        enforceScenePanelSummonStyles(scenePanelSummonButton, lastScenePanelSummonState);
+    };
+    try {
+        button.addEventListener("mouseenter", handleEnter, { passive: true });
+        button.addEventListener("mouseleave", handleLeave, { passive: true });
+        button.addEventListener("focus", handleEnter, { passive: true });
+        button.addEventListener("blur", handleLeave, { passive: true });
+        if (button.dataset) {
+            button.dataset.csSummonHoverBound = "true";
+        }
+    } catch (err) {
+    }
+}
+
+function enforceScenePanelSummonStyles(button, state = lastScenePanelSummonState) {
+    if (!button || !button.style) {
+        return;
+    }
+    const { enabled = false, collapsed = false } = state || {};
+    const baseGap = "var(--cs-scene-panel-gap, 12px)";
+    let rightOffset = baseGap;
+    if (enabled) {
+        const widthVar = collapsed
+            ? "var(--cs-scene-panel-collapsed-width, 3rem)"
+            : "var(--cs-scene-panel-width, 24rem)";
+        rightOffset = `calc(${baseGap} + ${widthVar} + 16px)`;
+    }
+    try {
+        button.style.setProperty("display", "inline-flex", "important");
+        button.style.setProperty("visibility", "visible", "important");
+        button.style.setProperty("opacity", enabled ? "0.72" : "1", "important");
+        button.style.setProperty("transform", "translateY(0)", "important");
+        button.style.setProperty("position", "fixed", "important");
+        button.style.setProperty("bottom", baseGap, "important");
+        button.style.setProperty("right", rightOffset, "important");
+        button.style.removeProperty("left");
+        button.style.removeProperty("top");
+        button.style.setProperty("pointer-events", "auto", "important");
+        button.style.setProperty("clip-path", "none", "important");
+        button.style.setProperty("clip", "auto", "important");
+        button.style.setProperty("filter", "none", "important");
+        button.style.setProperty("mask", "none", "important");
+        button.style.setProperty("max-width", "unset", "important");
+        button.style.setProperty("max-height", "unset", "important");
+        button.style.setProperty(
+            "transition",
+            "background 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease",
+            "important",
+        );
+    } catch (err) {
+    }
+}
+
+function startScenePanelSummonIntegrityCheck() {
+    if (typeof window === "undefined") {
+        return;
+    }
+    if (scenePanelSummonIntegrityInterval) {
+        return;
+    }
+    const evaluate = () => {
+        const button = ensureScenePanelSummonButton();
+        if (!button) {
+            return;
+        }
+        if (!button.isConnected) {
+            restoreScenePanelSummonButton();
+            return;
+        }
+        if (typeof window.getComputedStyle !== "function") {
+            return;
+        }
+        let computed;
+        try {
+            computed = window.getComputedStyle(button);
+        } catch (err) {
+            return;
+        }
+        if (!computed) {
+            return;
+        }
+        const hiddenByDisplay = computed.display === "none";
+        const hiddenByVisibility = computed.visibility === "hidden" || computed.visibility === "collapse";
+        let hiddenByOpacity = false;
+        let hiddenByTransform = false;
+        try {
+            const opacityValue = Number.parseFloat(computed.opacity);
+            hiddenByOpacity = Number.isFinite(opacityValue) && opacityValue <= 0.01;
+        } catch (err) {
+        }
+        if (computed.transform && computed.transform !== "none") {
+            const transformValue = computed.transform.toLowerCase();
+            hiddenByTransform = transformValue.includes("matrix(0") || transformValue.includes("scale(0");
+        }
+        const hiddenBySize = button.offsetWidth <= 4 || button.offsetHeight <= 4;
+        if (hiddenByDisplay || hiddenByVisibility || hiddenByOpacity || hiddenByTransform || hiddenBySize) {
+            enforceScenePanelSummonStyles(button, lastScenePanelSummonState);
+            button.removeAttribute("hidden");
+            button.removeAttribute("aria-hidden");
+        }
+    };
+    try {
+        scenePanelSummonIntegrityInterval = window.setInterval(evaluate, 750);
+    } catch (err) {
+    }
+    evaluate();
 }
 
 function applyCollapsedState(collapsed) {
