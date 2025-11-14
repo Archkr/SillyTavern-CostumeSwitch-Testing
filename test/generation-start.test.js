@@ -9,7 +9,7 @@ globalThis.__extensionSettingsStore = extensionSettingsStore;
 
 const { state, extensionName, __testables } = await import("../index.js");
 
-const { handleGenerationStart } = __testables;
+const { handleGenerationStart, resolveMessageRoleFromArgs } = __testables;
 
 extensionSettingsStore[extensionName] = {
     enabled: true,
@@ -74,4 +74,33 @@ test("handleGenerationStart consults chat history for user-authored messages", (
             globalThis.__mockContext = previousContext;
         }
     }
+});
+
+test("resolveMessageRoleFromArgs inspects payload containers", () => {
+    const role = resolveMessageRoleFromArgs([
+        { payload: { message: { is_user: true } } },
+    ]);
+    assert.equal(role, "user");
+});
+
+test("resolveMessageRoleFromArgs inspects payload message collections", () => {
+    const role = resolveMessageRoleFromArgs([
+        { payload: { messages: [{ role: "system" }] } },
+    ]);
+    assert.equal(role, "system");
+});
+
+test("resolveMessageRoleFromArgs inspects event and data wrappers", () => {
+    const role = resolveMessageRoleFromArgs([
+        {
+            event: {
+                data: {
+                    messages: [
+                        { is_assistant: true },
+                    ],
+                },
+            },
+        },
+    ]);
+    assert.equal(role, "assistant");
 });
