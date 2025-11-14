@@ -70,6 +70,7 @@ const sceneDisplayNames = new Map();
 let rosterUpdatedAt = 0;
 const liveTesterOutputs = new Map();
 let liveTesterUpdatedAt = 0;
+let liveTesterPreprocessedText = "";
 
 function resolveDisplayName(normalized, displayNames) {
     if (displayNames.has(normalized)) {
@@ -384,6 +385,7 @@ export function replaceLiveTesterOutputs(events = [], {
     roster = [],
     displayNames = null,
     timestamp = Date.now(),
+    preprocessedText = null,
 } = {}) {
     liveTesterOutputs.clear();
     const normalizedDisplayNames = normalizeDisplayNameMap(displayNames);
@@ -455,6 +457,7 @@ export function replaceLiveTesterOutputs(events = [], {
     }
 
     liveTesterUpdatedAt = timestamp;
+    liveTesterPreprocessedText = typeof preprocessedText === "string" ? preprocessedText : "";
     return getLiveTesterOutputsSnapshot();
 }
 
@@ -462,6 +465,7 @@ export function getLiveTesterOutputsSnapshot() {
     return {
         updatedAt: liveTesterUpdatedAt,
         entries: Array.from(liveTesterOutputs.values()).map(cloneTesterOutput),
+        preprocessedText: liveTesterPreprocessedText,
     };
 }
 
@@ -477,6 +481,7 @@ export function getLiveTesterOutput(name) {
 export function clearLiveTesterOutputs() {
     liveTesterOutputs.clear();
     liveTesterUpdatedAt = Date.now();
+    liveTesterPreprocessedText = "";
     return liveTesterUpdatedAt;
 }
 

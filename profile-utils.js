@@ -87,6 +87,41 @@ function cloneStringList(source) {
     return result;
 }
 
+const SCRIPT_COLLECTION_ORDER = ["global", "preset", "scoped"];
+
+function normalizeScriptCollections(raw, defaults = []) {
+    const selections = new Set();
+    const applyValue = (value) => {
+        if (typeof value !== "string") {
+            return;
+        }
+        const normalized = value.trim().toLowerCase();
+        if (SCRIPT_COLLECTION_ORDER.includes(normalized)) {
+            selections.add(normalized);
+        }
+    };
+
+    if (Array.isArray(defaults)) {
+        defaults.forEach(applyValue);
+    } else if (typeof defaults === "string") {
+        applyValue(defaults);
+    }
+
+    if (Array.isArray(raw)) {
+        raw.forEach(applyValue);
+    } else if (raw && typeof raw === "object") {
+        Object.entries(raw).forEach(([key, value]) => {
+            if (value) {
+                applyValue(key);
+            }
+        });
+    } else {
+        applyValue(raw);
+    }
+
+    return SCRIPT_COLLECTION_ORDER.filter(key => selections.has(key));
+}
+
 export function normalizePatternSlot(entry = {}) {
     const source = entry && typeof entry === 'object' ? entry : {};
     const cloned = safeClone(source) || {};
@@ -367,6 +402,11 @@ export function normalizeProfile(profile = {}, defaults = {}) {
     const base = defaults && typeof defaults === 'object' ? (safeClone(defaults) || {}) : {};
     const source = profile && typeof profile === 'object' ? (safeClone(profile) || {}) : {};
     const merged = Object.assign(base, source);
+
+    const defaultScriptCollections = Array.isArray(defaults?.scriptCollections)
+        ? defaults.scriptCollections
+        : [];
+    merged.scriptCollections = normalizeScriptCollections(source.scriptCollections, defaultScriptCollections);
 
     const originalPatternSlots = Array.isArray(profile?.patternSlots) ? profile.patternSlots : [];
 

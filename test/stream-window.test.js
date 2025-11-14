@@ -2,15 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { register } from "node:module";
 
-import { renderActiveCharacters } from "../src/ui/render/activeCharacters.js";
-import { createScenePanelRefreshHandler } from "../src/ui/render/panel.js";
-import { compileProfileRegexes } from "../src/detector-core.js";
-
 await register(new URL("./module-mock-loader.js", import.meta.url));
 
 const extensionSettingsStore = {};
 globalThis.__extensionSettingsStore = extensionSettingsStore;
 
+const { renderActiveCharacters } = await import("../src/ui/render/activeCharacters.js");
+const { createScenePanelRefreshHandler } = await import("../src/ui/render/panel.js");
+const { compileProfileRegexes } = await import("../src/detector-core.js");
 const { getWinner, extensionName, adjustWindowForTrim, handleStream, remapMessageKey, state, collectScenePanelState, __testables } = await import("../index.js");
 
 const {
