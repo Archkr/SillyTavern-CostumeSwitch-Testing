@@ -173,7 +173,7 @@ test("createMessageState carries roster TTL forward between messages", () => {
 
     state.perMessageStates.set("m0", previousState);
 
-    const { state: newState, initialized, rosterCleared } = __testables.createMessageState(profile, "m1");
+    const { state: newState, initialized, rosterCleared } = __testables.createMessageState(profile, "m1", { messageRole: "assistant" });
 
     assert.equal(initialized, true, "creating a fresh message state should flag initialization");
     assert.equal(rosterCleared, false, "roster should remain populated when TTL remains positive");
@@ -216,6 +216,32 @@ test("createMessageState preserves roster TTL when message role is not assistant
     assert.deepEqual(Array.from(newState.sceneRoster), ["kotori"]);
 });
 
+test("createMessageState leaves roster TTL untouched when message role is unknown", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    state.perMessageStates = new Map();
+    state.perMessageBuffers = new Map();
+    state.currentGenerationKey = null;
+
+    const profile = { sceneRosterTTL: 4 };
+    const previousState = {
+        sceneRoster: new Set(["kotori"]),
+        rosterTurns: new Map([["kotori", 2]]),
+        defaultRosterTTL: 4,
+        outfitTTL: 3,
+    };
+
+    state.perMessageStates.set("m0", previousState);
+
+    const { state: newState } = __testables.createMessageState(profile, "m1", { messageRole: undefined });
+
+    assert.ok(newState.rosterTurns instanceof Map);
+    assert.equal(newState.rosterTurns.get("kotori"), 2, "roster TTL should not change without a known assistant role");
+    assert.equal(newState.defaultRosterTTL, 4);
+    assert.equal(newState.outfitTTL, 3);
+});
+
 test("applySceneRosterUpdate preserves per-member TTL values", () => {
     resetSceneState();
     clearLiveTesterOutputs();
@@ -245,7 +271,7 @@ test("applySceneRosterUpdate preserves per-member TTL values", () => {
     assert.equal(sceneHonoka?.turnsRemaining, 1);
 });
 
-test("applySceneRosterUpdate retains stored timestamps when refresh lacks details", () => {
+test("applySceneRosterUpdate refresh updates lastSeenAt when metadata is missing", () => {
     resetSceneState();
     clearLiveTesterOutputs();
 
@@ -280,12 +306,12 @@ test("applySceneRosterUpdate retains stored timestamps when refresh lacks detail
     const kotori = members.find((entry) => entry.normalized === "kotori");
     assert.ok(kotori, "expected Kotori to remain in roster after refresh");
     assert.equal(kotori?.joinedAt, joinedAt, "joinedAt should remain unchanged");
-    assert.equal(kotori?.lastSeenAt, lastSeenAt, "lastSeenAt should persist when refresh omits it");
+    assert.equal(kotori?.lastSeenAt, refreshAt, "lastSeenAt should refresh when metadata is omitted");
 
     const scene = getCurrentSceneSnapshot();
     const sceneKotori = scene.roster.find((entry) => entry.normalized === "kotori");
     assert.ok(sceneKotori, "expected Kotori snapshot entry");
-    assert.equal(sceneKotori?.lastSeenAt, lastSeenAt, "scene snapshot should retain lastSeenAt");
+    assert.equal(sceneKotori?.lastSeenAt, refreshAt, "scene snapshot should reflect refreshed lastSeenAt");
 });
 
 test("handleStream infers message key from token event payloads", () => {

@@ -9048,11 +9048,11 @@ function confirmMessageSubject(msgState, matchedName) {
 
 function shouldAdvanceRosterTTL(role) {
     if (typeof role !== "string") {
-        return true;
+        return false;
     }
     const normalizedRole = role.trim().toLowerCase();
     if (!normalizedRole) {
-        return true;
+        return false;
     }
     return normalizedRole === "assistant";
 }

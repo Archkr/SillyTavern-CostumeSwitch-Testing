@@ -231,8 +231,12 @@ export function applySceneRosterUpdate({
         const name = providedName || resolveDisplayName(normalized, normalizedDisplayNames);
         const existing = rosterMembers.get(normalized);
         const joinedAt = providedJoinedAt ?? existing?.joinedAt ?? timestamp;
-        const lastSeenAt = providedLastSeenAt ?? existing?.lastSeenAt ?? timestamp;
-        const lastLeftAt = providedLastLeftAt ?? existing?.lastLeftAt ?? null;
+        const lastSeenAt = Number.isFinite(providedLastSeenAt)
+            ? providedLastSeenAt
+            : timestamp;
+        const lastLeftAt = Number.isFinite(providedLastLeftAt)
+            ? providedLastLeftAt
+            : (Number.isFinite(existing?.lastLeftAt) ? existing.lastLeftAt : null);
         let entryTurns = providedTurns;
         if (!Number.isFinite(entryTurns) && perMemberTurns?.has(normalized)) {
             entryTurns = perMemberTurns.get(normalized);
