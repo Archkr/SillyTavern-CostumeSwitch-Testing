@@ -1,4 +1,4 @@
-import { getScriptsByType, runRegexScript, SCRIPT_TYPES } from "../../regex/engine.js";
+import { getScriptsByType, runRegexScript, SCRIPT_TYPES } from "../../../../regex/engine.js";
 
 const SCRIPT_COLLECTION_DEFINITIONS = [
     { key: "global", type: SCRIPT_TYPES.GLOBAL },
