@@ -41,6 +41,7 @@
 - **Live diagnostics retention.** Streaming preserves the full switch history for the active message instead of trimming entries mid-stream, so the log no longer empties before generation ends.
 - **Scene panel hide toggle.** Hiding the command center now removes the panel entirely so no translucent shell remains on screen.
 - **Scene control center button resilience.** Panel and summon buttons now reset their visual styles within the extension so conflicting theme overrides from other mods can no longer hide or neutralize them.
+- **Scene summon toggle stability.** Restored the summon control's inline visibility guard without the heavy polling loop, preventing slowdowns while keeping the button visible when other mods interfere.
 - **Scene control center refresh.** Event subscriptions now match additional SillyTavern generation hooks, so the roster, live diagnostics, and status copy update right after streaming and message completion without needing manual history edits.
 - **Stream start detection resiliency.** Hidden and symbol-keyed SillyTavern events are now recognised when wiring the integration, keeping the side panel aware of streaming starts even when the host app reshuffles its hooks.
 - **Streaming event detection.** The scene panel now tracks SillyTavern's symbol-based generation events, restoring auto-open behaviour and post-stream analytics updates for live messages.
