@@ -1,5 +1,5 @@
 import { extension_settings, getContext, renderExtensionTemplateAsync } from "../../../extensions.js";
-import { saveSettingsDebounced, saveChatDebounced, event_types, eventSource } from "../../../../script.js";
+import { saveSettingsDebounced, saveChatDebounced, event_types, eventSource, system_message_types } from "../../../../script.js";
 import { executeSlashCommandsOnChatInput, registerSlashCommand } from "../../../slash-commands.js";
 import {
     DEFAULT_ACTION_VERBS_PRESENT,
@@ -9022,6 +9022,50 @@ function resolveMessageRoleFromArgs(args) {
         if (["user", "player", "human", "manual", "input"].includes(trimmed)) {
             return "user";
         }
+        if (["system", "narrator"].includes(trimmed)) {
+            return trimmed;
+        }
+        return null;
+    };
+
+    const narratorTokens = new Set();
+    narratorTokens.add("narrator");
+    if (system_message_types && typeof system_message_types === "object") {
+        const rawNarrator = system_message_types.NARRATOR;
+        if (typeof rawNarrator === "string") {
+            const normalizedNarrator = rawNarrator.trim().toLowerCase();
+            if (normalizedNarrator) {
+                narratorTokens.add(normalizedNarrator);
+            }
+        }
+    }
+
+    const resolveFlaggedRole = (value) => {
+        if (!value || typeof value !== "object") {
+            return null;
+        }
+        if (value.is_user === true || value.isUser === true) {
+            return "user";
+        }
+        if (value.is_system === true || value.isSystem === true) {
+            return "system";
+        }
+        if (value.is_assistant === true || value.isAssistant === true) {
+            return "assistant";
+        }
+        const extraType = value.extra?.type;
+        if (typeof extraType === "string") {
+            const trimmed = extraType.trim().toLowerCase();
+            if (trimmed) {
+                if (narratorTokens.has(trimmed)) {
+                    return "narrator";
+                }
+                const normalizedExtraRole = normalizeRole(trimmed);
+                if (normalizedExtraRole) {
+                    return normalizedExtraRole;
+                }
+            }
+        }
         return null;
     };
 
@@ -9038,9 +9082,19 @@ function resolveMessageRoleFromArgs(args) {
             continue;
         }
 
-        if (!value || typeof value !== "object") {
+        if (typeof value === "number" || typeof value === "boolean" || value == null) {
             continue;
         }
+
+        if (Array.isArray(value)) {
+            queue.push(...value);
+            continue;
+        }
+
+        if (typeof value !== "object") {
+            continue;
+        }
+
         if (visited.has(value)) {
             continue;
         }
@@ -9054,11 +9108,9 @@ function resolveMessageRoleFromArgs(args) {
             return value.role.trim().toLowerCase();
         }
 
-        if (value.is_user === true || value.isUser === true) {
-            return "user";
-        }
-        if (value.is_assistant === true || value.isAssistant === true) {
-            return "assistant";
+        const flaggedRole = resolveFlaggedRole(value);
+        if (flaggedRole) {
+            return flaggedRole;
         }
 
         const candidates = [value.author, value.sender, value.source, value.type, value.generationType];
@@ -9070,13 +9122,43 @@ function resolveMessageRoleFromArgs(args) {
         }
 
         if (typeof value.message === "object" && value.message !== null) {
+            const nestedFlagged = resolveFlaggedRole(value.message);
+            if (nestedFlagged) {
+                return nestedFlagged;
+            }
             queue.push(value.message);
         }
         if (Array.isArray(value.messages) && value.messages.length > 0) {
+            for (const message of value.messages) {
+                const nestedFlagged = resolveFlaggedRole(message);
+                if (nestedFlagged) {
+                    return nestedFlagged;
+                }
+            }
             queue.push(...value.messages);
         }
         if (typeof value.detail === "object" && value.detail !== null) {
+            const detailFlagged = resolveFlaggedRole(value.detail);
+            if (detailFlagged) {
+                return detailFlagged;
+            }
             queue.push(value.detail);
+            if (typeof value.detail.message === "object" && value.detail.message !== null) {
+                const nestedDetailFlagged = resolveFlaggedRole(value.detail.message);
+                if (nestedDetailFlagged) {
+                    return nestedDetailFlagged;
+                }
+                queue.push(value.detail.message);
+            }
+            if (Array.isArray(value.detail.messages) && value.detail.messages.length > 0) {
+                for (const message of value.detail.messages) {
+                    const nestedDetailFlagged = resolveFlaggedRole(message);
+                    if (nestedDetailFlagged) {
+                        return nestedDetailFlagged;
+                    }
+                }
+                queue.push(...value.detail.messages);
+            }
         }
     }
     return null;
@@ -9312,11 +9394,84 @@ function remapMessageKey(oldKey, newKey) {
 }
 
 const handleGenerationStart = (...args) => {
-    const messageRole = resolveMessageRoleFromArgs(args);
+    let messageRole = resolveMessageRoleFromArgs(args);
     if (messageRole && messageRole !== "assistant") {
         debugLog(`Skipping generation start for ${messageRole} message.`, args);
         state.currentGenerationKey = null;
         return;
+    }
+
+    let bufKey = null;
+    let locatedMessage = null;
+
+    const adoptReference = (value) => {
+        if (value == null) {
+            return;
+        }
+        const reference = parseMessageReference(value);
+        if (!bufKey && reference.key) {
+            bufKey = reference.key;
+        }
+        if (!locatedMessage) {
+            if (Number.isFinite(reference.messageId)) {
+                locatedMessage = findChatMessageById(reference.messageId);
+            }
+            if (!locatedMessage && reference.key) {
+                locatedMessage = findChatMessageByKey(reference.key);
+            }
+        }
+    };
+
+    const visited = new Set();
+    const queue = Array.isArray(args) ? [...args] : [];
+    while (queue.length > 0) {
+        const value = queue.shift();
+        if (typeof value === "string" || typeof value === "number") {
+            adoptReference(value);
+            continue;
+        }
+        if (typeof value === "boolean" || value == null) {
+            continue;
+        }
+        if (Array.isArray(value)) {
+            queue.push(...value);
+            continue;
+        }
+        if (typeof value !== "object") {
+            continue;
+        }
+        if (visited.has(value)) {
+            continue;
+        }
+        visited.add(value);
+
+        adoptReference(value);
+
+        if (typeof value.message === "object" && value.message !== null) {
+            queue.push(value.message);
+        }
+        if (Array.isArray(value.messages) && value.messages.length > 0) {
+            queue.push(...value.messages);
+        }
+        if (typeof value.detail === "object" && value.detail !== null) {
+            queue.push(value.detail);
+            if (typeof value.detail.message === "object" && value.detail.message !== null) {
+                queue.push(value.detail.message);
+            }
+            if (Array.isArray(value.detail.messages) && value.detail.messages.length > 0) {
+                queue.push(...value.detail.messages);
+            }
+        }
+    }
+
+    const locatedRole = locatedMessage ? resolveMessageRoleFromArgs([locatedMessage]) : null;
+    if (locatedRole && locatedRole !== "assistant") {
+        debugLog(`Skipping generation start for ${locatedRole} chat message.`, args);
+        state.currentGenerationKey = null;
+        return;
+    }
+    if (!messageRole && locatedRole) {
+        messageRole = locatedRole;
     }
 
     const isUserInitiated = (() => {
@@ -9379,6 +9534,15 @@ const handleGenerationStart = (...args) => {
             if (Array.isArray(value.messages)) {
                 queue.push(...value.messages);
             }
+            if (typeof value.detail === "object" && value.detail !== null) {
+                queue.push(value.detail);
+                if (typeof value.detail.message === "object" && value.detail.message !== null) {
+                    queue.push(value.detail.message);
+                }
+                if (Array.isArray(value.detail.messages)) {
+                    queue.push(...value.detail.messages);
+                }
+            }
         }
         return false;
     })();
@@ -9388,29 +9552,16 @@ const handleGenerationStart = (...args) => {
         return;
     }
 
-    let bufKey = null;
-    for (const arg of args) {
-        if (typeof arg === 'string' && arg.trim().length) {
-            bufKey = arg.trim();
-            break;
-        }
-        if (typeof arg === 'number' && Number.isFinite(arg)) {
-            bufKey = `m${arg}`;
-            break;
-        }
-        if (arg && typeof arg === 'object') {
-            if (typeof arg.generationType === 'string' && arg.generationType.trim().length) {
-                bufKey = arg.generationType.trim();
-                break;
-            }
-            if (typeof arg.messageId === 'number' && Number.isFinite(arg.messageId)) {
-                bufKey = `m${arg.messageId}`;
-                break;
-            }
-            if (typeof arg.key === 'string' && arg.key.trim().length) {
-                bufKey = arg.key.trim();
-                break;
-            }
+    if (!bufKey && locatedMessage) {
+        const fallbackKey = locatedMessage.message_key
+            || locatedMessage.messageKey
+            || locatedMessage.key
+            || (Number.isFinite(locatedMessage.mesId) ? `m${locatedMessage.mesId}` : null)
+            || (Number.isFinite(locatedMessage.id) ? `m${locatedMessage.id}` : null);
+        if (fallbackKey) {
+            const normalizedFallback = normalizeMessageKey(fallbackKey) || fallbackKey;
+            bufKey = normalizedFallback;
+            debugLog(`Adopted ${normalizedFallback} from chat context for generation start.`);
         }
     }
 
@@ -9444,6 +9595,8 @@ const handleGenerationStart = (...args) => {
     }
     maybeAutoExpandScenePanel("stream");
 };
+
+__testables.handleGenerationStart = handleGenerationStart;
 
 const handleStream = (...args) => {
     try {
