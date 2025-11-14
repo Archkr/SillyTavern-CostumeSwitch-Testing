@@ -357,6 +357,49 @@ test("handleStream infers message key from token event payloads", () => {
     }
 });
 
+test("handleStream ignores manual generation tokens when inferring message key", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    const originalPerMessageStates = state.perMessageStates;
+    const originalPerMessageBuffers = state.perMessageBuffers;
+    const originalMessageQueue = state.messageKeyQueue;
+    const originalCompiledRegexes = state.compiledRegexes;
+    const originalGenerationKey = state.currentGenerationKey;
+
+    state.perMessageStates = new Map();
+    state.perMessageBuffers = new Map();
+    state.messageKeyQueue = [];
+    state.currentGenerationKey = null;
+    state.compiledRegexes = {};
+
+    const settings = extensionSettingsStore[extensionName];
+    const originalProfile = settings.profiles.Default;
+    const originalEnabled = settings.enabled;
+    const originalFocusLock = settings.focusLock.character;
+
+    settings.enabled = true;
+    settings.focusLock.character = null;
+    settings.profiles.Default = { ...originalProfile };
+
+    try {
+        handleStream({ token: "Kotori", generationType: "manual" });
+
+        assert.equal(state.currentGenerationKey, null, "manual generation tokens should not set a stream key");
+        assert.equal(state.perMessageStates.size, 0, "no per-message state should be created for manual tokens");
+        assert.equal(state.perMessageBuffers.size, 0, "no per-message buffer should be seeded for manual tokens");
+    } finally {
+        settings.profiles.Default = originalProfile;
+        settings.enabled = originalEnabled;
+        settings.focusLock.character = originalFocusLock;
+        state.currentGenerationKey = originalGenerationKey;
+        state.perMessageStates = originalPerMessageStates;
+        state.perMessageBuffers = originalPerMessageBuffers;
+        state.messageKeyQueue = originalMessageQueue;
+        state.compiledRegexes = originalCompiledRegexes;
+    }
+});
+
 test("handleStream ignores non-assistant streaming payloads", () => {
     resetSceneState();
     clearLiveTesterOutputs();

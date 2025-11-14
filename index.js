@@ -7791,6 +7791,30 @@ function normalizeMessageKey(value) {
     return trimmed;
 }
 
+function isLikelyMessageKey(candidate) {
+    if (candidate == null) {
+        return false;
+    }
+
+    const normalized = typeof candidate === "string"
+        ? (normalizeMessageKey(candidate) || candidate.trim())
+        : normalizeMessageKey(candidate);
+
+    if (typeof normalized !== "string" || !normalized) {
+        return false;
+    }
+
+    if (/^m\d+$/.test(normalized)) {
+        return true;
+    }
+
+    if (normalized.toLowerCase().startsWith("tester:")) {
+        return true;
+    }
+
+    return false;
+}
+
 function extractSceneMessageDigest(message) {
     if (!message || typeof message !== "object") {
         return null;
@@ -7882,6 +7906,7 @@ function parseMessageReference(input) {
     const commitKey = (candidate) => {
         const normalized = normalizeMessageKey(candidate);
         if (!normalized) return;
+        if (!isLikelyMessageKey(normalized)) return;
         if (!key) key = normalized;
         if (messageId == null) {
             const parsed = extractMessageIdFromKey(normalized);
@@ -9700,34 +9725,40 @@ const handleStream = (...args) => {
                 }
             }
             if (fallbackKey) {
-                const normalizedFallback = normalizeMessageKey(fallbackKey) || fallbackKey;
-                let resolvedMessage = null;
-                const resolvedId = Number.isFinite(fallbackReference?.messageId)
-                    ? fallbackReference.messageId
-                    : extractMessageIdFromKey(normalizedFallback);
-                if (Number.isFinite(resolvedId)) {
-                    resolvedMessage = findChatMessageById(resolvedId);
-                }
-                if (!resolvedMessage) {
-                    resolvedMessage = findChatMessageByKey(normalizedFallback);
-                }
-                if (!resolvedMessage && Number.isFinite(resolvedId)) {
-                    const { chat } = getContext();
-                    if (Array.isArray(chat)) {
-                        resolvedMessage = chat.find((message) => Number.isFinite(message?.mesId) && message.mesId === resolvedId) || null;
-                    }
-                }
-
-                let locatedRole = resolvedMessage ? resolveMessageRoleFromArgs([resolvedMessage]) : null;
-                if (!locatedRole && resolvedMessage?.is_user) {
-                    locatedRole = "user";
-                }
-
-                if (locatedRole && locatedRole !== "assistant") {
-                    debugLog(`Skipping stream tracking for ${normalizedFallback} due to ${locatedRole} role.`);
+                const normalizedFallbackCandidate = normalizeMessageKey(fallbackKey) || fallbackKey;
+                if (!isLikelyMessageKey(normalizedFallbackCandidate)) {
+                    debugLog(`Ignoring ${normalizedFallbackCandidate} from token payload due to invalid message key format.`);
+                    state.currentGenerationKey = null;
                 } else {
-                    state.currentGenerationKey = normalizedFallback;
-                    debugLog(`Adopted ${normalizedFallback} as stream key from token payload.`);
+                    const normalizedFallback = normalizedFallbackCandidate;
+                    let resolvedMessage = null;
+                    const resolvedId = Number.isFinite(fallbackReference?.messageId)
+                        ? fallbackReference.messageId
+                        : extractMessageIdFromKey(normalizedFallback);
+                    if (Number.isFinite(resolvedId)) {
+                        resolvedMessage = findChatMessageById(resolvedId);
+                    }
+                    if (!resolvedMessage) {
+                        resolvedMessage = findChatMessageByKey(normalizedFallback);
+                    }
+                    if (!resolvedMessage && Number.isFinite(resolvedId)) {
+                        const { chat } = getContext();
+                        if (Array.isArray(chat)) {
+                            resolvedMessage = chat.find((message) => Number.isFinite(message?.mesId) && message.mesId === resolvedId) || null;
+                        }
+                    }
+
+                    let locatedRole = resolvedMessage ? resolveMessageRoleFromArgs([resolvedMessage]) : null;
+                    if (!locatedRole && resolvedMessage?.is_user) {
+                        locatedRole = "user";
+                    }
+
+                    if (locatedRole && locatedRole !== "assistant") {
+                        debugLog(`Skipping stream tracking for ${normalizedFallback} due to ${locatedRole} role.`);
+                    } else {
+                        state.currentGenerationKey = normalizedFallback;
+                        debugLog(`Adopted ${normalizedFallback} as stream key from token payload.`);
+                    }
                 }
             }
         }
