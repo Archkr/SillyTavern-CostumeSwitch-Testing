@@ -266,7 +266,35 @@
                     <span><i class="fa-solid fa-magnifying-glass"></i>Detect General Mentions</span>
                   </label>
                 </div>
-                <small class="cs-helper-text">Enable the dialogue scan toggle if you work with transcripts that embed narration inside quoted speech, such as “the squad leader recounted, ‘Form up.’”.</small>
+                <small class="cs-helper-text">Enable the dialogue scan toggle if you work with transcripts that embed narration inside quoted speech, such as “the squad leader recounted, ‘Form up.’”. Use the Regex Preprocessor options below to opt into allowed script collections when you need extra cleanup or translation guards.</small>
+                <div class="cs-field-group">
+                  <label class="cs-inline-label">Regex Preprocessor</label>
+                  <label class="cs-toggle cs-toggle--inline" title="Apply global cleanup scripts that normalize punctuation, honorifics, and spacing across every chat.">
+                    <input id="cs-script-collection-global" type="checkbox" class="cs-script-collection-toggle" data-script-collection="global" />
+                    <span class="cs-toggle-indicator"></span>
+                    <span>
+                      <strong>Global Scripts</strong>
+                      <small>Universal cleanup for punctuation fixes, diacritics, and stray honorifics.</small>
+                    </span>
+                  </label>
+                  <label class="cs-toggle cs-toggle--inline" title="Enable curated presets provided by SillyTavern or bundles you trust.">
+                    <input id="cs-script-collection-preset" type="checkbox" class="cs-script-collection-toggle" data-script-collection="preset" />
+                    <span class="cs-toggle-indicator"></span>
+                    <span>
+                      <strong>Preset Scripts</strong>
+                      <small>Host-curated bundles for common RP or stream formats.</small>
+                    </span>
+                  </label>
+                  <label class="cs-toggle cs-toggle--inline" title="Allow scoped scripts defined by characters or profiles for niche cleanup.">
+                    <input id="cs-script-collection-scoped" type="checkbox" class="cs-script-collection-toggle" data-script-collection="scoped" />
+                    <span class="cs-toggle-indicator"></span>
+                    <span>
+                      <strong>Scoped Scripts</strong>
+                      <small>Profile or character-specific filters for translations or custom markup.</small>
+                    </span>
+                  </label>
+                  <small class="cs-helper-text">Global scripts handle safe cleanup for every chat, Preset scripts mirror curated SillyTavern bundles, and Scoped scripts run only when your characters or profiles provide their own filters.</small>
+                </div>
                 <div class="cs-field-group">
                   <label class="cs-inline-label" for="cs-scene-roster-enable">Scene Awareness</label>
                   <label class="cs-toggle cs-toggle--inline" title="Improves group scenario accuracy by tracking recently active characters.">

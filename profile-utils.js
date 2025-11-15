@@ -89,7 +89,7 @@ function cloneStringList(source) {
 
 const SCRIPT_COLLECTION_ORDER = ["global", "preset", "scoped"];
 
-function normalizeScriptCollections(raw, defaults = []) {
+export function normalizeScriptCollections(raw, defaults = []) {
     const selections = new Set();
     const applyValue = (value) => {
         if (typeof value !== "string") {

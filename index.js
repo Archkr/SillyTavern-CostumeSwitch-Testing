@@ -28,6 +28,7 @@ import {
     compileProfileRegexes,
     collectDetections,
 } from "./src/detector-core.js";
+import { collectProfilePreprocessorScripts, applyPreprocessorScripts } from "./src/core/script-preprocessor.js";
 import { createNamePreprocessor, resolveFuzzyTolerance } from "./src/core/name-preprocessor.js";
 import {
     mergeDetectionsForReport,
@@ -54,6 +55,7 @@ import {
     preparePatternSlotsForSave,
     flattenPatternSlots,
     reconcilePatternSlotReferences,
+    normalizeScriptCollections,
 } from "./profile-utils.js";
 import {
     setScenePanelContainer,
@@ -215,6 +217,7 @@ const AUTO_SAVE_RECOMPILE_KEYS = new Set([
     'attributionVerbs',
     'actionVerbs',
     'pronounVocabulary',
+    'scriptCollections',
 ]);
 const AUTO_SAVE_FOCUS_LOCK_KEYS = new Set(['patterns']);
 const AUTO_SAVE_REASON_OVERRIDES = {
@@ -236,6 +239,7 @@ const AUTO_SAVE_REASON_OVERRIDES = {
     detectPossessive: 'possessive detection',
     detectPronoun: 'pronoun detection',
     detectGeneral: 'general name detection',
+    scriptCollections: 'regex preprocessor',
     enableOutfits: 'outfit automation',
     attributionVerbs: 'attribution verbs',
     actionVerbs: 'action verbs',
@@ -418,6 +422,8 @@ const DEFAULT_SCENE_PANEL_SETTINGS = Object.freeze({
     autoPinActive: true,
     sections: DEFAULT_SCENE_PANEL_SECTIONS,
 });
+
+const SCRIPT_COLLECTION_KEYS = Object.freeze(["global", "preset", "scoped"]);
 
 const SCENE_PANEL_SECTION_LABELS = Object.freeze({
     roster: "Scene roster",
@@ -3937,6 +3943,42 @@ const uiMapping = {
     distancePenaltyWeight: { selector: '#cs-distance-penalty', type: 'number' },
 };
 
+function readScriptCollectionSelectionsFromUI() {
+    const selections = [];
+    SCRIPT_COLLECTION_KEYS.forEach((key) => {
+        const checkbox = document.querySelector(`[data-script-collection="${key}"]`);
+        if (checkbox && checkbox.checked) {
+            selections.push(key);
+        }
+    });
+    return selections;
+}
+
+function syncScriptCollectionControls(selected) {
+    const normalized = normalizeScriptCollections(selected, PROFILE_DEFAULTS.scriptCollections);
+    SCRIPT_COLLECTION_KEYS.forEach((key) => {
+        const checkbox = document.querySelector(`[data-script-collection="${key}"]`);
+        if (!checkbox) {
+            return;
+        }
+        checkbox.checked = normalized.includes(key);
+    });
+}
+
+function refreshProfilePreprocessorPipeline(profile = getActiveProfile()) {
+    if (!profile) {
+        return [];
+    }
+    const normalizedSelections = normalizeScriptCollections(profile.scriptCollections, PROFILE_DEFAULTS.scriptCollections);
+    profile.scriptCollections = normalizedSelections;
+    const pipeline = collectProfilePreprocessorScripts(profile);
+    if (!state.compiledRegexes || typeof state.compiledRegexes !== 'object') {
+        state.compiledRegexes = {};
+    }
+    state.compiledRegexes.preprocessorScripts = pipeline;
+    return pipeline;
+}
+
 function updateScenePanelSettingControls(panelSettings = ensureScenePanelSettings(getSettings?.() || {})) {
     const settings = panelSettings || ensureScenePanelSettings(getSettings?.() || {});
     const sections = settings?.sections || {};
@@ -4453,6 +4495,7 @@ function loadProfile(profileName) {
             default: $(selector).val(value); break;
         }
     }
+    syncScriptCollectionControls(profile.scriptCollections);
     $("#cs-detection-bias-value").text(profile.detectionBias || 0);
     renderMappings(profile);
     recompileRegexes();
@@ -4508,6 +4551,8 @@ function saveCurrentProfileData() {
         }
         profileData[key] = value;
     }
+    const scriptSelections = readScriptCollectionSelectionsFromUI();
+    profileData.scriptCollections = normalizeScriptCollections(scriptSelections, PROFILE_DEFAULTS.scriptCollections);
     const slotSource = Array.isArray(activeProfile?.patternSlots) ? activeProfile.patternSlots : [];
     const draftPatternIds = state?.draftPatternIds instanceof Set ? state.draftPatternIds : new Set();
     const preparedSlots = preparePatternSlotsForSave(slotSource, draftPatternIds);
@@ -4703,6 +4748,22 @@ function handleAutoSaveFieldEvent(event, key) {
         element: event.currentTarget,
         requiresRecompile: AUTO_SAVE_RECOMPILE_KEYS.has(key),
         requiresFocusLockRefresh: AUTO_SAVE_FOCUS_LOCK_KEYS.has(key),
+    });
+}
+
+function handleScriptCollectionCheckboxChange(event) {
+    const profile = getActiveProfile();
+    const selections = readScriptCollectionSelectionsFromUI();
+    const normalizedSelections = normalizeScriptCollections(selections, PROFILE_DEFAULTS.scriptCollections);
+    if (profile) {
+        profile.scriptCollections = normalizedSelections;
+    }
+    const pipeline = refreshProfilePreprocessorPipeline(profile);
+    refreshTesterPreprocessorPreview(pipeline);
+    scheduleProfileAutoSave({
+        key: 'scriptCollections',
+        element: event?.currentTarget,
+        requiresRecompile: true,
     });
 }
 
@@ -6068,6 +6129,34 @@ function updateTesterPreprocessedDisplay(text) {
     }
 }
 
+function refreshTesterPreprocessorPreview(pipeline = null) {
+    const lastReport = state.lastTesterReport;
+    if (!lastReport || typeof lastReport.normalizedInput !== 'string' || !lastReport.normalizedInput.length) {
+        if (!lastReport) {
+            updateTesterPreprocessedDisplay(null);
+        }
+        return;
+    }
+
+    const profile = getActiveProfile();
+    if (!profile) {
+        updateTesterPreprocessedDisplay(null);
+        return;
+    }
+
+    const effectivePipeline = Array.isArray(pipeline)
+        ? pipeline
+        : refreshProfilePreprocessorPipeline(profile);
+    const normalizedInput = lastReport.normalizedInput;
+    const result = applyPreprocessorScripts(normalizedInput, effectivePipeline || []);
+    const processedText = typeof result?.text === 'string'
+        ? result.text
+        : normalizedInput;
+    state.lastPreprocessedText = processedText;
+    lastReport.preprocessedText = processedText;
+    updateTesterPreprocessedDisplay(processedText);
+}
+
 function renderTesterScoreBreakdown(details) {
     const table = $('#cs-test-score-breakdown');
     if (!table.length) return;
@@ -7283,6 +7372,7 @@ function wireUI() {
             $(document).on('input', selector, (event) => handleAutoSaveFieldEvent(event, key));
         }
     });
+    $(document).on('change', '.cs-script-collection-toggle', handleScriptCollectionCheckboxChange);
     $(document).on('focusin mouseenter', '[data-change-notice]', function() {
         if (this?.disabled) {
             return;
