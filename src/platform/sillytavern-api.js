@@ -12,61 +12,6 @@ function warnOnce(name) {
     }
 }
 
-function createHostFunction(name, fallback) {
-    return function hostFunctionBridge(...args) {
-        const handler = typeof host[name] === "function" ? host[name] : null;
-        if (handler) {
-            return handler.apply(host, args);
-        }
-        warnOnce(name);
-        return fallback.apply(host, args);
-    };
-}
-
-function createHostObject(name, fallback) {
-    const fallbackValue = typeof fallback === "function" ? fallback() : fallback;
-
-    const resolveSource = () => {
-        const value = host[name];
-        if (value && typeof value === "object") {
-            return value;
-        }
-        warnOnce(name);
-        return fallbackValue;
-    };
-
-    return new Proxy(fallbackValue, {
-        get(_target, property, receiver) {
-            const source = resolveSource();
-            const result = Reflect.get(source, property, receiver);
-            if (typeof result === "function") {
-                return result.bind(source);
-            }
-            return result;
-        },
-        set(_target, property, value, receiver) {
-            const source = resolveSource();
-            return Reflect.set(source, property, value, receiver);
-        },
-        has(_target, property) {
-            const source = resolveSource();
-            return Reflect.has(source, property);
-        },
-        ownKeys() {
-            const source = resolveSource();
-            return Reflect.ownKeys(source);
-        },
-        getOwnPropertyDescriptor(_target, property) {
-            const source = resolveSource();
-            const descriptor = Object.getOwnPropertyDescriptor(source, property);
-            if (!descriptor) {
-                return undefined;
-            }
-            return { ...descriptor, configurable: true };
-        },
-    });
-}
-
 function createEventSourceFallback() {
     const noop = () => {};
     return {
@@ -78,6 +23,9 @@ function createEventSourceFallback() {
 }
 
 const noop = () => {};
+const fallbackExecuteSlashCommandsOnChatInput = async () => false;
+const fallbackWriteExtensionField = async () => {};
+const fallbackRenderExtensionTemplateAsync = async () => "<div id=\"cs-scene-panel\"></div>";
 
 function normalizeText(value) {
     if (value == null) {
@@ -111,19 +59,256 @@ const extensionSettingsStore = (() => {
     return shared;
 })();
 
-export const extension_settings = extensionSettingsStore;
+const fallbackEventSource = createEventSourceFallback();
+const fallbackEventTypes = {};
+const fallbackSystemMessageTypes = { NARRATOR: "narrator" };
 
-export const saveSettingsDebounced = createHostFunction("saveSettingsDebounced", noop);
-export const saveChatDebounced = createHostFunction("saveChatDebounced", noop);
-export const executeSlashCommandsOnChatInput = createHostFunction("executeSlashCommandsOnChatInput", async () => false);
-export const registerSlashCommand = createHostFunction("registerSlashCommand", noop);
-export const substituteParams = createHostFunction("substituteParams", fallbackSubstituteParams);
-export const substituteParamsExtended = createHostFunction("substituteParamsExtended", fallbackSubstituteParamsExtended);
-export const writeExtensionField = createHostFunction("writeExtensionField", async () => {});
+export let extension_settings = extensionSettingsStore;
+export let saveSettingsDebounced = noop;
+export let saveChatDebounced = noop;
+export let executeSlashCommandsOnChatInput = fallbackExecuteSlashCommandsOnChatInput;
+export let registerSlashCommand = noop;
+export let substituteParams = fallbackSubstituteParams;
+export let substituteParamsExtended = fallbackSubstituteParamsExtended;
+export let writeExtensionField = fallbackWriteExtensionField;
+export let event_types = fallbackEventTypes;
+export let eventSource = fallbackEventSource;
+export let system_message_types = fallbackSystemMessageTypes;
+let getContextImpl = defaultGetContext;
+export let renderExtensionTemplateAsync = fallbackRenderExtensionTemplateAsync;
 
-export const event_types = createHostObject("event_types", {});
-export const eventSource = createHostObject("eventSource", createEventSourceFallback);
-export const system_message_types = createHostObject("system_message_types", { NARRATOR: "narrator" });
+let bindingsLoaded = false;
+let loadPromise = null;
+
+function toArray(value) {
+    return Array.isArray(value) ? value : [value];
+}
+
+function isFunction(value) {
+    return typeof value === "function";
+}
+
+function isObject(value) {
+    return value && typeof value === "object";
+}
+
+function pickFromSources({ sources, names, predicate, fallback, warnName, bindHost = true, warnOnFallback = true }) {
+    const nameList = toArray(names);
+    const displayName = warnName ?? nameList[0];
+    for (const source of sources) {
+        if (!source) {
+            continue;
+        }
+        for (const name of nameList) {
+            const candidate = source[name];
+            if (predicate(candidate)) {
+                if (bindHost && source === host && typeof candidate === "function") {
+                    return candidate.bind(host);
+                }
+                return candidate;
+            }
+        }
+    }
+    if (warnOnFallback && displayName) {
+        warnOnce(displayName);
+    }
+    return fallback;
+}
+
+function defaultGetContext() {
+    if (typeof host.getContext === "function") {
+        try {
+            return host.getContext();
+        } catch (error) {
+            warnOnce(`getContext (threw: ${error?.message ?? error})`);
+        }
+    }
+
+    const baseContext = {
+        extensionSettings: extension_settings ?? extensionSettingsStore,
+        saveSettingsDebounced,
+        saveChatDebounced,
+    };
+
+    const extra = host.__mockContext;
+    if (extra && typeof extra === "object") {
+        return { ...baseContext, ...extra };
+    }
+
+    return baseContext;
+}
+
+function assignBindingsFromSources(sources) {
+    extension_settings = pickFromSources({
+        sources,
+        names: ["extension_settings", "extensionSettings"],
+        predicate: isObject,
+        fallback: extensionSettingsStore,
+        bindHost: false,
+        warnOnFallback: false,
+    });
+
+    saveSettingsDebounced = pickFromSources({
+        sources,
+        names: "saveSettingsDebounced",
+        predicate: isFunction,
+        fallback: noop,
+    });
+
+    saveChatDebounced = pickFromSources({
+        sources,
+        names: "saveChatDebounced",
+        predicate: isFunction,
+        fallback: noop,
+    });
+
+    executeSlashCommandsOnChatInput = pickFromSources({
+        sources,
+        names: "executeSlashCommandsOnChatInput",
+        predicate: isFunction,
+        fallback: fallbackExecuteSlashCommandsOnChatInput,
+    });
+
+    registerSlashCommand = pickFromSources({
+        sources,
+        names: "registerSlashCommand",
+        predicate: isFunction,
+        fallback: noop,
+    });
+
+    substituteParams = pickFromSources({
+        sources,
+        names: "substituteParams",
+        predicate: isFunction,
+        fallback: fallbackSubstituteParams,
+    });
+
+    substituteParamsExtended = pickFromSources({
+        sources,
+        names: "substituteParamsExtended",
+        predicate: isFunction,
+        fallback: fallbackSubstituteParamsExtended,
+    });
+
+    writeExtensionField = pickFromSources({
+        sources,
+        names: "writeExtensionField",
+        predicate: isFunction,
+        fallback: fallbackWriteExtensionField,
+    });
+
+    event_types = pickFromSources({
+        sources,
+        names: "event_types",
+        predicate: isObject,
+        fallback: fallbackEventTypes,
+        bindHost: false,
+    });
+
+    eventSource = pickFromSources({
+        sources,
+        names: "eventSource",
+        predicate: isObject,
+        fallback: fallbackEventSource,
+        bindHost: false,
+    });
+
+    system_message_types = pickFromSources({
+        sources,
+        names: "system_message_types",
+        predicate: isObject,
+        fallback: fallbackSystemMessageTypes,
+        bindHost: false,
+    });
+
+    getContextImpl = pickFromSources({
+        sources,
+        names: "getContext",
+        predicate: isFunction,
+        fallback: defaultGetContext,
+    });
+
+    renderExtensionTemplateAsync = pickFromSources({
+        sources,
+        names: "renderExtensionTemplateAsync",
+        predicate: isFunction,
+        fallback: fallbackRenderExtensionTemplateAsync,
+    });
+}
+
+function snapshotBindings() {
+    return {
+        extension_settings,
+        saveSettingsDebounced,
+        saveChatDebounced,
+        executeSlashCommandsOnChatInput,
+        registerSlashCommand,
+        substituteParams,
+        substituteParamsExtended,
+        writeExtensionField,
+        event_types,
+        eventSource,
+        system_message_types,
+        getContext,
+        renderExtensionTemplateAsync,
+    };
+}
+
+function isModuleNotFoundError(error) {
+    if (!error) {
+        return false;
+    }
+    const code = error.code || error?.cause?.code;
+    if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND") {
+        return true;
+    }
+    const message = typeof error.message === "string" ? error.message : "";
+    return message.includes("Cannot find module") || message.includes("Failed to fetch dynamically imported module");
+}
+
+async function importHostModule(specifier, label) {
+    try {
+        return await import(specifier);
+    } catch (error) {
+        if (!isModuleNotFoundError(error)) {
+            console.warn(`[CostumeSwitch] Failed to load SillyTavern ${label} module '${specifier}'.`, error);
+        }
+        return null;
+    }
+}
+
+async function loadHostBindings() {
+    const sources = [];
+    const extensionModule = await importHostModule("../../../../extensions.js", "extensions");
+    if (extensionModule) {
+        sources.push(extensionModule);
+    }
+    const scriptModule = await importHostModule("../../../../script.js", "core script");
+    if (scriptModule) {
+        sources.push(scriptModule);
+    }
+    const slashModule = await importHostModule("../../../../slash-commands.js", "slash commands");
+    if (slashModule) {
+        sources.push(slashModule);
+    }
+    sources.push(host);
+    assignBindingsFromSources(sources);
+    bindingsLoaded = true;
+    return snapshotBindings();
+}
+
+export async function ensureSillyTavernModuleBindings() {
+    if (bindingsLoaded) {
+        return snapshotBindings();
+    }
+    if (!loadPromise) {
+        loadPromise = loadHostBindings().catch((error) => {
+            loadPromise = null;
+            throw error;
+        });
+    }
+    return loadPromise;
+}
 
 export function getCharacters() {
     const characters = host.characters;
@@ -174,26 +359,7 @@ export function getPresetManager() {
 }
 
 export function getContext() {
-    if (typeof host.getContext === "function") {
-        try {
-            return host.getContext();
-        } catch (error) {
-            warnOnce(`getContext (threw: ${error?.message ?? error})`);
-        }
-    }
-
-    const baseContext = {
-        extensionSettings: extensionSettingsStore,
-        saveSettingsDebounced,
-        saveChatDebounced,
-    };
-
-    const extra = host.__mockContext;
-    if (extra && typeof extra === "object") {
-        return { ...baseContext, ...extra };
-    }
-
-    return baseContext;
+    return getContextImpl();
 }
 
 export function regexFromString(value) {
@@ -220,8 +386,3 @@ export function regexFromString(value) {
         return null;
     }
 }
-
-export const renderExtensionTemplateAsync = createHostFunction(
-    "renderExtensionTemplateAsync",
-    async () => "<div id=\"cs-scene-panel\"></div>"
-);
