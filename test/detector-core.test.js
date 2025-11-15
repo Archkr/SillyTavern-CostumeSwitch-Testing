@@ -333,16 +333,21 @@ test('compileProfileRegexes derives patterns from structured slots', () => {
         priorityWeights: {
             action: 3,
         },
-    }).map(match => match.name);
+    });
 
     const aliasMatches = collectDetections(aliasSample, profile, regexes, {
         priorityWeights: {
             action: 3,
         },
-    }).map(match => match.name);
+    });
 
-    assert.ok(primaryMatches.includes('Akiyama Ren'), 'primary name mention should be detected');
-    assert.ok(aliasMatches.includes('Ren'), 'alias mention should be detected');
+    const primaryNames = primaryMatches.map(match => match.name);
+    const aliasNames = aliasMatches.map(match => match.name);
+    const aliasRawNames = aliasMatches.map(match => match.rawName);
+
+    assert.ok(primaryNames.includes('Akiyama Ren'), 'primary name mention should be detected');
+    assert.ok(aliasRawNames.includes('Ren'), 'alias raw mention should be retained');
+    assert.ok(aliasNames.includes('Akiyama Ren'), 'alias mention should resolve to canonical name');
 });
 
 test("compileProfileRegexes signals when all patterns are filtered out", () => {

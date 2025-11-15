@@ -1,4 +1,5 @@
 import { collectProfilePreprocessorScripts, applyPreprocessorScripts } from "./core/script-preprocessor.js";
+import { createNamePreprocessor, resolveFuzzyTolerance, stripDiacritics } from "./core/name-preprocessor.js";
 import { getTextTokens, getTokenCountAsync } from "../tokenizers.js";
 
 const DEFAULT_UNICODE_WORD_PATTERN = "[\\p{L}\\p{M}\\p{N}_]";
@@ -338,6 +339,52 @@ function gatherProfilePatterns(profile) {
     return result;
 }
 
+function buildAliasCanonicalMap(profile) {
+    const map = new Map();
+    if (!profile || !Array.isArray(profile.patternSlots)) {
+        return map;
+    }
+
+    profile.patternSlots.forEach((slot) => {
+        if (!slot) {
+            return;
+        }
+        const canonical = typeof slot.name === "string" ? slot.name.trim() : "";
+        if (!canonical) {
+            return;
+        }
+        const aliasSources = [
+            slot.aliases,
+            slot.patterns,
+            slot.alternateNames,
+            slot.names,
+            slot.variants,
+        ];
+        aliasSources.forEach((source) => {
+            if (!source) {
+                return;
+            }
+            const values = Array.isArray(source) ? source : [source];
+            values.forEach((value) => {
+                const alias = typeof value === "string" ? value.trim() : "";
+                if (!alias) {
+                    return;
+                }
+                const lowered = alias.toLowerCase();
+                if (!map.has(lowered)) {
+                    map.set(lowered, canonical);
+                }
+                const accentKey = stripDiacritics(alias).toLowerCase();
+                if (accentKey && !map.has(accentKey)) {
+                    map.set(accentKey, canonical);
+                }
+            });
+        });
+    });
+
+    return map;
+}
+
 const QUOTE_PAIRS = [
     { open: "\"", close: "\"", symmetric: true },
     { open: "＂", close: "＂", symmetric: true },
@@ -658,6 +705,24 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
     const originalText = typeof text === "string" ? text : String(text ?? "");
     matches.originalText = originalText;
     matches.preprocessedText = originalText;
+    const toleranceSetting = options?.fuzzyTolerance ?? profile?.fuzzyTolerance ?? null;
+    const tolerance = resolveFuzzyTolerance(toleranceSetting);
+    const translateNames = Boolean(options?.translateFuzzyNames ?? profile?.translateFuzzyNames ?? profile?.translateNames ?? false);
+    const candidateList = Array.isArray(regexes?.effectivePatterns) ? regexes.effectivePatterns : [];
+    const aliasMap = buildAliasCanonicalMap(profile);
+    const preprocessName = createNamePreprocessor({
+        candidates: candidateList,
+        tolerance,
+        translate: translateNames,
+        aliasMap,
+    });
+    matches.fuzzyResolution = {
+        tolerance,
+        translateNames,
+        candidateCount: candidateList.length,
+        used: false,
+        aliasCount: aliasMap.size,
+    };
     if (!originalText || !profile) {
         return matches;
     }
@@ -738,12 +803,14 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         const tokenLength = Number.isFinite(span?.length) && span.length > 0 ? span.length : null;
         matches.push({
             name: trimmedName,
+            rawName: trimmedName,
             matchKind,
             matchIndex: Number.isFinite(index) ? index : null,
             priority: Number.isFinite(priority) ? priority : null,
             matchLength: Number.isFinite(length) && length > 0 ? length : null,
             tokenIndex,
             tokenLength,
+            nameResolution: null,
         });
     };
 
@@ -826,6 +893,23 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
             addMatch(name, "name", match.index, priorityWeights.name, getMatchLength(match), span);
         });
     }
+
+    matches.forEach((match) => {
+        const resolution = preprocessName(match.name, { priority: match.priority });
+        if (resolution) {
+            match.rawName = resolution.raw || match.rawName || match.name;
+            match.name = resolution.canonical || match.name;
+            match.normalizedName = resolution.normalized || match.name;
+            match.nameResolution = {
+                ...resolution,
+                tolerance,
+                translateNames,
+            };
+            if (resolution.applied && resolution.changed) {
+                matches.fuzzyResolution.used = true;
+            }
+        }
+    });
 
     matches.tokenizerId = tokenProjection?.tokenizerId || null;
     matches.tokenCount = Number.isFinite(tokenProjection?.count) ? tokenProjection.count : tokenOffsets?.length || null;
