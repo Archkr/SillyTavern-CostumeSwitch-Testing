@@ -12,20 +12,59 @@ function warnOnce(name) {
     }
 }
 
-function toFunction(value, name, fallback) {
-    if (typeof value === "function") {
-        return value.bind(host);
-    }
-    warnOnce(name);
-    return fallback;
+function createHostFunction(name, fallback) {
+    return function hostFunctionBridge(...args) {
+        const handler = typeof host[name] === "function" ? host[name] : null;
+        if (handler) {
+            return handler.apply(host, args);
+        }
+        warnOnce(name);
+        return fallback.apply(host, args);
+    };
 }
 
-function toObject(value, name, fallback) {
-    if (value && typeof value === "object") {
-        return value;
-    }
-    warnOnce(name);
-    return fallback;
+function createHostObject(name, fallback) {
+    const fallbackValue = typeof fallback === "function" ? fallback() : fallback;
+
+    const resolveSource = () => {
+        const value = host[name];
+        if (value && typeof value === "object") {
+            return value;
+        }
+        warnOnce(name);
+        return fallbackValue;
+    };
+
+    return new Proxy(fallbackValue, {
+        get(_target, property, receiver) {
+            const source = resolveSource();
+            const result = Reflect.get(source, property, receiver);
+            if (typeof result === "function") {
+                return result.bind(source);
+            }
+            return result;
+        },
+        set(_target, property, value, receiver) {
+            const source = resolveSource();
+            return Reflect.set(source, property, value, receiver);
+        },
+        has(_target, property) {
+            const source = resolveSource();
+            return Reflect.has(source, property);
+        },
+        ownKeys() {
+            const source = resolveSource();
+            return Reflect.ownKeys(source);
+        },
+        getOwnPropertyDescriptor(_target, property) {
+            const source = resolveSource();
+            const descriptor = Object.getOwnPropertyDescriptor(source, property);
+            if (!descriptor) {
+                return undefined;
+            }
+            return { ...descriptor, configurable: true };
+        },
+    });
 }
 
 function createEventSourceFallback() {
@@ -74,17 +113,17 @@ const extensionSettingsStore = (() => {
 
 export const extension_settings = extensionSettingsStore;
 
-export const saveSettingsDebounced = toFunction(host.saveSettingsDebounced, "saveSettingsDebounced", noop);
-export const saveChatDebounced = toFunction(host.saveChatDebounced, "saveChatDebounced", noop);
-export const executeSlashCommandsOnChatInput = toFunction(host.executeSlashCommandsOnChatInput, "executeSlashCommandsOnChatInput", async () => false);
-export const registerSlashCommand = toFunction(host.registerSlashCommand, "registerSlashCommand", noop);
-export const substituteParams = toFunction(host.substituteParams, "substituteParams", fallbackSubstituteParams);
-export const substituteParamsExtended = toFunction(host.substituteParamsExtended, "substituteParamsExtended", fallbackSubstituteParamsExtended);
-export const writeExtensionField = toFunction(host.writeExtensionField, "writeExtensionField", async () => {});
+export const saveSettingsDebounced = createHostFunction("saveSettingsDebounced", noop);
+export const saveChatDebounced = createHostFunction("saveChatDebounced", noop);
+export const executeSlashCommandsOnChatInput = createHostFunction("executeSlashCommandsOnChatInput", async () => false);
+export const registerSlashCommand = createHostFunction("registerSlashCommand", noop);
+export const substituteParams = createHostFunction("substituteParams", fallbackSubstituteParams);
+export const substituteParamsExtended = createHostFunction("substituteParamsExtended", fallbackSubstituteParamsExtended);
+export const writeExtensionField = createHostFunction("writeExtensionField", async () => {});
 
-export const event_types = toObject(host.event_types, "event_types", {});
-export const eventSource = toObject(host.eventSource, "eventSource", createEventSourceFallback());
-export const system_message_types = toObject(host.system_message_types, "system_message_types", { NARRATOR: "narrator" });
+export const event_types = createHostObject("event_types", {});
+export const eventSource = createHostObject("eventSource", createEventSourceFallback);
+export const system_message_types = createHostObject("system_message_types", { NARRATOR: "narrator" });
 
 export function getCharacters() {
     const characters = host.characters;
@@ -182,10 +221,7 @@ export function regexFromString(value) {
     }
 }
 
-export async function renderExtensionTemplateAsync(namespace, template, data) {
-    if (typeof host.renderExtensionTemplateAsync === "function") {
-        return host.renderExtensionTemplateAsync(namespace, template, data);
-    }
-    warnOnce("renderExtensionTemplateAsync");
-    return "<div id=\"cs-scene-panel\"></div>";
-}
+export const renderExtensionTemplateAsync = createHostFunction(
+    "renderExtensionTemplateAsync",
+    async () => "<div id=\"cs-scene-panel\"></div>"
+);
