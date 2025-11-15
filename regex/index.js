@@ -1,17 +1,17 @@
-import { characters, eventSource, event_types, getCurrentChatId, messageFormatting, reloadCurrentChat, saveSettingsDebounced, this_chid } from '../../../script.js';
-import { extension_settings, renderExtensionTemplateAsync } from '../../extensions.js';
-import { selected_group } from '../../group-chats.js';
-import { callGenericPopup, Popup, POPUP_TYPE } from '../../popup.js';
-import { SlashCommand } from '../../slash-commands/SlashCommand.js';
-import { ARGUMENT_TYPE, SlashCommandArgument, SlashCommandNamedArgument } from '../../slash-commands/SlashCommandArgument.js';
-import { commonEnumProviders, enumIcons } from '../../slash-commands/SlashCommandCommonEnumsProvider.js';
-import { SlashCommandEnumValue, enumTypes } from '../../slash-commands/SlashCommandEnumValue.js';
-import { SlashCommandParser } from '../../slash-commands/SlashCommandParser.js';
-import { download, equalsIgnoreCaseAndAccents, escapeHtml, getFileText, getSortableDelay, isFalseBoolean, isTrueBoolean, regexFromString, setInfoBlock, uuidv4 } from '../../utils.js';
+import { characters, eventSource, event_types, getCurrentChatId, messageFormatting, reloadCurrentChat, saveSettingsDebounced, this_chid } from '../../../../script.js';
+import { extension_settings, renderExtensionTemplateAsync } from '../../../../extensions.js';
+import { selected_group } from '../../../../group-chats.js';
+import { callGenericPopup, Popup, POPUP_TYPE } from '../../../../popup.js';
+import { SlashCommand } from '../../../../slash-commands/SlashCommand.js';
+import { ARGUMENT_TYPE, SlashCommandArgument, SlashCommandNamedArgument } from '../../../../slash-commands/SlashCommandArgument.js';
+import { commonEnumProviders, enumIcons } from '../../../../slash-commands/SlashCommandCommonEnumsProvider.js';
+import { SlashCommandEnumValue, enumTypes } from '../../../../slash-commands/SlashCommandEnumValue.js';
+import { SlashCommandParser } from '../../../../slash-commands/SlashCommandParser.js';
+import { download, equalsIgnoreCaseAndAccents, escapeHtml, getFileText, getSortableDelay, isFalseBoolean, isTrueBoolean, regexFromString, setInfoBlock, uuidv4 } from '../../../../utils.js';
 import { allowPresetScripts, allowScopedScripts, disallowPresetScripts, disallowScopedScripts, getCurrentPresetAPI, getCurrentPresetName, getRegexScripts, getScriptsByType, isPresetScriptsAllowed, isScopedScriptsAllowed, regex_placement, runRegexScript, saveScriptsByType, SCRIPT_TYPE_UNKNOWN, SCRIPT_TYPES, substitute_find_regex } from './engine.js';
-import { t } from '../../i18n.js';
-import { accountStorage } from '../../util/AccountStorage.js';
-import { getPresetManager } from '../../preset-manager.js';
+import { t } from '../../../../i18n.js';
+import { accountStorage } from '../../../../util/AccountStorage.js';
+import { getPresetManager } from '../../../../preset-manager.js';
 
 // Re-exports for legacy extensions
 export { getRegexScripts };
@@ -1988,7 +1988,7 @@ jQuery(async () => {
     /**
      * @typedef {object} ScriptDecorators
      * @property {string} typename
-     * @property {import('../../slash-commands/SlashCommandEnumValue.js').EnumType} color
+     * @property {import('../../../../slash-commands/SlashCommandEnumValue.js').EnumType} color
      * @property {string} icon
      */
 
