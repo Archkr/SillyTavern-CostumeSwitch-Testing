@@ -1,4 +1,4 @@
-import Fuse from "fuse.js";
+import Fuse from "../vendor/fuse.mjs";
 import { sampleClassifyText } from "./sample-text.js";
 
 function toTrimmedString(value) {
