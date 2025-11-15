@@ -3,6 +3,7 @@
 ## v3.6.0 (Unreleased)
 
 ### Added
+- **Detection engine upgrade.** Main Detection Engine v4 and Outfit Detection Engine v2 now ship with the shared preprocessing, token-aware streaming, and fuzzy/translation reconciliation layers so detections stay accurate even when inputs arrive noisy or translated mid-stream.
 - **Fuzzy name preprocessing.** Added an optional normalization layer shared by detection and outfit matching that reuses classification sampling, translation toggles, and Fuse-powered lookups to reconcile misspelled or accented names before scoring.
 - **Scene panel command center.** Polished the side panel with a branded header, roster manager drawer, log viewer, auto-pin highlight toggle, and quick focus-lock controls so every button delivers meaningful actions.
 - **Summon toggle for the scene panel.** Hide the panel completely and bring it back with a floating summon button that stays available as a quick toggle so the chat column can reclaim the full width whenever you need extra room.

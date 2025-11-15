@@ -15,8 +15,8 @@ Under the hood the extension listens to streaming output from your model, scores
 3. [Installation](#installation)
 4. [Architecture Overview](#architecture-overview)
 5. [Custom Detection Engines](#custom-detection-engines)
-    1. [Main Detection Engine (v3)](#main-detection-engine-v3)
-    2. [Outfit Detection Engine (v1)](#outfit-detection-engine-v1)
+    1. [Main Detection Engine (v4)](#main-detection-engine-v4)
+    2. [Outfit Detection Engine (v2)](#outfit-detection-engine-v2)
 6. [Getting Started in Five Minutes](#getting-started-in-five-minutes)
 7. [Tour of the Settings UI](#tour-of-the-settings-ui)
     1. [Header & Master Toggle](#header--master-toggle)
@@ -97,12 +97,15 @@ Because each stage is isolated, you can tweak detector settings without relearni
 
 ## Custom Detection Engines
 
-Costume Switcher does not rely on third-party libraries for detection. Every matcher, bias rule, and cooldown is part of a fully custom detection stack purpose-built for SillyTavern roleplay. Both engines below share a common orchestration layer, yet each is tuned for a different job so you can mix expressive character work with razor-sharp costume swaps.
+Costume Switcher does not rely on third-party libraries for detection. Every matcher, bias rule, and cooldown is part of a fully custom detection stack purpose-built for SillyTavern roleplay. Both engines now share the refreshed preprocessing pipeline highlighted in the [Architecture Overview](#architecture-overview): the Step 1 stream listener, Step 2 profile compiler, and Step 3 detection pass normalize tokens, respect live translation toggles, and push the cleaned buffer into the scorers so each syllable stays explainable.
 
-### Main Detection Engine (v3)
+### Main Detection Engine (v4)
 
-Version 3 of the primary detection engine powers all speaker attribution. It represents the third full rewrite of the pipeline and focuses on clarity for end users:
+Version 4 powers every speaker attribution call. It layers the new preprocessing, token-awareness, and fuzzy/translation reconciliation directly into the first three steps of the architecture so you can mix expressive character work with razor-sharp costume swaps:
 
+- **Token-aware preprocessing** – The Step 1 stream listener cleans every token, strips zero-width and punctuation noise, and runs fuzzy/translation reconciliation before the detectors fire so v4 sees the same normalized text the Live Pattern Tester shows.
+- **Profile compiler upgrades** – Step 2 now bundles detector verb lists with the new preprocessing rules, meaning v4 can pair translation toggles, normalization modes, and regex prep scripts per profile without slowing the stream.
+- **Detection pass refresh** – Step 3 replays the normalized tokens through attribution, action, vocative, pronoun, and general-name detectors so the v4 engine can reason about both the raw buffer and the cleaned version at the same time.
 - **Detectors you can toggle** – Speaker tags, attribution verbs, action verbs, vocatives, possessives, pronouns, and general-name sweeps are all first-party detectors. Turn them on and off from the settings panel to mirror the way your story is written.
 - **Smart pronoun linking** – The engine remembers the last confirmed subject so that pronoun hits can keep the same character in focus, even when a paragraph swaps from “Alice” to “she.”
 - **Scene roster awareness** – Characters who were recently detected stay in a per-message roster with a configurable TTL. When the next decision comes up, roster members receive bonus weight so ensemble scenes stay stable.
@@ -110,11 +113,11 @@ Version 3 of the primary detection engine powers all speaker attribution. It rep
 - **Cooldown & veto safety nets** – A single decision gate enforces the global cooldown, per-trigger cooldowns, repeat suppression, and veto phrases. Switches are skipped gracefully when a rule applies, and the skip reason is logged for review.
 - **Explainer-first telemetry** – Matches, scores, roster membership, and skip reasons are stored alongside the final decision. Slash commands such as `/cs-stats` and `/cs-top` surface this telemetry directly in chat.
 
-The v3 engine is deterministic by design: given the same buffer and settings it will make the same call every time. That makes testing simple and gives you confidence that profile tweaks translate directly to the behaviour you expect.
+The v4 engine stays deterministic: given the same buffer and settings it will make the same call every time, only now it benefits from the token-aware preprocessing and fuzzy/translation hand-off introduced in the release notes.
 
-### Outfit Detection Engine (v1)
+### Outfit Detection Engine (v2)
 
-The outfit resolver is treated as its own detection engine because it layers additional rules on top of the main decision:
+The outfit resolver is treated as its own detection engine because it layers additional rules on top of the main decision while sharing the same preprocessing, fuzzy matching, and translation toggles described in steps 1–3 of the [Architecture Overview](#architecture-overview):
 
 - **Mapping-first resolution** – Character names (and aliases) map to base costume folders. Each mapping can include one or more outfit variants with custom labels.
 - **Trigger-driven variants** – Variants declare literal phrases or regex triggers. When a detection lands, the resolver evaluates those triggers against the full message buffer so outfits can react to mood, locations, or key phrases.
@@ -123,7 +126,7 @@ The outfit resolver is treated as its own detection engine because it layers add
 - **Cooldown-friendly caching** – Once a character ends up in a specific outfit, that choice is cached. Repeated detections of the same outfit are skipped until something actually changes, preventing needless `/costume` spam.
 - **Readable decisions** – The Live Pattern Tester and status banner show why a variant was selected (trigger hit, awareness rule, fallback, etc.), so you can iterate on rules without guessing.
 
-Outfit Detection Engine v1 is already powerful enough for mood-based wardrobe changes, yet it stays predictable by reusing the same telemetry and cooldown gates as the main engine.
+Outfit Detection Engine v2 stays predictable by reusing the same telemetry and cooldown gates as the main engine while now benefiting from the normalized text, fuzzy lookups, and translation-aware preprocessing shared with v4.
 
 ---
 
