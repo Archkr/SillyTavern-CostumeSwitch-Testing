@@ -23,6 +23,7 @@
 
 ### Fixed
 - **Regex script imports.** Corrected the regex engine import path so script collections load in SillyTavern without triggering MIME type errors.
+- **Fuzzy matcher import path.** Bundled the Fuse.js ESM build with the extension so browsers stop throwing bare-specifier errors when the name preprocessor loads.
 - **Toggle styling isolation.** Master and inline switches now render with self-contained tracks so other extensions can no longer distort their shape.
 - **Scene panel user message handling.** User-authored chat updates no longer trigger roster wipes or scene panel refreshes, so the control center stays stable and message counters persist while players talk.
 - **Scene panel idle refresh.** Chat-change hooks now ignore updates that don't alter the latest assistant message, so editing system prompts or sending player chatter no longer clears or replays roster detections.
