@@ -28,6 +28,7 @@ import {
     compileProfileRegexes,
     collectDetections,
 } from "./src/detector-core.js";
+import { createNamePreprocessor, resolveFuzzyTolerance } from "./src/core/name-preprocessor.js";
 import {
     mergeDetectionsForReport,
     summarizeDetections,
@@ -367,6 +368,9 @@ const PROFILE_DEFAULTS = {
     detectionBias: 0,
     enableSceneRoster: true,
     sceneRosterTTL: 5,
+    fuzzyTolerance: "off",
+    translateFuzzyNames: false,
+    translateNames: false,
     prioritySpeakerWeight: 5,
     priorityAttributionWeight: 4,
     priorityActionWeight: 3,
@@ -1063,15 +1067,17 @@ function rankSceneCharacters(matches, options = {}) {
 
     matches.forEach((match, idx) => {
         if (!match || !match.name) return;
-        const normalized = normalizeCostumeName(match.name);
+        const canonical = match.name;
+        const normalized = normalizeCostumeName(canonical);
         if (!normalized) return;
 
-        const displayName = String(match.name).trim() || normalized;
+        const displayName = String(match.rawName || canonical).trim() || normalized;
         const key = normalized.toLowerCase();
         let entry = summary.get(key);
         if (!entry) {
             entry = {
                 name: displayName,
+                rawName: match.rawName || displayName,
                 normalized,
                 count: 0,
                 bestPriority: -Infinity,
@@ -1142,6 +1148,7 @@ function rankSceneCharacters(matches, options = {}) {
             latestToken: Number.isFinite(entry.latestToken) ? entry.latestToken : null,
             inSceneRoster: Boolean(entry.inSceneRoster),
             firstMatchKind: entry.firstMatchKind || null,
+            rawName: entry.rawName,
             score,
         };
     });
@@ -1204,6 +1211,7 @@ function scoreMatchesDetailed(matches, textLength, options = {}) {
         const totalScore = priorityScore + biasBonus + rosterBonusApplied - distancePenalty;
         return {
             name: match?.name || '(unknown)',
+            rawName: match?.rawName || match?.name || '(unknown)',
             matchKind: match?.matchKind || 'unknown',
             priority,
             priorityScore,
@@ -1216,6 +1224,7 @@ function scoreMatchesDetailed(matches, textLength, options = {}) {
             tokenIndex: matchTokenIndex,
             tokenDistance: useTokenDistance && matchTokenIndex != null ? distanceFromEnd : null,
             inRoster,
+            nameResolution: match?.nameResolution || null,
         };
     });
 
@@ -3369,7 +3378,25 @@ function buildOutfitMatchContext(options, normalizedName, profile) {
 
 function resolveOutfitForMatch(rawName, options = {}) {
     const profile = options?.profile || getActiveProfile();
-    const normalizedName = normalizeCostumeName(rawName);
+    const rawInput = typeof options?.rawName === "string" && options.rawName.trim()
+        ? options.rawName.trim()
+        : rawName;
+    const baseToleranceSetting = options?.fuzzyTolerance ?? profile?.fuzzyTolerance ?? null;
+    const baseTranslate = Boolean(options?.translateFuzzyNames ?? profile?.translateFuzzyNames ?? profile?.translateNames ?? false);
+    const candidates = Array.isArray(profile?.mappings)
+        ? profile.mappings.map(entry => entry?.name).filter(Boolean)
+        : [];
+    const basePreprocessor = createNamePreprocessor({
+        candidates,
+        tolerance: resolveFuzzyTolerance(baseToleranceSetting),
+        translate: baseTranslate,
+    });
+    let resolution = options?.nameResolution || null;
+    if (!resolution) {
+        resolution = basePreprocessor(rawName, { priority: options?.priority ?? null });
+    }
+    let canonicalName = resolution?.canonical || rawName;
+    let normalizedName = normalizeCostumeName(canonicalName);
     const now = Number.isFinite(options?.now) ? options.now : Date.now();
 
     if (!normalizedName || !profile) {
@@ -3377,6 +3404,9 @@ function resolveOutfitForMatch(rawName, options = {}) {
             folder: String(options?.fallbackFolder || normalizedName || "").trim(),
             reason: profile ? "no-name" : "no-profile",
             normalizedName,
+            rawName: rawInput,
+            canonicalName,
+            nameResolution: resolution,
             resolvedAt: now,
             variant: null,
             trigger: null,
@@ -3385,18 +3415,46 @@ function resolveOutfitForMatch(rawName, options = {}) {
         };
     }
 
-    const mapping = findMappingForName(profile, normalizedName);
+    let mapping = findMappingForName(profile, normalizedName);
+    if (mapping && (mapping.fuzzyTolerance != null || mapping.translateFuzzyNames != null || mapping.translateNames != null)) {
+        const overrideToleranceSetting = mapping.fuzzyTolerance ?? baseToleranceSetting;
+        const overrideTranslate = mapping.translateFuzzyNames != null
+            ? Boolean(mapping.translateFuzzyNames)
+            : (mapping.translateNames != null ? Boolean(mapping.translateNames) : baseTranslate);
+        const overridePreprocessor = createNamePreprocessor({
+            candidates,
+            tolerance: resolveFuzzyTolerance(overrideToleranceSetting),
+            translate: overrideTranslate,
+        });
+        const remapped = overridePreprocessor(rawName, { priority: options?.priority ?? null });
+        if (remapped && remapped.canonical) {
+            canonicalName = remapped.canonical;
+            normalizedName = normalizeCostumeName(canonicalName);
+            resolution = {
+                ...remapped,
+                tolerance: resolveFuzzyTolerance(overrideToleranceSetting),
+                translateNames: overrideTranslate,
+            };
+            const remappedEntry = findMappingForName(profile, normalizedName);
+            if (remappedEntry) {
+                mapping = remappedEntry;
+            }
+        }
+    }
     const defaultFolder = String(options?.fallbackFolder || mapping?.defaultFolder || mapping?.folder || normalizedName).trim();
     const baseResult = {
         folder: defaultFolder || normalizedName,
         reason: "default-folder",
         normalizedName,
+        rawName: rawInput,
+        canonicalName,
         mapping,
         variant: null,
         trigger: null,
         awareness: { ok: true, reason: "no-awareness", reasons: [] },
         label: null,
         resolvedAt: now,
+        nameResolution: resolution,
     };
 
     if (!profile.enableOutfits || !mapping || !Array.isArray(mapping.outfits) || mapping.outfits.length === 0) {
@@ -3461,6 +3519,8 @@ function resolveOutfitForMatch(rawName, options = {}) {
             folder,
             reason: triggerResult.matched ? "trigger-match" : (awarenessResult.reason !== "no-awareness" ? "awareness-match" : "variant-default"),
             normalizedName,
+            rawName: rawInput,
+            canonicalName,
             mapping,
             variant,
             trigger: triggerResult.matched ? {
@@ -3472,6 +3532,7 @@ function resolveOutfitForMatch(rawName, options = {}) {
             awareness: awarenessResult,
             label,
             resolvedAt: now,
+            nameResolution: resolution,
         };
 
         matches.push({
@@ -3608,6 +3669,9 @@ function evaluateSwitchDecision(rawName, opts = {}, contextState = null, nowOver
     const now = Number.isFinite(nowOverride) ? nowOverride : Date.now();
     const decision = { now };
 
+    const suppliedRaw = typeof opts.rawName === "string" ? opts.rawName.trim() : "";
+    decision.rawName = suppliedRaw || rawName;
+    decision.nameResolution = opts.nameResolution || null;
     decision.name = normalizeCostumeName(rawName);
     const normalizedKey = decision.name.toLowerCase();
 
@@ -3627,6 +3691,8 @@ function evaluateSwitchDecision(rawName, opts = {}, contextState = null, nowOver
             context: opts.context,
             now,
             fallbackFolder: mappedFolder,
+            rawName: decision.rawName,
+            nameResolution: decision.nameResolution,
         });
         if (outfitResult && outfitResult.folder) {
             mappedFolder = outfitResult.folder;
@@ -6796,7 +6862,7 @@ function simulateTesterStream(combined, profile, bufKey) {
             const wasPresent = normalized ? msgState.sceneRoster.has(normalized) : false;
             if (normalized) {
                 msgState.sceneRoster.add(normalized);
-                rosterDisplayNames.set(normalized, bestMatch.name);
+                rosterDisplayNames.set(normalized, bestMatch.rawName || bestMatch.name);
                 const resolvedTTL = sanitizeRosterTurnValue(msgState.defaultRosterTTL ?? defaultRosterTTL);
                 if (resolvedTTL != null) {
                     msgState.rosterTurns.set(normalized, resolvedTTL);
@@ -6806,12 +6872,14 @@ function simulateTesterStream(combined, profile, bufKey) {
             rosterTimeline.push({
                 type: wasPresent ? 'refresh' : 'join',
                 name: bestMatch.name,
+                rawName: bestMatch.rawName || bestMatch.name,
                 matchKind: bestMatch.matchKind,
                 charIndex: absoluteIndex,
                 tokenIndex: matchTokenIndex,
                 tokenLength: matchTokenLength,
                 timestamp: absoluteIndex * 50,
                 rosterSize: msgState.sceneRoster.size,
+                nameResolution: bestMatch.nameResolution || null,
             });
         }
 
@@ -6826,11 +6894,13 @@ function simulateTesterStream(combined, profile, bufKey) {
                 events.push({
                     type: 'skipped',
                     name: bestMatch.name,
+                    rawName: bestMatch.rawName || bestMatch.name,
                     matchKind: bestMatch.matchKind,
                     reason: 'repeat-suppression',
                     charIndex: absoluteIndex,
                     tokenIndex: matchTokenIndex,
                     tokenLength: matchTokenLength,
+                    nameResolution: bestMatch.nameResolution || null,
                 });
             }
             continue;
@@ -6844,11 +6914,14 @@ function simulateTesterStream(combined, profile, bufKey) {
             bufKey,
             messageState: msgState,
             context: { text: buffer, matchKind: bestMatch.matchKind, roster: msgState.sceneRoster },
+            rawName: bestMatch.rawName || bestMatch.name,
+            nameResolution: bestMatch.nameResolution || null,
         }, simulationState, virtualNow);
         if (decision.shouldSwitch) {
             events.push({
                 type: 'switch',
                 name: bestMatch.name,
+                rawName: bestMatch.rawName || bestMatch.name,
                 folder: decision.folder,
                 matchKind: bestMatch.matchKind,
                 score: Math.round(bestMatch.score ?? 0),
@@ -6862,6 +6935,7 @@ function simulateTesterStream(combined, profile, bufKey) {
                     trigger: decision.outfit.trigger || null,
                     awareness: decision.outfit.awareness || null,
                 } : null,
+                nameResolution: bestMatch.nameResolution || null,
             });
             simulationState.lastIssuedCostume = decision.name;
             simulationState.lastIssuedFolder = decision.folder;
@@ -6889,6 +6963,7 @@ function simulateTesterStream(combined, profile, bufKey) {
                 events.push({
                     type: 'skipped',
                     name: bestMatch.name,
+                    rawName: bestMatch.rawName || bestMatch.name,
                     matchKind: bestMatch.matchKind,
                     reason: decision.reason || 'unknown',
                     outfit: decision.outfit ? {
@@ -6901,6 +6976,7 @@ function simulateTesterStream(combined, profile, bufKey) {
                     charIndex: absoluteIndex,
                     tokenIndex: matchTokenIndex,
                     tokenLength: matchTokenLength,
+                    nameResolution: bestMatch.nameResolution || null,
                 });
             }
         }
@@ -6910,7 +6986,7 @@ function simulateTesterStream(combined, profile, bufKey) {
             if (bestMatch.name) {
                 const normalizedName = normalizeRosterKey(bestMatch.name);
                 if (normalizedName) {
-                    displayNames.set(normalizedName, bestMatch.name);
+                    displayNames.set(normalizedName, bestMatch.rawName || bestMatch.name);
                 }
             }
             applySceneRosterUpdate({
@@ -6920,10 +6996,12 @@ function simulateTesterStream(combined, profile, bufKey) {
                 displayNames,
                 lastMatch: {
                     name: bestMatch.name,
+                    rawName: bestMatch.rawName || bestMatch.name,
                     matchKind,
                     charIndex: absoluteIndex,
                     tokenIndex: matchTokenIndex,
                     tokenLength: matchTokenLength,
+                    nameResolution: bestMatch.nameResolution || null,
                 },
                 updatedAt: now,
                 turnsByMember: cloneRosterTurns(msgState.rosterTurns),
