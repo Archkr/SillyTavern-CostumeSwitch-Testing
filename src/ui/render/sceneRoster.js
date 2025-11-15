@@ -77,6 +77,18 @@ function describeTesterSummary(testerEntry, now) {
         if (Number.isFinite(lastEvent.charIndex)) {
             detailParts.push(`#${lastEvent.charIndex + 1}`);
         }
+        if (Number.isFinite(lastEvent.tokenIndex)) {
+            const tokenStart = lastEvent.tokenIndex + 1;
+            const tokenLength = Number.isFinite(lastEvent.tokenLength) && lastEvent.tokenLength > 1
+                ? lastEvent.tokenLength
+                : null;
+            if (tokenLength) {
+                const tokenEnd = tokenStart + tokenLength - 1;
+                detailParts.push(`T#${tokenStart}…${tokenEnd}`);
+            } else {
+                detailParts.push(`T#${tokenStart}`);
+            }
+        }
         const detail = detailParts.length ? ` (${detailParts.join(" · ")})` : "";
         const when = Number.isFinite(lastEvent.timestamp) ? formatRelativeTime(lastEvent.timestamp, now) : null;
         const line = `Last ${label}${detail}${when ? ` · ${when}` : ""}`;

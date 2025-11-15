@@ -118,6 +118,18 @@ function renderEvent(entry, displayNames, now) {
     if (Number.isFinite(entry.charIndex)) {
         metaParts.push(`#${entry.charIndex + 1}`);
     }
+    if (Number.isFinite(entry.tokenIndex)) {
+        const tokenStart = entry.tokenIndex + 1;
+        const tokenLength = Number.isFinite(entry.tokenLength) && entry.tokenLength > 1
+            ? entry.tokenLength
+            : null;
+        if (tokenLength) {
+            const tokenEnd = tokenStart + tokenLength - 1;
+            metaParts.push(`T#${tokenStart}…${tokenEnd}`);
+        } else {
+            metaParts.push(`T#${tokenStart}`);
+        }
+    }
     if (entry.outfit?.label) {
         metaParts.push(entry.outfit.label);
     }
@@ -148,7 +160,11 @@ export function renderLiveLog(target, panelState = {}) {
     const events = Array.isArray(analytics.events) ? analytics.events : [];
     const stats = analytics.stats instanceof Map ? analytics.stats : null;
     const buffer = typeof analytics.buffer === "string" ? analytics.buffer : "";
-    const tokenCount = buffer.trim() ? buffer.trim().split(/\s+/).filter(Boolean).length : 0;
+    const tokenCount = Number.isFinite(analytics.tokenCount)
+        ? analytics.tokenCount
+        : buffer.trim()
+            ? buffer.trim().split(/\s+/).filter(Boolean).length
+            : 0;
     const charCount = buffer.length;
     const now = Number.isFinite(panelState.now) ? panelState.now : Date.now();
 

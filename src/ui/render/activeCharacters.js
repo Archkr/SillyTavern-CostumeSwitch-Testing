@@ -75,6 +75,18 @@ function renderCard(entry, { displayNames, now, pinned = false }) {
         if (Number.isFinite(lastEvent.charIndex)) {
             eventParts.push(`#${lastEvent.charIndex + 1}`);
         }
+        if (Number.isFinite(lastEvent.tokenIndex)) {
+            const tokenStart = lastEvent.tokenIndex + 1;
+            const tokenLength = Number.isFinite(lastEvent.tokenLength) && lastEvent.tokenLength > 1
+                ? lastEvent.tokenLength
+                : null;
+            if (tokenLength) {
+                const tokenEnd = tokenStart + tokenLength - 1;
+                eventParts.push(`T#${tokenStart}…${tokenEnd}`);
+            } else {
+                eventParts.push(`T#${tokenStart}`);
+            }
+        }
         if (when) {
             eventParts.push(when);
         }

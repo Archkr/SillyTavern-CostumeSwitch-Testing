@@ -1,8 +1,212 @@
 import { collectProfilePreprocessorScripts, applyPreprocessorScripts } from "./core/script-preprocessor.js";
+import { getTextTokens, getTokenCountAsync } from "../tokenizers.js";
 
 const DEFAULT_UNICODE_WORD_PATTERN = "[\\p{L}\\p{M}\\p{N}_]";
 const WORD_CHAR_REGEX = /[\p{L}\p{M}\p{N}]/u;
 const DEFAULT_BOUNDARY_LOOKBEHIND = "(?<![A-Za-z0-9_'’])";
+
+const PROFILE_TOKENIZER_CACHE = new WeakMap();
+
+function normalizeTokenizerPreference(value) {
+    if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed) {
+            return trimmed;
+        }
+    }
+    return null;
+}
+
+function resolveProfileTokenizer(profile) {
+    if (!profile || typeof profile !== "object") {
+        return null;
+    }
+    const candidates = [
+        profile.tokenizerId,
+        profile.tokenizer,
+        profile.tokenizerPreference,
+        profile.tokenPreference,
+        profile.tokenizerName,
+    ];
+    const signature = candidates.map((candidate) => (candidate == null ? "" : String(candidate))).join("|");
+    const cached = PROFILE_TOKENIZER_CACHE.get(profile);
+    if (cached && cached.signature === signature) {
+        return cached.id;
+    }
+    let resolved = null;
+    for (const candidate of candidates) {
+        const normalized = normalizeTokenizerPreference(candidate);
+        if (normalized) {
+            resolved = normalized;
+            break;
+        }
+    }
+    PROFILE_TOKENIZER_CACHE.set(profile, { id: resolved, signature });
+    return resolved;
+}
+
+function cloneTokenOffsets(offsets) {
+    if (!Array.isArray(offsets) || offsets.length === 0) {
+        return [];
+    }
+    return offsets.map((entry) => {
+        if (!entry || typeof entry !== "object") {
+            return { start: 0, end: 0 };
+        }
+        const start = Number.isFinite(entry.start) ? Math.max(0, Math.floor(entry.start)) : 0;
+        const end = Number.isFinite(entry.end) ? Math.max(start, Math.floor(entry.end)) : start;
+        return { start, end };
+    });
+}
+
+function deriveTokenOffsets(tokens, text) {
+    if (Array.isArray(tokens) && tokens.length > 0) {
+        const descriptor = Object.getOwnPropertyDescriptor(tokens, "offsets");
+        if (descriptor && Array.isArray(descriptor.value)) {
+            return cloneTokenOffsets(descriptor.value);
+        }
+    }
+    const input = typeof text === "string" ? text : String(text ?? "");
+    if (!input) {
+        return [];
+    }
+    const fallbackOffsets = [];
+    const pattern = /\S+/g;
+    let match;
+    while ((match = pattern.exec(input)) !== null) {
+        const token = match[0];
+        const start = match.index;
+        const end = start + token.length;
+        fallbackOffsets.push({ start, end });
+    }
+    return fallbackOffsets;
+}
+
+function findTokenIndexCeil(offsets, charIndex) {
+    if (!Array.isArray(offsets) || offsets.length === 0) {
+        return null;
+    }
+    if (!Number.isFinite(charIndex)) {
+        return null;
+    }
+    const target = Math.max(0, Math.floor(charIndex));
+    for (let i = 0; i < offsets.length; i += 1) {
+        const { start, end } = offsets[i];
+        if (!Number.isFinite(start) || !Number.isFinite(end)) {
+            continue;
+        }
+        if (target <= start) {
+            return i;
+        }
+        if (target >= start && target < end) {
+            return i;
+        }
+    }
+    return offsets.length;
+}
+
+function findTokenIndexFloor(offsets, charIndex) {
+    if (!Array.isArray(offsets) || offsets.length === 0) {
+        return null;
+    }
+    if (!Number.isFinite(charIndex)) {
+        return null;
+    }
+    const target = Math.max(0, Math.floor(charIndex));
+    let candidate = -1;
+    for (let i = 0; i < offsets.length; i += 1) {
+        const { start, end } = offsets[i];
+        if (!Number.isFinite(start) || !Number.isFinite(end)) {
+            continue;
+        }
+        if (target >= start) {
+            candidate = i;
+        }
+        if (target < end) {
+            break;
+        }
+    }
+    return candidate;
+}
+
+function tokenIndexToCharStart(offsets, tokenIndex, textLength = 0) {
+    if (!Array.isArray(offsets) || offsets.length === 0) {
+        return null;
+    }
+    if (!Number.isFinite(tokenIndex)) {
+        return null;
+    }
+    const index = Math.max(0, Math.floor(tokenIndex));
+    if (index <= 0) {
+        const start = offsets[0]?.start;
+        return Number.isFinite(start) ? start : 0;
+    }
+    if (index >= offsets.length) {
+        const last = offsets[offsets.length - 1];
+        const end = Number.isFinite(last?.end) ? last.end : textLength;
+        return Number.isFinite(end) ? end : textLength;
+    }
+    const start = offsets[index]?.start;
+    return Number.isFinite(start) ? start : 0;
+}
+
+function computeMatchTokenSpan(offsets, startChar, matchLength) {
+    if (!Array.isArray(offsets) || offsets.length === 0) {
+        return { start: null, length: null };
+    }
+    if (!Number.isFinite(startChar)) {
+        return { start: null, length: null };
+    }
+    const safeStart = Math.max(0, Math.floor(startChar));
+    const safeLength = Number.isFinite(matchLength) && matchLength > 0
+        ? Math.max(0, Math.floor(matchLength))
+        : 0;
+    const inclusiveEnd = safeLength > 0 ? safeStart + safeLength - 1 : safeStart;
+    const tokenStart = findTokenIndexCeil(offsets, safeStart);
+    if (tokenStart == null || tokenStart >= offsets.length) {
+        return { start: null, length: null };
+    }
+    let tokenEnd = findTokenIndexFloor(offsets, inclusiveEnd);
+    if (tokenEnd == null || tokenEnd < tokenStart) {
+        tokenEnd = tokenStart;
+    }
+    return {
+        start: tokenStart,
+        length: Math.max(1, tokenEnd - tokenStart + 1),
+    };
+}
+
+function buildTokenProjection(profile, text) {
+    if (!text) {
+        return null;
+    }
+    const tokenizerId = resolveProfileTokenizer(profile);
+    let tokens = null;
+    try {
+        tokens = getTextTokens(tokenizerId, text);
+    } catch (error) {
+        tokens = null;
+    }
+    if (!Array.isArray(tokens)) {
+        return null;
+    }
+    const offsets = deriveTokenOffsets(tokens, text);
+    let countPromise = null;
+    if (!offsets.length) {
+        try {
+            countPromise = getTokenCountAsync(text, tokenizerId);
+        } catch (error) {
+            countPromise = null;
+        }
+    }
+    return {
+        tokenizerId: tokenizerId || null,
+        tokens,
+        offsets,
+        count: offsets.length,
+        countPromise,
+    };
+}
 
 export function escapeRegex(value) {
     return String(value).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
@@ -317,21 +521,38 @@ export function findMatches(text, regex, quoteRanges, options = {}) {
     }
     const results = [];
     const searchInsideQuotes = Boolean(options.searchInsideQuotes);
-    const startIndex = Number.isFinite(options.startIndex) && options.startIndex > 0
+    const tokenOffsets = Array.isArray(options.tokenOffsets) && options.tokenOffsets.length
+        ? options.tokenOffsets
+        : null;
+    const startTokenIndex = Number.isFinite(options.startTokenIndex)
+        ? Math.max(0, Math.floor(options.startTokenIndex))
+        : null;
+    const minTokenIndex = Number.isFinite(options.minTokenIndex)
+        ? Math.max(-1, Math.floor(options.minTokenIndex))
+        : null;
+    const fallbackStartIndex = Number.isFinite(options.startIndex) && options.startIndex > 0
         ? Math.max(0, Math.floor(options.startIndex))
         : 0;
-    const minIndex = Number.isFinite(options.minIndex)
+    const fallbackMinIndex = Number.isFinite(options.minIndex)
         ? Math.max(0, Math.floor(options.minIndex))
         : null;
+    const resolvedStartIndex = tokenOffsets && startTokenIndex != null
+        ? Math.max(0, tokenIndexToCharStart(tokenOffsets, startTokenIndex, text.length) ?? fallbackStartIndex)
+        : fallbackStartIndex;
+    const resolvedMinIndex = fallbackMinIndex;
     const flags = regex.flags.includes("g") ? regex.flags : `${regex.flags}g`;
     const matcher = new RegExp(regex.source, flags);
-    if (startIndex > 0) {
-        matcher.lastIndex = startIndex;
+    if (resolvedStartIndex > 0) {
+        matcher.lastIndex = resolvedStartIndex;
     }
     let match;
     while ((match = matcher.exec(text)) !== null) {
         const matchLength = typeof match[0] === "string" ? match[0].length : 0;
-        if (minIndex != null && match.index + matchLength <= minIndex) {
+        let shouldSkip = false;
+        if (resolvedMinIndex != null && match.index + matchLength <= resolvedMinIndex) {
+            shouldSkip = true;
+        }
+        if (shouldSkip) {
             continue;
         }
         if (searchInsideQuotes || !isIndexInsideQuotes(match.index, quoteRanges)) {
@@ -471,25 +692,58 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
     }
     const priorityWeights = options.priorityWeights || {};
     const scanDialogueActions = Boolean(options.scanDialogueActions);
-    const startIndex = Number.isFinite(options.startIndex) && options.startIndex > 0
+    const tokenProjection = buildTokenProjection(profile, sourceText);
+    const tokenOffsets = Array.isArray(tokenProjection?.offsets) && tokenProjection.offsets.length
+        ? tokenProjection.offsets
+        : null;
+    const rawStartIndex = Number.isFinite(options.startIndex) && options.startIndex > 0
         ? Math.max(0, Math.floor(options.startIndex))
         : 0;
-    const minIndex = Number.isFinite(options.minIndex)
+    const rawMinIndex = Number.isFinite(options.minIndex)
         ? Math.max(0, Math.floor(options.minIndex))
         : null;
-    const matchOptions = { startIndex, minIndex };
+    let startTokenIndex = null;
+    let minTokenIndex = null;
+    let effectiveStartIndex = rawStartIndex;
+    let effectiveMinIndex = rawMinIndex;
+    if (tokenOffsets) {
+        startTokenIndex = findTokenIndexCeil(tokenOffsets, rawStartIndex);
+        if (startTokenIndex != null) {
+            const mapped = tokenIndexToCharStart(tokenOffsets, startTokenIndex, sourceText.length);
+            if (Number.isFinite(mapped)) {
+                effectiveStartIndex = mapped;
+            }
+        }
+        if (rawMinIndex != null && rawMinIndex > 0) {
+            const floorIndex = findTokenIndexFloor(tokenOffsets, rawMinIndex);
+            if (floorIndex != null) {
+                minTokenIndex = floorIndex;
+            }
+        }
+    }
+    const matchOptions = {
+        startIndex: effectiveStartIndex,
+        minIndex: effectiveMinIndex,
+        tokenOffsets,
+        startTokenIndex,
+        minTokenIndex,
+    };
 
-    const addMatch = (name, matchKind, index, priority, length = null) => {
+    const addMatch = (name, matchKind, index, priority, length = null, span = null) => {
         const trimmedName = String(name ?? "").trim();
         if (!trimmedName) {
             return;
         }
+        const tokenIndex = Number.isFinite(span?.start) ? span.start : null;
+        const tokenLength = Number.isFinite(span?.length) && span.length > 0 ? span.length : null;
         matches.push({
             name: trimmedName,
             matchKind,
             matchIndex: Number.isFinite(index) ? index : null,
             priority: Number.isFinite(priority) ? priority : null,
             matchLength: Number.isFinite(length) && length > 0 ? length : null,
+            tokenIndex,
+            tokenLength,
         });
     };
 
@@ -501,7 +755,8 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
     if (regexes.speakerRegex) {
         findMatches(sourceText, regexes.speakerRegex, quoteRanges, matchOptions).forEach(match => {
             const name = match.groups?.[0]?.trim();
-            addMatch(name, "speaker", match.index, priorityWeights.speaker, getMatchLength(match));
+            const span = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, match.index, getMatchLength(match)) : null;
+            addMatch(name, "speaker", match.index, priorityWeights.speaker, getMatchLength(match), span);
         });
     }
 
@@ -513,7 +768,8 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
             { searchInsideQuotes: scanDialogueActions, ...matchOptions },
         ).forEach(match => {
             const name = match.groups?.find(group => group)?.trim();
-            addMatch(name, "attribution", match.index, priorityWeights.attribution, getMatchLength(match));
+            const span = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, match.index, getMatchLength(match)) : null;
+            addMatch(name, "attribution", match.index, priorityWeights.attribution, getMatchLength(match), span);
         });
     }
 
@@ -525,7 +781,8 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
             { searchInsideQuotes: scanDialogueActions, ...matchOptions },
         ).forEach(match => {
             const name = match.groups?.find(group => group)?.trim();
-            addMatch(name, "action", match.index, priorityWeights.action, getMatchLength(match));
+            const span = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, match.index, getMatchLength(match)) : null;
+            addMatch(name, "action", match.index, priorityWeights.action, getMatchLength(match), span);
         });
     }
 
@@ -535,7 +792,8 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
 
     if (profile.detectPronoun && regexes.pronounRegex && validatedSubject) {
         findMatches(sourceText, regexes.pronounRegex, quoteRanges, matchOptions).forEach(match => {
-            addMatch(validatedSubject, "pronoun", match.index, priorityWeights.pronoun, getMatchLength(match));
+            const span = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, match.index, getMatchLength(match)) : null;
+            addMatch(validatedSubject, "pronoun", match.index, priorityWeights.pronoun, getMatchLength(match), span);
         });
     }
 
@@ -547,14 +805,16 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
             { searchInsideQuotes: true, ...matchOptions },
         ).forEach(match => {
             const name = match.groups?.[0]?.trim();
-            addMatch(name, "vocative", match.index, priorityWeights.vocative, getMatchLength(match));
+            const span = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, match.index, getMatchLength(match)) : null;
+            addMatch(name, "vocative", match.index, priorityWeights.vocative, getMatchLength(match), span);
         });
     }
 
     if (profile.detectPossessive && regexes.possessiveRegex) {
         findMatches(sourceText, regexes.possessiveRegex, quoteRanges, matchOptions).forEach(match => {
             const name = match.groups?.[0]?.trim();
-            addMatch(name, "possessive", match.index, priorityWeights.possessive, getMatchLength(match));
+            const span = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, match.index, getMatchLength(match)) : null;
+            addMatch(name, "possessive", match.index, priorityWeights.possessive, getMatchLength(match), span);
         });
     }
 
@@ -562,9 +822,17 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         findMatches(sourceText, regexes.nameRegex, quoteRanges, matchOptions).forEach(match => {
             const raw = match.groups?.[0] ?? match.match;
             const name = String(raw ?? "").replace(/-(?:sama|san)$/i, "").trim();
-            addMatch(name, "name", match.index, priorityWeights.name, getMatchLength(match));
+            const span = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, match.index, getMatchLength(match)) : null;
+            addMatch(name, "name", match.index, priorityWeights.name, getMatchLength(match), span);
         });
     }
+
+    matches.tokenizerId = tokenProjection?.tokenizerId || null;
+    matches.tokenCount = Number.isFinite(tokenProjection?.count) ? tokenProjection.count : tokenOffsets?.length || null;
+    matches.tokenOffsets = tokenOffsets ? cloneTokenOffsets(tokenOffsets) : null;
+    matches.tokenCountPromise = tokenProjection?.countPromise || null;
+    matches.startTokenIndex = startTokenIndex;
+    matches.minTokenIndex = minTokenIndex;
 
     return matches;
 }

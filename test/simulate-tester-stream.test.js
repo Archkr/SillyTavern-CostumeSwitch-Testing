@@ -173,8 +173,12 @@ test("first-token pronoun yields a detection when falling back to the pending su
     }).filter(match => match.matchKind === "pronoun");
     assert.ok(pronounMatches.length > 0, "expected a pronoun match from the detector core");
     assert.equal(pronounMatches[0].matchIndex, 0, "pronoun detection should start at the first token");
+    assert.equal(pronounMatches[0].tokenIndex, 0, "pronoun detection should begin with the first token index");
     const expectedEnd = pronounMatches[0].matchIndex + (pronounMatches[0].matchLength || 1) - 1;
     assert.equal(pronounEvents[0].charIndex, expectedEnd, "pronoun detection should report the ending index of the match span");
+    const expectedTokenEnd = pronounMatches[0].tokenIndex + (pronounMatches[0].tokenLength || 1) - 1;
+    const eventTokenEnd = pronounEvents[0].tokenIndex + ((pronounEvents[0].tokenLength || 1) - 1);
+    assert.equal(eventTokenEnd, expectedTokenEnd, "pronoun detection should report the ending token span");
     assert.equal(msgState.pendingSubject, "Kotori", "pending subject should persist until a non-pronoun confirmation occurs");
 });
 

@@ -920,7 +920,10 @@ function findAllMatches(combined, options = {}) {
 function findBestMatch(combined, precomputedMatches = null, options = {}) {
     const profile = getActiveProfile();
     if (!profile) return null;
-    const allMatches = Array.isArray(precomputedMatches) ? precomputedMatches : findAllMatches(combined);
+    const matchOptions = options && typeof options === 'object' ? { ...options } : {};
+    const allMatches = Array.isArray(precomputedMatches)
+        ? precomputedMatches
+        : findAllMatches(combined, matchOptions);
     if (Array.isArray(precomputedMatches) && typeof precomputedMatches.preprocessedText === "string") {
         state.lastPreprocessedText = precomputedMatches.preprocessedText;
     }
@@ -946,6 +949,14 @@ function findBestMatch(combined, precomputedMatches = null, options = {}) {
         scoringOptions.minIndex = options.minIndex;
     }
 
+    if (Number.isFinite(allMatches?.tokenCount)) {
+        scoringOptions.tokenLength = allMatches.tokenCount;
+    }
+
+    if (Number.isFinite(allMatches?.minTokenIndex)) {
+        scoringOptions.minTokenIndex = allMatches.minTokenIndex;
+    }
+
     return getWinner(allMatches, profile.detectionBias, combined.length, scoringOptions);
 }
 
@@ -962,6 +973,14 @@ function getWinner(matches, bias = 0, textLength = 0, options = {}) {
         ? options.priorityMultiplier
         : 100;
     const minIndex = Number.isFinite(options?.minIndex) && options.minIndex >= 0 ? options.minIndex : null;
+    const fallbackTokenLength = Number.isFinite(matches?.tokenCount) ? matches.tokenCount : null;
+    const tokenLength = Number.isFinite(options?.tokenLength) ? options.tokenLength : fallbackTokenLength;
+    const minTokenIndex = Number.isFinite(options?.minTokenIndex)
+        ? options.minTokenIndex
+        : Number.isFinite(matches?.minTokenIndex)
+            ? matches.minTokenIndex
+            : null;
+    const useTokenDistance = Number.isFinite(tokenLength) && tokenLength >= 0;
     const scoredMatches = [];
 
     matches.forEach((match) => {
@@ -973,12 +992,27 @@ function getWinner(matches, bias = 0, textLength = 0, options = {}) {
         const matchEndIndex = hasFiniteIndex
             ? match.matchIndex + matchLength - 1
             : null;
-        if (minIndex != null && hasFiniteIndex && matchEndIndex != null && matchEndIndex <= minIndex) {
+        const matchTokenIndex = Number.isFinite(match.tokenIndex)
+            ? Math.floor(match.tokenIndex)
+            : null;
+        const matchTokenLength = Number.isFinite(match.tokenLength) && match.tokenLength > 0
+            ? Math.floor(match.tokenLength)
+            : null;
+        const tokenEndIndex = matchTokenIndex != null
+            ? matchTokenIndex + (matchTokenLength != null ? matchTokenLength - 1 : 0)
+            : null;
+        if (minIndex != null
+            && hasFiniteIndex
+            && matchEndIndex != null
+            && matchEndIndex <= minIndex) {
             return;
         }
-        const distanceFromEnd = Number.isFinite(textLength)
-            ? Math.max(0, textLength - match.matchIndex)
-            : 0;
+        let distanceFromEnd = 0;
+        if (useTokenDistance && matchTokenIndex != null) {
+            distanceFromEnd = Math.max(0, tokenLength - matchTokenIndex);
+        } else if (Number.isFinite(textLength) && hasFiniteIndex) {
+            distanceFromEnd = Math.max(0, textLength - match.matchIndex);
+        }
         const baseScore = match.priority * priorityMultiplier - distancePenaltyWeight * distanceFromEnd;
         let score = baseScore + (isActive ? bias : 0);
         if (rosterSet) {
@@ -992,7 +1026,12 @@ function getWinner(matches, bias = 0, textLength = 0, options = {}) {
                 score += bonus;
             }
         }
-        scoredMatches.push({ ...match, score });
+        scoredMatches.push({
+            ...match,
+            score,
+            tokenIndex: matchTokenIndex,
+            tokenLength: matchTokenLength,
+        });
     });
     scoredMatches.sort((a, b) => b.score - a.score);
     return scoredMatches[0];
@@ -1017,6 +1056,9 @@ function rankSceneCharacters(matches, options = {}) {
     }
 
     const rosterSet = buildLowercaseSet(options?.rosterSet);
+    const fallbackTokenLength = Number.isFinite(matches?.tokenCount) ? matches.tokenCount : null;
+    const tokenLength = Number.isFinite(options?.tokenLength) ? options.tokenLength : fallbackTokenLength;
+    const useTokenMetrics = Number.isFinite(tokenLength) && tokenLength >= 0;
     const summary = new Map();
 
     matches.forEach((match, idx) => {
@@ -1035,6 +1077,8 @@ function rankSceneCharacters(matches, options = {}) {
                 bestPriority: -Infinity,
                 earliest: Number.POSITIVE_INFINITY,
                 latest: Number.NEGATIVE_INFINITY,
+                earliestToken: Number.POSITIVE_INFINITY,
+                latestToken: Number.NEGATIVE_INFINITY,
                 inSceneRoster: rosterSet ? rosterSet.has(key) : false,
             };
             summary.set(key, entry);
@@ -1046,12 +1090,21 @@ function rankSceneCharacters(matches, options = {}) {
             entry.bestPriority = priority;
         }
         const index = Number.isFinite(match.matchIndex) ? match.matchIndex : idx;
+        const tokenIndex = Number.isFinite(match.tokenIndex) ? Math.floor(match.tokenIndex) : null;
         if (index < entry.earliest) {
             entry.earliest = index;
             entry.firstMatchKind = match.matchKind || entry.firstMatchKind || null;
         }
         if (index > entry.latest) {
             entry.latest = index;
+        }
+        if (tokenIndex != null) {
+            if (tokenIndex < entry.earliestToken) {
+                entry.earliestToken = tokenIndex;
+            }
+            if (tokenIndex > entry.latestToken) {
+                entry.latestToken = tokenIndex;
+            }
         }
         if (!entry.inSceneRoster && rosterSet) {
             entry.inSceneRoster = rosterSet.has(key);
@@ -1071,8 +1124,12 @@ function rankSceneCharacters(matches, options = {}) {
     const ranked = Array.from(summary.values()).map((entry) => {
         const priorityScore = Number.isFinite(entry.bestPriority) ? entry.bestPriority : 0;
         const earliest = Number.isFinite(entry.earliest) ? entry.earliest : Number.MAX_SAFE_INTEGER;
+        const earliestToken = Number.isFinite(entry.earliestToken) ? entry.earliestToken : Number.POSITIVE_INFINITY;
+        const distanceBasis = useTokenMetrics && Number.isFinite(earliestToken)
+            ? earliestToken
+            : earliest;
         const rosterBonus = entry.inSceneRoster ? rosterBonusWeight : 0;
-        const earliestPenalty = earliest * distancePenaltyWeight;
+        const earliestPenalty = distanceBasis * distancePenaltyWeight;
         const score = entry.count * countWeight + priorityScore * priorityMultiplier + rosterBonus - earliestPenalty;
         return {
             name: entry.name,
@@ -1081,6 +1138,8 @@ function rankSceneCharacters(matches, options = {}) {
             bestPriority: priorityScore,
             earliest: Number.isFinite(entry.earliest) ? entry.earliest : null,
             latest: Number.isFinite(entry.latest) ? entry.latest : null,
+            earliestToken: Number.isFinite(entry.earliestToken) ? entry.earliestToken : null,
+            latestToken: Number.isFinite(entry.latestToken) ? entry.latestToken : null,
             inSceneRoster: Boolean(entry.inSceneRoster),
             firstMatchKind: entry.firstMatchKind || null,
             score,
@@ -1112,11 +1171,19 @@ function scoreMatchesDetailed(matches, textLength, options = {}) {
     const rosterPriorityDropoff = resolveNumericSetting(options?.rosterPriorityDropoff, PROFILE_DEFAULTS.rosterPriorityDropoff);
     const distancePenaltyWeight = resolveNumericSetting(options?.distancePenaltyWeight, PROFILE_DEFAULTS.distancePenaltyWeight);
     const rosterSet = buildLowercaseSet(options?.rosterSet);
+    const fallbackTokenLength = Number.isFinite(matches?.tokenCount) ? matches.tokenCount : null;
+    const tokenLength = Number.isFinite(options?.tokenLength) ? options.tokenLength : fallbackTokenLength;
+    const useTokenDistance = Number.isFinite(tokenLength) && tokenLength >= 0;
 
     const scored = matches.map((match, idx) => {
         const priority = Number(match?.priority) || 0;
         const matchIndex = Number.isFinite(match?.matchIndex) ? match.matchIndex : idx;
-        const distanceFromEnd = Number.isFinite(textLength) ? Math.max(0, textLength - matchIndex) : 0;
+        const matchTokenIndex = Number.isFinite(match?.tokenIndex) ? Math.floor(match.tokenIndex) : null;
+        const distanceFromEnd = useTokenDistance && matchTokenIndex != null
+            ? Math.max(0, tokenLength - matchTokenIndex)
+            : Number.isFinite(textLength)
+                ? Math.max(0, textLength - matchIndex)
+                : 0;
         const priorityScore = priority * priorityMultiplier;
         const biasBonus = priority >= 3 ? detectionBias : 0;
         let rosterBonusApplied = 0;
@@ -1146,6 +1213,8 @@ function scoreMatchesDetailed(matches, textLength, options = {}) {
             totalScore,
             matchIndex,
             charIndex: matchIndex,
+            tokenIndex: matchTokenIndex,
+            tokenDistance: useTokenDistance && matchTokenIndex != null ? distanceFromEnd : null,
             inRoster,
         };
     });
@@ -1675,6 +1744,9 @@ function collectScenePanelState(options = {}) {
             ranking: rankingForMessage,
             events,
             matches,
+            tokenCount: Number.isFinite(matches?.tokenCount) ? matches.tokenCount : null,
+            minTokenIndex: Number.isFinite(matches?.minTokenIndex) ? matches.minTokenIndex : null,
+            tokenizerId: matches?.tokenizerId || null,
             updatedAt,
         },
         now,
@@ -6702,6 +6774,13 @@ function simulateTesterStream(combined, profile, bufKey) {
         const matchLength = Number.isFinite(bestMatch.matchLength) && bestMatch.matchLength > 0
             ? Math.floor(bestMatch.matchLength)
             : 1;
+        const matchTokenIndex = Number.isFinite(bestMatch.tokenIndex)
+            ? Math.floor(bestMatch.tokenIndex)
+            : null;
+        const matchTokenLength = Number.isFinite(bestMatch.tokenLength) && bestMatch.tokenLength > 0
+            ? Math.floor(bestMatch.tokenLength)
+            : null;
+        const matchKind = bestMatch.matchKind;
         const matchEndRelative = Number.isFinite(bestMatch.matchIndex)
             ? bestMatch.matchIndex + matchLength - 1
             : null;
@@ -6729,6 +6808,8 @@ function simulateTesterStream(combined, profile, bufKey) {
                 name: bestMatch.name,
                 matchKind: bestMatch.matchKind,
                 charIndex: absoluteIndex,
+                tokenIndex: matchTokenIndex,
+                tokenLength: matchTokenLength,
                 timestamp: absoluteIndex * 50,
                 rosterSize: msgState.sceneRoster.size,
             });
@@ -6742,7 +6823,15 @@ function simulateTesterStream(combined, profile, bufKey) {
         if (msgState.lastAcceptedName?.toLowerCase() === bestMatch.name.toLowerCase()
             && (virtualNow - msgState.lastAcceptedTs < repeatSuppress)) {
             if (bestMatch.matchKind !== 'pronoun') {
-                events.push({ type: 'skipped', name: bestMatch.name, matchKind: bestMatch.matchKind, reason: 'repeat-suppression', charIndex: absoluteIndex });
+                events.push({
+                    type: 'skipped',
+                    name: bestMatch.name,
+                    matchKind: bestMatch.matchKind,
+                    reason: 'repeat-suppression',
+                    charIndex: absoluteIndex,
+                    tokenIndex: matchTokenIndex,
+                    tokenLength: matchTokenLength,
+                });
             }
             continue;
         }
@@ -6764,6 +6853,8 @@ function simulateTesterStream(combined, profile, bufKey) {
                 matchKind: bestMatch.matchKind,
                 score: Math.round(bestMatch.score ?? 0),
                 charIndex: absoluteIndex,
+                tokenIndex: matchTokenIndex,
+                tokenLength: matchTokenLength,
                 outfit: decision.outfit ? {
                     folder: decision.outfit.folder,
                     label: decision.outfit.label || null,
@@ -6808,6 +6899,8 @@ function simulateTesterStream(combined, profile, bufKey) {
                         awareness: decision.outfit.awareness || null,
                     } : null,
                     charIndex: absoluteIndex,
+                    tokenIndex: matchTokenIndex,
+                    tokenLength: matchTokenLength,
                 });
             }
         }
@@ -6829,6 +6922,8 @@ function simulateTesterStream(combined, profile, bufKey) {
                     name: bestMatch.name,
                     matchKind,
                     charIndex: absoluteIndex,
+                    tokenIndex: matchTokenIndex,
+                    tokenLength: matchTokenLength,
                 },
                 updatedAt: now,
                 turnsByMember: cloneRosterTurns(msgState.rosterTurns),
@@ -6888,10 +6983,25 @@ function renderTesterStream(eventList, events) {
     }
 
     let delay = 0;
+    const formatTokenSpan = (event) => {
+        if (!event || !Number.isFinite(event.tokenIndex)) {
+            return "";
+        }
+        const start = event.tokenIndex + 1;
+        const length = Number.isFinite(event.tokenLength) && event.tokenLength > 1
+            ? Math.floor(event.tokenLength)
+            : null;
+        if (length && length > 1) {
+            const end = start + length - 1;
+            return `, token T#${start}…${end}`;
+        }
+        return `, token T#${start}`;
+    };
     events.forEach(event => {
         const item = $('<li>');
         if (event.type === 'switch') {
-            const details = `${event.name}${event.matchKind ? ' via ' + event.matchKind : ''}, char #${event.charIndex + 1}${Number.isFinite(event.score) ? ', score ' + event.score : ''}`;
+            const tokenSummary = formatTokenSpan(event);
+            const details = `${event.name}${event.matchKind ? ' via ' + event.matchKind : ''}, char #${event.charIndex + 1}${tokenSummary}${Number.isFinite(event.score) ? ', score ' + event.score : ''}`;
             const outfitInfo = summarizeOutfitDecision(event.outfit);
             const extra = outfitInfo ? `<br><span class="cs-tester-outfit-detail">${escapeHtml(outfitInfo)}</span>` : '';
             item.addClass('cs-tester-log-switch').html(`<b>Switch → ${escapeHtml(event.folder)}</b><small> (${escapeHtml(details)})${extra}</small>`);
@@ -6901,7 +7011,8 @@ function renderTesterStream(eventList, events) {
             const skipDetails = `${event.matchKind}, ${describeSkipReason(event.reason)}`;
             const outfitInfo = summarizeOutfitDecision(event.outfit);
             const extra = outfitInfo ? `<br><span class="cs-tester-outfit-detail">${escapeHtml(outfitInfo)}</span>` : '';
-            item.addClass('cs-tester-log-skip').html(`<span>${escapeHtml(event.name)}</span><small> (${escapeHtml(skipDetails)})${extra}</small>`);
+            const tokenSummary = formatTokenSpan(event);
+            item.addClass('cs-tester-log-skip').html(`<span>${escapeHtml(event.name)}</span><small> (${escapeHtml(skipDetails)}${tokenSummary})${extra}</small>`);
         }
 
         const timer = setTimeout(() => {
@@ -7024,6 +7135,7 @@ function testRegexPattern() {
             distancePenaltyWeight: resolveNumericSetting(tempProfile?.distancePenaltyWeight, PROFILE_DEFAULTS.distancePenaltyWeight),
             rosterBonus: resolveNumericSetting(tempProfile?.rosterBonus, PROFILE_DEFAULTS.rosterBonus),
             priorityMultiplier: 100,
+            tokenLength: Number.isFinite(allMatches?.tokenCount) ? allMatches.tokenCount : null,
         });
         const detailedScores = scoreMatchesDetailed(allMatches, combined.length, {
             rosterSet: testerRoster,
@@ -7032,6 +7144,7 @@ function testRegexPattern() {
             rosterBonus: resolveNumericSetting(tempProfile?.rosterBonus, PROFILE_DEFAULTS.rosterBonus),
             rosterPriorityDropoff: resolveNumericSetting(tempProfile?.rosterPriorityDropoff, PROFILE_DEFAULTS.rosterPriorityDropoff),
             priorityMultiplier: 100,
+            tokenLength: Number.isFinite(allMatches?.tokenCount) ? allMatches.tokenCount : null,
         });
         renderTesterScoreBreakdown(detailedScores);
         renderTesterRosterTimeline(simulationResult?.rosterTimeline || [], simulationResult?.rosterWarnings || []);
@@ -8050,6 +8163,9 @@ function createDetectionContext(bufferOffset = 0) {
             matches: [],
             processedAbsolute: offset - 1,
             windowOffset: offset,
+            tokenCount: null,
+            tokenizerId: null,
+            minTokenIndex: null,
         },
         metrics: {
             incrementalRuns: 0,
@@ -8206,12 +8322,20 @@ function normalizeMatchForCache(match, bufferOffset) {
     const absoluteIndex = Number.isFinite(match.matchIndex)
         ? match.matchIndex + bufferOffset
         : null;
+    const tokenIndex = Number.isFinite(match.tokenIndex)
+        ? Math.floor(match.tokenIndex)
+        : null;
+    const tokenLength = Number.isFinite(match.tokenLength) && match.tokenLength > 0
+        ? Math.floor(match.tokenLength)
+        : null;
     return {
         name: match.name,
         matchKind: match.matchKind,
         matchLength,
         priority: match.priority,
         absoluteIndex,
+        tokenIndex,
+        tokenLength,
     };
 }
 
@@ -8228,12 +8352,20 @@ function normalizeStoredMatch(match, bufferOffset = 0) {
     } else if (Number.isFinite(match.matchIndex)) {
         absoluteIndex = match.matchIndex + bufferOffset;
     }
+    const tokenIndex = Number.isFinite(match.tokenIndex)
+        ? Math.floor(match.tokenIndex)
+        : null;
+    const tokenLength = Number.isFinite(match.tokenLength) && match.tokenLength > 0
+        ? Math.floor(match.tokenLength)
+        : null;
     return {
         name: match.name,
         matchKind: match.matchKind,
         matchLength,
         priority: match.priority,
         absoluteIndex,
+        tokenIndex,
+        tokenLength,
     };
 }
 
@@ -8252,7 +8384,7 @@ function projectMatchesForBuffer(cache, bufferOffset, textLength) {
         return [];
     }
     const limit = bufferOffset + textLength;
-    return cache.matches
+    const projected = cache.matches
         .filter((match) => !Number.isFinite(match.absoluteIndex)
             || (match.absoluteIndex >= bufferOffset && match.absoluteIndex < limit))
         .map((match) => {
@@ -8266,8 +8398,16 @@ function projectMatchesForBuffer(cache, bufferOffset, textLength) {
                 priority: match.priority,
                 matchIndex: relativeIndex,
                 absoluteIndex: match.absoluteIndex,
+                tokenIndex: Number.isFinite(match.tokenIndex) ? Math.floor(match.tokenIndex) : null,
+                tokenLength: Number.isFinite(match.tokenLength) && match.tokenLength > 0
+                    ? Math.floor(match.tokenLength)
+                    : null,
             };
         });
+    projected.tokenCount = Number.isFinite(cache.tokenCount) ? cache.tokenCount : null;
+    projected.tokenizerId = cache.tokenizerId || null;
+    projected.minTokenIndex = Number.isFinite(cache.minTokenIndex) ? cache.minTokenIndex : null;
+    return projected;
 }
 
 function areStatsEqual(previousStats, nextStats) {
@@ -8363,6 +8503,9 @@ function updateMessageAnalytics(bufKey, text, options = {}) {
             ? findAllMatches(normalizedText, detectionOptions)
             : [];
         cache.matches = matches.map((match) => normalizeMatchForCache(match, bufferOffset));
+        cache.tokenCount = Number.isFinite(matches.tokenCount) ? matches.tokenCount : null;
+        cache.tokenizerId = matches.tokenizerId || null;
+        cache.minTokenIndex = Number.isFinite(matches.minTokenIndex) ? matches.minTokenIndex : null;
         const absoluteTail = textLength > 0
             ? bufferOffset + textLength - 1
             : bufferOffset - 1;
@@ -8396,6 +8539,15 @@ function updateMessageAnalytics(bufKey, text, options = {}) {
             detectionOptions.bufferOffset = bufferOffset;
         }
         const newMatches = findAllMatches(normalizedText, detectionOptions);
+        if (Number.isFinite(newMatches.tokenCount)) {
+            cache.tokenCount = newMatches.tokenCount;
+        }
+        if (newMatches.tokenizerId) {
+            cache.tokenizerId = newMatches.tokenizerId;
+        }
+        if (Number.isFinite(newMatches.minTokenIndex)) {
+            cache.minTokenIndex = newMatches.minTokenIndex;
+        }
         const processedBoundary = Number.isFinite(context.lastProcessedAbsolute)
             ? context.lastProcessedAbsolute
             : (Number.isFinite(cache.processedAbsolute)
@@ -8454,6 +8606,7 @@ function updateMessageAnalytics(bufKey, text, options = {}) {
         distancePenaltyWeight: resolveNumericSetting(profile?.distancePenaltyWeight, PROFILE_DEFAULTS.distancePenaltyWeight),
         rosterBonus: resolveNumericSetting(profile?.rosterBonus, PROFILE_DEFAULTS.rosterBonus),
         priorityMultiplier: 100,
+        tokenLength: Number.isFinite(visibleMatches?.tokenCount) ? visibleMatches.tokenCount : null,
     });
     const previousRanking = state.topSceneRanking.get(normalizedKey) || [];
     const rankingChanged = !areRankingsEqual(previousRanking, ranking);
