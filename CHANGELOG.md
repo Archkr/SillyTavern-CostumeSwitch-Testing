@@ -22,6 +22,7 @@
 - **Scene panel layout cleanup.** Retired the legacy collapse handle so the crest header and toolbar own panel visibility, keeping the frame tidy without the extra toggle stub.
 
 ### Fixed
+- **Legacy clone fallback.** Replaced direct `structuredClone` calls with a resilient deep clone helper so Electron builds and browsers without the native API can load Costume Switcher without crashing on startup.
 - **Host module imports.** Costume Switcher now mirrors the official SillyTavern extension import pattern so the browser loads `script.js`, `extensions.js`, and `slash-commands.js` without triggering MIME-type errors.
 - **Regex engine host shims.** Routed regex helpers through the in-extension SillyTavern bridge so startup no longer fetches core `script.js` or `lib.js` files, fixing the MIME errors that blocked Firefox from loading Costume Switcher.
 - **Third-party autoloader compatibility.** Updated every SillyTavern core import to account for the new `third-party/` path so browsers fetch the correct modules instead of tripping MIME type errors during startup.

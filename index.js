@@ -109,6 +109,36 @@ function buildVerbList(...lists) {
     return Array.from(new Set(lists.flat().filter(Boolean)));
 }
 
+function deepClone(value) {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (typeof structuredClone === "function") {
+        try {
+            return structuredClone(value);
+        } catch (error) {
+            // Fallback to manual cloning if native structuredClone is unavailable or fails.
+        }
+    }
+
+    try {
+        const serialized = JSON.stringify(value);
+        return serialized === undefined ? undefined : JSON.parse(serialized);
+    } catch (error) {
+        if (Array.isArray(value)) {
+            return value.map(item => deepClone(item));
+        }
+        if (value && typeof value === "object") {
+            return Object.keys(value).reduce((accumulator, key) => {
+                accumulator[key] = deepClone(value[key]);
+                return accumulator;
+            }, {});
+        }
+        return value;
+    }
+}
+
 const DEFAULT_ATTRIBUTION_VERB_FORMS = buildVerbList(
     DEFAULT_ATTRIBUTION_VERBS_PRESENT,
     DEFAULT_ATTRIBUTION_VERBS_THIRD_PERSON,
@@ -438,10 +468,10 @@ const SCENE_PANEL_SECTION_LABELS = Object.freeze({
 const DEFAULTS = {
     enabled: true,
     profiles: {
-        'Default': structuredClone(PROFILE_DEFAULTS),
+        'Default': deepClone(PROFILE_DEFAULTS),
     },
     activeProfile: 'Default',
-    scorePresets: structuredClone(DEFAULT_SCORE_PRESETS),
+    scorePresets: deepClone(DEFAULT_SCORE_PRESETS),
     activeScorePreset: 'Balanced Baseline',
     focusLock: { character: null },
     scenePanel: {
@@ -4122,7 +4152,7 @@ function ensureScorePresetStructure(settings = getSettings()) {
     if (!settings) return {};
     let presets = settings.scorePresets;
     if (!presets || typeof presets !== 'object') {
-        presets = structuredClone(DEFAULT_SCORE_PRESETS);
+        presets = deepClone(DEFAULT_SCORE_PRESETS);
     }
 
     const merged = {};
@@ -4747,22 +4777,7 @@ function normalizeOutfitVariant(rawVariant = {}) {
         return { folder: rawVariant.trim(), triggers: [] };
     }
 
-    let variant;
-    if (typeof structuredClone === 'function') {
-        try {
-            variant = structuredClone(rawVariant);
-        } catch (err) {
-            // Ignore and fall back to JSON cloning
-        }
-    }
-    if (!variant) {
-        try {
-            variant = JSON.parse(JSON.stringify(rawVariant));
-        } catch (err) {
-            variant = { ...rawVariant };
-        }
-    }
-
+    const variant = deepClone(rawVariant);
     const normalized = typeof variant === 'object' && variant !== null ? variant : {};
     const folder = typeof normalized.folder === 'string' ? normalized.folder.trim() : '';
     normalized.folder = folder;
@@ -7166,7 +7181,7 @@ function testRegexPattern() {
 
     const reportBase = {
         profileName: originalProfileName,
-        profileSnapshot: structuredClone(tempProfile),
+        profileSnapshot: deepClone(tempProfile),
         input: text,
         normalizedInput: combined,
         generatedAt: Date.now(),
@@ -7576,7 +7591,7 @@ function wireUI() {
         }
         const baseName = normalizeProfileNameInput($("#cs-profile-name").val()) || 'New Profile';
         const uniqueName = getUniqueProfileName(baseName);
-        settings.profiles[uniqueName] = structuredClone(PROFILE_DEFAULTS);
+        settings.profiles[uniqueName] = deepClone(PROFILE_DEFAULTS);
         settings.activeProfile = uniqueName;
         populateProfileDropdown();
         loadProfile(uniqueName);
@@ -7593,7 +7608,7 @@ function wireUI() {
         }
         const baseName = normalizeProfileNameInput($("#cs-profile-name").val()) || `${settings.activeProfile} Copy`;
         const uniqueName = getUniqueProfileName(baseName);
-        settings.profiles[uniqueName] = normalizeProfile(structuredClone(activeProfile), PROFILE_DEFAULTS);
+        settings.profiles[uniqueName] = normalizeProfile(deepClone(activeProfile), PROFILE_DEFAULTS);
         settings.activeProfile = uniqueName;
         populateProfileDropdown();
         loadProfile(uniqueName);
@@ -10868,7 +10883,7 @@ function getSettingsObj() {
     if (!storeSource[extensionName] || !storeSource[extensionName].profiles) {
         console.log(`${logPrefix} Migrating old settings to new profile format.`);
         const oldSettings = storeSource[extensionName] || {};
-        const newSettings = structuredClone(DEFAULTS);
+        const newSettings = deepClone(DEFAULTS);
         Object.keys(PROFILE_DEFAULTS).forEach(key => {
             if (oldSettings.hasOwnProperty(key)) newSettings.profiles.Default[key] = oldSettings[key];
         });
@@ -10876,7 +10891,7 @@ function getSettingsObj() {
         storeSource[extensionName] = newSettings;
     }
     
-    storeSource[extensionName] = Object.assign({}, structuredClone(DEFAULTS), storeSource[extensionName]);
+    storeSource[extensionName] = Object.assign({}, deepClone(DEFAULTS), storeSource[extensionName]);
     storeSource[extensionName].profiles = loadProfiles(storeSource[extensionName].profiles, PROFILE_DEFAULTS);
     ensureScenePanelSettings(storeSource[extensionName]);
 
