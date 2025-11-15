@@ -279,15 +279,15 @@ async function importHostModule(specifier, label) {
 
 async function loadHostBindings() {
     const sources = [];
-    const extensionModule = await importHostModule("../../../../extensions.js", "extensions");
+    const extensionModule = await importHostModule("../../../../../extensions.js", "extensions");
     if (extensionModule) {
         sources.push(extensionModule);
     }
-    const scriptModule = await importHostModule("../../../../script.js", "core script");
+    const scriptModule = await importHostModule("../../../../../script.js", "core script");
     if (scriptModule) {
         sources.push(scriptModule);
     }
-    const slashModule = await importHostModule("../../../../slash-commands.js", "slash commands");
+    const slashModule = await importHostModule("../../../../../slash-commands.js", "slash commands");
     if (slashModule) {
         sources.push(slashModule);
     }

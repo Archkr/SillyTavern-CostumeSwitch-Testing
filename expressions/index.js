@@ -1,4 +1,4 @@
-import { Fuse } from '../../../../lib.js';
+import Fuse from "../src/vendor/fuse.mjs";
 
 import { characters, eventSource, event_types, generateQuietPrompt, generateRaw, getRequestHeaders, online_status, saveSettingsDebounced, substituteParams, substituteParamsExtended, system_message_types, this_chid } from '../../../../script.js';
 import { dragElement, isMobile } from '../../../../RossAscends-mods.js';
