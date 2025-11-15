@@ -1,6 +1,6 @@
-import * as extensionsModule from "../../../../extensions.js";;
-import * as scriptModule from "../../../../extensions.js";;
-import * as slashModule from "../../../../slash-commands.js";;
+import * as extensionsModule from "/scripts/extensions.js";
+import * as scriptModule from "/scripts/script.js";
+import * as slashModule from "/scripts/slash-commands.js";
 
 const host = typeof globalThis !== "undefined" ? globalThis : {};
 
