@@ -1,8 +1,14 @@
-import { characters, saveSettingsDebounced, substituteParams, substituteParamsExtended, this_chid } from '../../../../script.js';
-import { extension_settings, writeExtensionField } from '../../../../extensions.js';
-import { getPresetManager } from '../../../../preset-manager.js';
-import { regexFromString } from '../../../../utils.js';
-import { lodash } from '../../../../lib.js';
+import {
+    extension_settings,
+    saveSettingsDebounced,
+    substituteParams,
+    substituteParamsExtended,
+    getCharacters,
+    getCurrentCharacterId,
+    writeExtensionField,
+    getPresetManager,
+    regexFromString,
+} from "../src/platform/sillytavern-api.js";
 
 /**
  * @enum {number} Regex scripts types
@@ -34,6 +40,19 @@ export const SCRIPT_TYPE_UNKNOWN = -1;
  */
 const DEFAULT_GET_REGEX_SCRIPTS_OPTIONS = Object.freeze({ allowedOnly: false });
 
+function ensurePresetAllowedList(apiId) {
+    if (!extension_settings || typeof extension_settings !== "object") {
+        return [];
+    }
+    if (!extension_settings.preset_allowed_regex || typeof extension_settings.preset_allowed_regex !== "object") {
+        extension_settings.preset_allowed_regex = {};
+    }
+    if (!Array.isArray(extension_settings.preset_allowed_regex[apiId])) {
+        extension_settings.preset_allowed_regex[apiId] = [];
+    }
+    return extension_settings.preset_allowed_regex[apiId];
+}
+
 /**
  * Retrieves the list of regex scripts by combining the scripts from the extension settings and the character data
  *
@@ -57,10 +76,13 @@ export function getScriptsByType(scriptType, { allowedOnly } = DEFAULT_GET_REGEX
         case SCRIPT_TYPES.GLOBAL:
             return extension_settings.regex ?? [];
         case SCRIPT_TYPES.SCOPED: {
-            if (allowedOnly && !extension_settings?.character_allowed_regex?.includes(characters?.[this_chid]?.avatar)) {
+            const characters = getCharacters();
+            const characterId = getCurrentCharacterId();
+            const character = characterId != null ? characters?.[characterId] : null;
+            if (allowedOnly && !extension_settings?.character_allowed_regex?.includes(character?.avatar)) {
                 return [];
             }
-            const scopedScripts = characters[this_chid]?.data?.extensions?.regex_scripts;
+            const scopedScripts = character?.data?.extensions?.regex_scripts;
             return Array.isArray(scopedScripts) ? scopedScripts : [];
         }
         case SCRIPT_TYPES.PRESET: {
@@ -90,7 +112,13 @@ export async function saveScriptsByType(scripts, scriptType) {
             saveSettingsDebounced();
             break;
         case SCRIPT_TYPES.SCOPED:
-            await writeExtensionField(this_chid, 'regex_scripts', scripts);
+            {
+                const characterId = getCurrentCharacterId();
+                if (characterId == null) {
+                    break;
+                }
+                await writeExtensionField(characterId, "regex_scripts", scripts);
+            }
             break;
         case SCRIPT_TYPES.PRESET: {
             const presetManager = getPresetManager();
@@ -174,11 +202,9 @@ export function allowPresetScripts(apiId, presetName) {
     if (!apiId || !presetName) {
         return;
     }
-    if (!Array.isArray(extension_settings?.preset_allowed_regex?.[apiId])) {
-        lodash.set(extension_settings, ['preset_allowed_regex', apiId], []);
-    }
-    if (!extension_settings.preset_allowed_regex[apiId].includes(presetName)) {
-        extension_settings.preset_allowed_regex[apiId].push(presetName);
+    const allowedList = ensurePresetAllowedList(apiId);
+    if (!allowedList.includes(presetName)) {
+        allowedList.push(presetName);
         saveSettingsDebounced();
     }
 }
@@ -193,12 +219,13 @@ export function disallowPresetScripts(apiId, presetName) {
     if (!apiId || !presetName) {
         return;
     }
-    if (!Array.isArray(extension_settings?.preset_allowed_regex?.[apiId])) {
+    const allowedList = extension_settings?.preset_allowed_regex?.[apiId];
+    if (!Array.isArray(allowedList)) {
         return;
     }
-    const index = extension_settings.preset_allowed_regex[apiId].indexOf(presetName);
+    const index = allowedList.indexOf(presetName);
     if (index !== -1) {
-        extension_settings.preset_allowed_regex[apiId].splice(index, 1);
+        allowedList.splice(index, 1);
         saveSettingsDebounced();
     }
 }

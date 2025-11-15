@@ -22,6 +22,7 @@
 - **Scene panel layout cleanup.** Retired the legacy collapse handle so the crest header and toolbar own panel visibility, keeping the frame tidy without the extra toggle stub.
 
 ### Fixed
+- **Regex engine host shims.** Routed regex helpers through the in-extension SillyTavern bridge so startup no longer fetches core `script.js` or `lib.js` files, fixing the MIME errors that blocked Firefox from loading Costume Switcher.
 - **Third-party autoloader compatibility.** Updated every SillyTavern core import to account for the new `third-party/` path so browsers fetch the correct modules instead of tripping MIME type errors during startup.
 - **Host API shims.** Replaced direct SillyTavern core imports with a runtime bridge so third-party builds load without MIME type or cross-origin module errors.
 - **Regex script imports.** Corrected the regex engine import path so script collections load in SillyTavern without triggering MIME type errors.
