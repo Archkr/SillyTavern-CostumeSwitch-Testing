@@ -5,7 +5,7 @@ import { register } from "node:module";
 await register(new URL("./module-mock-loader.js", import.meta.url));
 
 const { compileProfileRegexes, collectDetections } = await import("../src/detector-core.js");
-const { SCRIPT_TYPES } = await import("../regex/engine.js");
+const { SCRIPT_TYPES } = await import("/scripts/extensions/regex/engine.js");
 
 function configureScriptsByType(map) {
     const store = globalThis.__regexMockStore || (globalThis.__regexMockStore = { scripts: {} });

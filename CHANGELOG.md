@@ -29,6 +29,7 @@
 - **SillyTavern module loader.** Load SillyTavern's extension, core script, and slash-command modules on startup so the extension binds to the real host APIs without relying on brittle runtime bridges.
 - **Host API availability timing.** The startup sequence now waits for the SillyTavern modules to resolve before wiring the UI, eliminating the late-binding bridge and the warning spam that came with it.
 - **Regex script imports.** Corrected the regex engine import path so script collections load in SillyTavern without triggering MIME type errors.
+- **Absolute host imports.** Fetch SillyTavern's `extensions.js`, `script.js`, `slash-commands.js`, and regex engine directly from `/scripts/` so third-party installs stop hitting MIME-type errors when the folder depth changes.
 - **Fuzzy matcher import path.** Bundled the Fuse.js ESM build with the extension so browsers stop throwing bare-specifier errors when the name preprocessor loads.
 - **Toggle styling isolation.** Master and inline switches now render with self-contained tracks so other extensions can no longer distort their shape.
 - **Scene panel user message handling.** User-authored chat updates no longer trigger roster wipes or scene panel refreshes, so the control center stays stable and message counters persist while players talk.

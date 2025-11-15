@@ -1,14 +1,19 @@
 export async function resolve(specifier, context, defaultResolve) {
-    if (specifier === "../../../../../extensions.js") {
+    if (specifier === "../../../../../extensions.js" || specifier === "/scripts/extensions.js") {
         return { url: "node:mock/extensions", shortCircuit: true };
     }
-    if (specifier === "../../../../../script.js") {
+    if (specifier === "../../../../../script.js" || specifier === "/scripts/script.js") {
         return { url: "node:mock/script", shortCircuit: true };
     }
-    if (specifier === "../../../../../slash-commands.js") {
+    if (specifier === "../../../../../slash-commands.js" || specifier === "/scripts/slash-commands.js") {
         return { url: "node:mock/slash", shortCircuit: true };
     }
-    if (specifier === "../regex/engine.js" || specifier === "../../regex/engine.js" || specifier === "../../../../regex/engine.js") {
+    if (
+        specifier === "../regex/engine.js" ||
+        specifier === "../../regex/engine.js" ||
+        specifier === "../../../../regex/engine.js" ||
+        specifier === "/scripts/extensions/regex/engine.js"
+    ) {
         return { url: "node:mock/regex-engine", shortCircuit: true };
     }
     return defaultResolve(specifier, context, defaultResolve);
