@@ -1,3 +1,7 @@
+import * as extensionsModule from "../../../../../extensions.js";
+import * as scriptModule from "../../../../../script.js";
+import * as slashModule from "../../../../../slash-commands.js";
+
 const host = typeof globalThis !== "undefined" ? globalThis : {};
 
 const missingWarnings = host.__costumeSwitchMissingWarnings || (host.__costumeSwitchMissingWarnings = new Set());
@@ -76,9 +80,6 @@ export let eventSource = fallbackEventSource;
 export let system_message_types = fallbackSystemMessageTypes;
 let getContextImpl = defaultGetContext;
 export let renderExtensionTemplateAsync = fallbackRenderExtensionTemplateAsync;
-
-let bindingsLoaded = false;
-let loadPromise = null;
 
 function toArray(value) {
     return Array.isArray(value) ? value : [value];
@@ -236,79 +237,8 @@ function assignBindingsFromSources(sources) {
     });
 }
 
-function snapshotBindings() {
-    return {
-        extension_settings,
-        saveSettingsDebounced,
-        saveChatDebounced,
-        executeSlashCommandsOnChatInput,
-        registerSlashCommand,
-        substituteParams,
-        substituteParamsExtended,
-        writeExtensionField,
-        event_types,
-        eventSource,
-        system_message_types,
-        getContext,
-        renderExtensionTemplateAsync,
-    };
-}
-
-function isModuleNotFoundError(error) {
-    if (!error) {
-        return false;
-    }
-    const code = error.code || error?.cause?.code;
-    if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND") {
-        return true;
-    }
-    const message = typeof error.message === "string" ? error.message : "";
-    return message.includes("Cannot find module") || message.includes("Failed to fetch dynamically imported module");
-}
-
-async function importHostModule(specifier, label) {
-    try {
-        return await import(specifier);
-    } catch (error) {
-        if (!isModuleNotFoundError(error)) {
-            console.warn(`[CostumeSwitch] Failed to load SillyTavern ${label} module '${specifier}'.`, error);
-        }
-        return null;
-    }
-}
-
-async function loadHostBindings() {
-    const sources = [];
-    const extensionModule = await importHostModule("../../../../../extensions.js", "extensions");
-    if (extensionModule) {
-        sources.push(extensionModule);
-    }
-    const scriptModule = await importHostModule("../../../../../script.js", "core script");
-    if (scriptModule) {
-        sources.push(scriptModule);
-    }
-    const slashModule = await importHostModule("../../../../../slash-commands.js", "slash commands");
-    if (slashModule) {
-        sources.push(slashModule);
-    }
-    sources.push(host);
-    assignBindingsFromSources(sources);
-    bindingsLoaded = true;
-    return snapshotBindings();
-}
-
-export async function ensureSillyTavernModuleBindings() {
-    if (bindingsLoaded) {
-        return snapshotBindings();
-    }
-    if (!loadPromise) {
-        loadPromise = loadHostBindings().catch((error) => {
-            loadPromise = null;
-            throw error;
-        });
-    }
-    return loadPromise;
-}
+const moduleSources = [extensionsModule, scriptModule, slashModule, host];
+assignBindingsFromSources(moduleSources);
 
 export function getCharacters() {
     const characters = host.characters;

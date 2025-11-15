@@ -1,5 +1,4 @@
 import {
-    ensureSillyTavernModuleBindings,
     extension_settings,
     getContext,
     renderExtensionTemplateAsync,
@@ -10903,7 +10902,6 @@ function getSettingsObj() {
 if (typeof window !== "undefined" && typeof jQuery === "function") {
     jQuery(async () => {
         try {
-            await ensureSillyTavernModuleBindings();
             const { store } = getSettingsObj();
             extension_settings[extensionName] = store[extensionName];
 
