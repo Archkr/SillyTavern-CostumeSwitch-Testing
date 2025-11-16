@@ -81,7 +81,7 @@ test('collectDetections identifies action matches for narrative cues', () => {
     assert.ok(attributionMatches.includes('Yuzuru'), 'expected Yuzuru attribution detection');
 });
 
-test("collectDetections currently misses fuzzy fallback for a 15-character roster sample", () => {
+test("collectDetections rescues fuzzy fallback for a 15-character roster sample", () => {
     const roster = [
         "Shido",
         "Kotori",
@@ -131,31 +131,19 @@ test("collectDetections currently misses fuzzy fallback for a 15-character roste
         name: 0,
     };
 
-    const defaultMatches = collectDetections(sample, profile, regexes, {
-        priorityWeights,
-    });
-
-    assert.equal(
-        defaultMatches.length,
-        0,
-        "known issue: sample roster message currently yields no detections without fuzzy tolerance",
-    );
-
     const fuzzyMatches = collectDetections(sample, profile, regexes, {
         priorityWeights,
         fuzzyTolerance: "auto",
     });
 
-    assert.equal(
-        fuzzyMatches.length,
-        0,
-        "known issue: fuzzy auto currently fails to rescue the misspelled roster entry",
-    );
-    assert.equal(
-        fuzzyMatches.fuzzyResolution.used,
-        false,
-        "known issue: fuzzy resolution should be engaged for the roster sample once fixed",
-    );
+    const fuzzyActions = fuzzyMatches.filter(match => match.matchKind === "action");
+    const shido = fuzzyActions.find(match => match.name === "Shido");
+
+    assert.ok(shido, "expected fuzzy fallback action match for misspelled roster entry");
+    assert.equal(shido.rawName, "Xhido");
+    assert.equal(shido.nameResolution?.method, "fuzzy");
+    assert.equal(shido.nameResolution?.canonical, "Shido");
+    assert.equal(fuzzyMatches.fuzzyResolution.used, true);
 });
 
 test("collectDetections records match lengths for downstream scoring", () => {

@@ -44,6 +44,7 @@
 - **Fuzzy fallback possessives.** Trailing apostrophe possessives are stripped before fuzzy matching so misspellings like “Shido’s” or “Kotory’s” still resolve to the correct characters instead of being skipped.
 - **Fuzzy fallback cooldown.** Contextual and standalone fuzzy collectors now pad prior match ranges and enforce a canonical/token cooldown so repeated mentions stop requeueing detections or spamming tester logs.
 - **Fuzzy fallback general scan.** The standalone fallback sweep now runs whenever fuzzy tolerance is enabled, even if general detection is disabled, so misspelled names typed outside scripted cues still remap to the right characters.
+- **Fuzzy fallback initials.** Near-miss names that start with the wrong letter now pass through the fallback scanner, so typos like “Xhido” still resolve to Shido when fuzzy tolerance is enabled.
 - **Live tester fuzzy snapshots.** Streaming simulations now honor the preprocessed buffer produced by the match finder, so the fuzzy tolerance pill, copy-to-clipboard report, and diagnostics stay in sync with the text that actually triggered fuzzy rescues.
 - **Legacy clone fallback.** Replaced direct `structuredClone` calls with a resilient deep clone helper so Electron builds and browsers without the native API can load Costume Switcher without crashing on startup.
 - **Host module imports.** Costume Switcher now mirrors the official SillyTavern extension import pattern so the browser loads `script.js`, `extensions.js`, and `slash-commands.js` without triggering MIME-type errors.
