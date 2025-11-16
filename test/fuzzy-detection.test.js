@@ -254,7 +254,7 @@ test("collectDetections ignores lowercase connectors for fuzzy fallback tokens",
     assert.equal(connectorMatches.length, 0, "should ignore lowercase connectors");
 });
 
-test("collectDetections can opt into lowercase fallback scanning when requested", () => {
+test("collectDetections suppresses lowercase connectors even when fallback scanning is enabled", () => {
     const profile = {
         patternSlots: [
             { name: "Anders" },
@@ -284,8 +284,46 @@ test("collectDetections can opt into lowercase fallback scanning when requested"
         priorityWeights: { name: 1 },
     });
     const fallbackMatches = matches.filter(entry => entry.matchKind === "fuzzy-fallback");
+    assert.ok(fallbackMatches.some(entry => entry.rawName === "Andres"), "expected near-miss fallback");
     const connectorMatches = fallbackMatches.filter(entry => entry.rawName?.toLowerCase() === "and");
-    assert.ok(connectorMatches.length >= 1, "expected lowercase connector when opt-in enabled");
+    assert.equal(connectorMatches.length, 0, "should continue ignoring lowercase connectors");
+});
+
+test("collectDetections rescues lowercase speaker cues when fallback scanning is enabled", () => {
+    const profile = {
+        patternSlots: [
+            { name: "Shido" },
+        ],
+        ignorePatterns: [],
+        attributionVerbs: [],
+        actionVerbs: [],
+        pronounVocabulary: ["they"],
+        detectAttribution: false,
+        detectAction: false,
+        detectVocative: false,
+        detectPossessive: false,
+        detectPronoun: false,
+        detectGeneral: false,
+        fuzzyTolerance: "auto",
+        scanLowercaseFallbackTokens: true,
+    };
+
+    const { regexes } = compileProfileRegexes(profile, {
+        unicodeWordPattern: "[\\p{L}]",
+        defaultPronouns: ["they"],
+    });
+
+    const sample = "> shdio waited at the doorway.";
+    const matches = collectDetections(sample, profile, regexes, {
+        priorityWeights: { name: 1 },
+        scanLowercaseFallbackTokens: true,
+    });
+
+    const fallbackMatches = matches.filter(entry => entry.matchKind === "fuzzy-fallback");
+    const shidoFallback = fallbackMatches.find(entry => entry.rawName?.toLowerCase() === "shdio");
+    assert.ok(shidoFallback, "expected lowercase speaker cue to survive fallback");
+    assert.equal(shidoFallback.name, "Shido");
+    assert.equal(shidoFallback.nameResolution?.method, "fuzzy");
 });
 
 test("collectDetections ignores capitalized words with low character overlap", () => {

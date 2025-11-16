@@ -178,6 +178,74 @@ function computeMatchTokenSpan(offsets, startChar, matchLength) {
     };
 }
 
+function sliceTextRange(text, start, end) {
+    if (typeof text !== "string") {
+        return "";
+    }
+    const safeStart = Number.isFinite(start) ? Math.max(0, Math.min(text.length, Math.floor(start))) : 0;
+    const safeEnd = Number.isFinite(end) ? Math.max(safeStart, Math.min(text.length, Math.floor(end))) : safeStart;
+    return text.slice(safeStart, safeEnd);
+}
+
+function readTokenText(text, offsets, index) {
+    if (!Array.isArray(offsets) || !offsets.length) {
+        return "";
+    }
+    if (!Number.isFinite(index) || index < 0 || index >= offsets.length) {
+        return "";
+    }
+    const entry = offsets[index];
+    if (!entry || !Number.isFinite(entry.start) || !Number.isFinite(entry.end)) {
+        return "";
+    }
+    return sliceTextRange(text, entry.start, entry.end);
+}
+
+function hasSpeakerCueContext(text, tokenOffsets, matchStart, matchLength, cachedSpan = null) {
+    if (typeof text !== "string" || !text) {
+        return false;
+    }
+    const safeStart = Number.isFinite(matchStart) ? Math.max(0, Math.floor(matchStart)) : 0;
+    const safeLength = Number.isFinite(matchLength) && matchLength > 0 ? Math.max(0, Math.floor(matchLength)) : 0;
+    const safeEnd = Math.min(text.length, safeStart + safeLength);
+    const trailingSlice = sliceTextRange(text, safeEnd, safeEnd + 2);
+    if (/^\s*[:：]/.test(trailingSlice)) {
+        return true;
+    }
+    let span = null;
+    if (Array.isArray(tokenOffsets) && tokenOffsets.length) {
+        span = cachedSpan || computeMatchTokenSpan(tokenOffsets, safeStart, safeLength || 1);
+        if (span && Number.isFinite(span.start) && span.start >= 0 && span.start < tokenOffsets.length) {
+            const tokenText = readTokenText(text, tokenOffsets, span.start);
+            if (tokenText && /[：:]\s*$/.test(tokenText)) {
+                return true;
+            }
+            const prevTokenIndex = span.start - 1;
+            if (prevTokenIndex >= 0) {
+                const prevText = readTokenText(text, tokenOffsets, prevTokenIndex).trim();
+                if (prevText && /^(?:>{1,3}|[>\]\[])\s*$/u.test(prevText)) {
+                    return true;
+                }
+            }
+        }
+    }
+    let cursor = safeStart - 1;
+    while (cursor >= 0) {
+        const char = text[cursor];
+        if (char === "\n" || char === "\r") {
+            break;
+        }
+        if (!char || !/\s/.test(char)) {
+            if (char && /[>\]\[(){}]/.test(char)) {
+                return true;
+            }
+            break;
+        }
+        cursor -= 1;
+    }
+    return false;
+}
+
 function buildTokenProjection(profile, text) {
     if (!text) {
         return null;
@@ -406,7 +474,7 @@ function resolveFuzzyScoreLimit(tolerance, fallbackMaxScore) {
     return toleranceLimit ?? profileLimit;
 }
 
-function collectFuzzyFallbackMatches({
+function collectSimpleFuzzyFallbackMatches({
     text,
     preprocessName,
     tolerance,
@@ -452,10 +520,25 @@ function collectFuzzyFallbackMatches({
         if (rangesOverlap(ranges, start, end)) {
             return;
         }
+        const matchSpan = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, start, token.length) : null;
         const isLowercaseToken = token.value === token.value.toLowerCase();
+        const hasSpeakerCue = hasSpeakerCueContext(text, tokenOffsets, start, token.length, matchSpan);
+        if (allowLowercaseFallbackTokens && isLowercaseToken && !hasSpeakerCue) {
+            if (token.value.length < 4) {
+                return;
+            }
+            if (!tokenLooksLikeProperNoun(token.value)) {
+                return;
+            }
+        }
+        const sourceSlice = sliceTextRange(text, start, end);
+        const hasSourceUppercase = PROPER_NOUN_CHAR_REGEX.test(sourceSlice);
+        const allowLooseFuzzyMatch = allowLowercaseFallbackTokens
+            && isLowercaseToken
+            && (hasSourceUppercase || hasSpeakerCue);
         const resolution = preprocessName(token.value, {
             priority: fallbackPriorityValue,
-            allowLooseFuzzyMatch: allowLowercaseFallbackTokens && isLowercaseToken,
+            allowLooseFuzzyMatch,
         });
         if (!resolution || !resolution.canonical || resolution.method !== "fuzzy" || !resolution.changed) {
             return;
@@ -467,7 +550,6 @@ function collectFuzzyFallbackMatches({
         if (scoreLimit != null && resolutionScore > scoreLimit) {
             return;
         }
-        const span = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, start, token.length) : null;
         const matchEntry = {
             name: token.value,
             rawName: token.value,
@@ -475,8 +557,8 @@ function collectFuzzyFallbackMatches({
             matchIndex: start,
             priority: fallbackPriorityValue,
             matchLength: token.length,
-            tokenIndex: Number.isFinite(span?.start) ? span.start : null,
-            tokenLength: Number.isFinite(span?.length) ? span.length : null,
+            tokenIndex: Number.isFinite(matchSpan?.start) ? matchSpan.start : null,
+            tokenLength: Number.isFinite(matchSpan?.length) ? matchSpan.length : null,
             nameResolution: null,
             __preResolved: resolution,
         };
@@ -568,9 +650,18 @@ function collectContextualFuzzyFallbackMatches({
                 ? context.resolutionPriority
                 : context.priority;
             const isLowercaseCandidate = candidate === candidate.toLowerCase();
+            const matchSpan = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, start, candidate.length) : null;
+            const hasSpeakerCue = allowLowercaseFallbackTokens
+                && isLowercaseCandidate
+                && hasSpeakerCueContext(text, tokenOffsets, start, candidate.length, matchSpan);
+            const sourceSlice = sliceTextRange(text, start, end);
+            const hasSourceUppercase = PROPER_NOUN_CHAR_REGEX.test(sourceSlice);
+            const allowLooseFuzzyMatch = allowLowercaseFallbackTokens
+                && isLowercaseCandidate
+                && (hasSourceUppercase || hasSpeakerCue);
             const resolution = preprocessName(candidate, {
                 priority: resolutionPriority,
-                allowLooseFuzzyMatch: allowLowercaseFallbackTokens && isLowercaseCandidate,
+                allowLooseFuzzyMatch,
             });
             if (!resolution || !resolution.canonical || resolution.method !== "fuzzy" || !resolution.changed) {
                 return;
@@ -582,7 +673,6 @@ function collectContextualFuzzyFallbackMatches({
             if (scoreLimit != null && resolutionScore > scoreLimit) {
                 return;
             }
-            const span = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, start, candidate.length) : null;
             const matchEntry = {
                 name: candidate,
                 rawName: candidate,
@@ -590,8 +680,8 @@ function collectContextualFuzzyFallbackMatches({
                 matchIndex: start,
                 priority: Number.isFinite(context.priority) ? context.priority : 0,
                 matchLength: candidate.length,
-                tokenIndex: Number.isFinite(span?.start) ? span.start : null,
-                tokenLength: Number.isFinite(span?.length) ? span.length : null,
+                tokenIndex: Number.isFinite(matchSpan?.start) ? matchSpan.start : null,
+                tokenLength: Number.isFinite(matchSpan?.length) ? matchSpan.length : null,
                 nameResolution: null,
                 __preResolved: resolution,
             };
@@ -1370,7 +1460,7 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
     }
 
     if (tolerance?.enabled) {
-        const fallbackMatches = collectFuzzyFallbackMatches({
+        const fallbackMatches = collectSimpleFuzzyFallbackMatches({
             text: sourceText,
             preprocessName,
             tolerance,
