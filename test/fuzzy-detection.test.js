@@ -285,40 +285,6 @@ test("collectDetections ignores capitalized words with low character overlap", (
     assert.equal(nowMatch, undefined, "capitalized adverbs should not fuzzy-match characters");
 });
 
-test("collectDetections ignores misleading brand names when fuzzy tolerance active", () => {
-    const profile = {
-        patternSlots: [
-            { name: "Miku" },
-            { name: "Nia" },
-        ],
-        ignorePatterns: [],
-        attributionVerbs: [],
-        actionVerbs: [],
-        pronounVocabulary: ["she"],
-        detectAttribution: false,
-        detectAction: false,
-        detectVocative: false,
-        detectPossessive: false,
-        detectPronoun: false,
-        detectGeneral: true,
-        fuzzyTolerance: "auto",
-    };
-
-    const { regexes } = compileProfileRegexes(profile, {
-        unicodeWordPattern: "[\\p{L}\\p{M}]",
-        defaultPronouns: ["she"],
-    });
-
-    const sample = "Milky bars lined the shelf while the crew waited.";
-    const matches = collectDetections(sample, profile, regexes, {
-        priorityWeights: { name: 1 },
-    });
-
-    const fallbackMatches = matches.filter(entry => entry.matchKind === "fuzzy-fallback");
-    const milkyMatch = fallbackMatches.find(entry => entry.rawName === "Milky");
-    assert.equal(milkyMatch, undefined, "brand names should not rescue to roster entries");
-});
-
 test("resolveOutfitForMatch reuses fuzzy resolution for mapping lookup", () => {
     const profileDraft = {
         enableOutfits: true,

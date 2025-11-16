@@ -31,9 +31,6 @@
   explicitly opt into lowercase scanning, preventing common words from appearing as phantom characters in tester rankings.
 - **Fuzzy fallback overlap guard.** Capitalized filler words must now share at least half of their characters with a real
   pattern slot before fuzzy rescue runs, blocking adverbs like “Now” from being remapped to characters such as Yoshinon.
-- **Fuzzy fallback edit-distance guard.** Near matches still reconcile to their roster slots, but proper nouns like “Milky” now
-  fail the normalized edit-distance check so product names and unrelated capitalized words stop being promoted to real
-  characters during fuzzy rescues.
 - **Top character canonical labels.** Live tester and scene panel leaderboards now always show the normalized character name,
   even when a fuzzy fallback trigger originated from filler words like “Now,” keeping phantom entries out of the rankings.
 - **Fuzzy fallback rescues.** Near-miss character names such as “Ailce” now trigger the fuzzy fallback scanner even when only speaker/action cues are enabled, and the default tolerance accepts one-letter swaps so low-confidence detections remap to the right character instead of being ignored entirely.

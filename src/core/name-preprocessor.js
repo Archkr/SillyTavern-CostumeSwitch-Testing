@@ -2,8 +2,6 @@ import Fuse from "../vendor/fuse.mjs";
 import { sampleClassifyText } from "./sample-text.js";
 
 const MIN_FUZZY_CHARACTER_OVERLAP_RATIO = 0.5;
-const MAX_NORMALIZED_FUZZY_EDIT_DISTANCE = 0.34;
-const MAX_FUZZY_AFFIX_OVERHANG = 4;
 
 function toTrimmedString(value) {
     if (value == null) {
@@ -46,66 +44,6 @@ function computeCharacterOverlapRatio(source, target) {
     }
     const maxLength = Math.max(source.length, target.length);
     return maxLength > 0 ? shared / maxLength : 0;
-}
-
-function damerauLevenshteinDistance(source, target) {
-    if (!source || !target) {
-        return Math.max(source?.length ?? 0, target?.length ?? 0);
-    }
-    if (source === target) {
-        return 0;
-    }
-    const sourceLength = source.length;
-    const targetLength = target.length;
-    if (!sourceLength) {
-        return targetLength;
-    }
-    if (!targetLength) {
-        return sourceLength;
-    }
-    const matrix = Array.from({ length: sourceLength + 1 }, () => new Array(targetLength + 1).fill(0));
-    for (let i = 0; i <= sourceLength; i += 1) {
-        matrix[i][0] = i;
-    }
-    for (let j = 0; j <= targetLength; j += 1) {
-        matrix[0][j] = j;
-    }
-    for (let i = 1; i <= sourceLength; i += 1) {
-        const sourceChar = source[i - 1];
-        for (let j = 1; j <= targetLength; j += 1) {
-            const targetChar = target[j - 1];
-            const cost = sourceChar === targetChar ? 0 : 1;
-            let value = Math.min(
-                matrix[i - 1][j] + 1,
-                matrix[i][j - 1] + 1,
-                matrix[i - 1][j - 1] + cost,
-            );
-            if (
-                i > 1
-                && j > 1
-                && sourceChar === target[j - 2]
-                && source[i - 2] === targetChar
-            ) {
-                value = Math.min(value, matrix[i - 2][j - 2] + cost);
-            }
-            matrix[i][j] = value;
-        }
-    }
-    return matrix[sourceLength][targetLength];
-}
-
-function computeNormalizedEditDistance(source, target) {
-    const sourceLength = source?.length ?? 0;
-    const targetLength = target?.length ?? 0;
-    const maxLength = Math.max(sourceLength, targetLength);
-    if (!maxLength) {
-        return 0;
-    }
-    if (!sourceLength || !targetLength) {
-        return 1;
-    }
-    const distance = damerauLevenshteinDistance(source, target);
-    return distance / maxLength;
 }
 
 export function hasDiacritics(value) {
@@ -349,20 +287,7 @@ export function createNamePreprocessor({
                             return true;
                         }
                         const overlapRatio = computeCharacterOverlapRatio(overlapKey, candidateKey);
-                        if (overlapRatio < MIN_FUZZY_CHARACTER_OVERLAP_RATIO) {
-                            return false;
-                        }
-                        if (allowLooseFuzzyMatch) {
-                            return true;
-                        }
-                        const tokenExtendsCandidate = overlapKey.length > candidateKey.length
-                            && overlapKey.length <= candidateKey.length + MAX_FUZZY_AFFIX_OVERHANG
-                            && (overlapKey.startsWith(candidateKey) || overlapKey.endsWith(candidateKey));
-                        if (tokenExtendsCandidate) {
-                            return true;
-                        }
-                        const normalizedEditDistance = computeNormalizedEditDistance(overlapKey, candidateKey);
-                        return normalizedEditDistance <= MAX_NORMALIZED_FUZZY_EDIT_DISTANCE;
+                        return overlapRatio >= MIN_FUZZY_CHARACTER_OVERLAP_RATIO;
                     });
                     if (selected?.item) {
                         canonical = selected.item;
