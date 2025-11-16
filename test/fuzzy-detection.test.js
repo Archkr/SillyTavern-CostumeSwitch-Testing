@@ -180,6 +180,43 @@ test("collectDetections rescues action cues when general detection disabled", ()
     assert.equal(matches.fuzzyResolution.used, true);
 });
 
+test("collectDetections rescues standalone fuzzy tokens when general detection disabled", () => {
+    const profile = {
+        patternSlots: [
+            { name: "Alice" },
+        ],
+        ignorePatterns: [],
+        attributionVerbs: [],
+        actionVerbs: [],
+        pronounVocabulary: ["she"],
+        detectAttribution: false,
+        detectAction: false,
+        detectVocative: false,
+        detectPossessive: false,
+        detectPronoun: false,
+        detectGeneral: false,
+        fuzzyTolerance: "auto",
+    };
+
+    const { regexes } = compileProfileRegexes(profile, {
+        unicodeWordPattern: "[\\p{L}\\p{M}]",
+        defaultPronouns: ["she"],
+    });
+
+    const sample = "Ailce waited near the hatch.";
+    const matches = collectDetections(sample, profile, regexes, {
+        priorityWeights: { name: 1 },
+        unicodeWordPattern: "[\\p{L}\\p{M}]",
+    });
+
+    const fallback = matches.find(entry => entry.matchKind === "fuzzy-fallback");
+    assert.ok(fallback, "expected standalone fuzzy fallback match");
+    assert.equal(fallback.name, "Alice");
+    assert.equal(fallback.rawName, "Ailce");
+    assert.equal(fallback.nameResolution?.method, "fuzzy");
+    assert.equal(matches.fuzzyResolution.used, true);
+});
+
 test("collectDetections ignores lowercase connectors for fuzzy fallback tokens", () => {
     const profile = {
         patternSlots: [

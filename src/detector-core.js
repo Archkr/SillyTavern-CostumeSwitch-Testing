@@ -1319,7 +1319,7 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         }
     }
 
-    if (profile.detectGeneral !== false && tolerance?.enabled) {
+    if (tolerance?.enabled) {
         const fallbackMatches = collectFuzzyFallbackMatches({
             text: sourceText,
             preprocessName,
