@@ -5,6 +5,7 @@ import { getTextTokens, getTokenCountAsync } from "../tokenizers.js";
 const DEFAULT_UNICODE_WORD_PATTERN = "[\\p{L}\\p{M}\\p{N}_]";
 const WORD_CHAR_REGEX = /[\p{L}\p{M}\p{N}]/u;
 const DEFAULT_BOUNDARY_LOOKBEHIND = "(?<![A-Za-z0-9_'’])";
+const PROPER_NOUN_CHAR_REGEX = /\p{Lu}/u;
 
 const PROFILE_TOKENIZER_CACHE = new WeakMap();
 
@@ -329,16 +330,30 @@ function buildFallbackRegexFromTemplate(template, unicodeWordPattern = DEFAULT_U
     return new RegExp(body, Array.from(flagSet).join(""));
 }
 
-function scanNameLikeTokens(text, unicodeWordPattern = DEFAULT_UNICODE_WORD_PATTERN) {
+function tokenLooksLikeProperNoun(value, { allowLowercaseTokens = false } = {}) {
+    if (!value || typeof value !== "string") {
+        return false;
+    }
+    if (allowLowercaseTokens) {
+        return true;
+    }
+    return PROPER_NOUN_CHAR_REGEX.test(value);
+}
+
+function scanNameLikeTokens(text, unicodeWordPattern = DEFAULT_UNICODE_WORD_PATTERN, options = {}) {
     if (!text) {
         return [];
     }
     const pattern = new RegExp(`\\b(${unicodeWordPattern}+?(?:['’\-]${unicodeWordPattern}+?)*)\\b`, "gu");
     const matches = [];
+    const allowLowercaseTokens = Boolean(options?.allowLowercaseTokens);
     let match;
     while ((match = pattern.exec(text)) !== null) {
         const value = match[1] ?? match[0];
         if (!value || value.length < 3) {
+            continue;
+        }
+        if (!tokenLooksLikeProperNoun(value, { allowLowercaseTokens })) {
             continue;
         }
         matches.push({ value, index: match.index, length: value.length });
@@ -374,6 +389,7 @@ function collectFuzzyFallbackMatches({
     unicodeWordPattern,
     fallbackPriority,
     tokenOffsets,
+    allowLowercaseFallbackTokens,
 }) {
     if (!text || !preprocessName || !tolerance?.enabled) {
         return [];
@@ -393,7 +409,7 @@ function collectFuzzyFallbackMatches({
             .filter(Boolean)
         : [];
     const fallbackPriorityValue = Number.isFinite(fallbackPriority) ? fallbackPriority : 0;
-    const tokens = scanNameLikeTokens(text, unicodeWordPattern);
+    const tokens = scanNameLikeTokens(text, unicodeWordPattern, { allowLowercaseTokens: allowLowercaseFallbackTokens });
     const fallbackMatches = [];
     tokens.forEach((token) => {
         if (!token || !token.value) {
@@ -441,6 +457,7 @@ function collectContextualFuzzyFallbackMatches({
     tokenOffsets,
     quoteRanges,
     matchOptions,
+    allowLowercaseFallbackTokens,
 }) {
     if (!text || !preprocessName || !tolerance?.enabled) {
         return [];
@@ -489,6 +506,9 @@ function collectContextualFuzzyFallbackMatches({
         contextMatches.forEach((match) => {
             const candidate = resolveCandidate(match);
             if (!candidate || candidate.length < 3) {
+                return;
+            }
+            if (!tokenLooksLikeProperNoun(candidate, { allowLowercaseTokens: allowLowercaseFallbackTokens })) {
                 return;
             }
             const normalizedInitial = stripDiacritics(candidate).toLowerCase()[0];
@@ -1085,6 +1105,9 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         ? options.unicodeWordPattern.trim()
         : DEFAULT_UNICODE_WORD_PATTERN;
     const scanDialogueActions = Boolean(options.scanDialogueActions);
+    const allowLowercaseFallbackTokens = Boolean(
+        options?.scanLowercaseFallbackTokens ?? profile?.scanLowercaseFallbackTokens,
+    );
     const tokenProjection = buildTokenProjection(profile, sourceText);
     const tokenOffsets = Array.isArray(tokenProjection?.offsets) && tokenProjection.offsets.length
         ? tokenProjection.offsets
@@ -1280,6 +1303,7 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
                 tokenOffsets,
                 quoteRanges,
                 matchOptions,
+                allowLowercaseFallbackTokens,
             });
             if (contextualFallbacks.length) {
                 matches.push(...contextualFallbacks);
@@ -1297,6 +1321,7 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
             unicodeWordPattern: fallbackWordPattern,
             fallbackPriority,
             tokenOffsets,
+            allowLowercaseFallbackTokens,
         });
         if (fallbackMatches.length) {
             matches.push(...fallbackMatches);

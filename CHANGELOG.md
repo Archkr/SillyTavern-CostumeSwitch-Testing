@@ -27,6 +27,8 @@
 - **Regex & fuzzy UX copy.** Settings toggles now spell out real-world use cases for the regex preprocessor tiers and fuzzy tolerance presets, with matching README guidance so new users know why and when to enable them.
 
 ### Fixed
+- **Fuzzy fallback lowercase guard.** The fallback scanner now ignores lowercase connectors such as “and/but” unless profiles
+  explicitly opt into lowercase scanning, preventing common words from appearing as phantom characters in tester rankings.
 - **Fuzzy fallback rescues.** Near-miss character names such as “Ailce” now trigger the fuzzy fallback scanner even when only speaker/action cues are enabled, and the default tolerance accepts one-letter swaps so low-confidence detections remap to the right character instead of being ignored entirely.
 - **Live tester fuzzy snapshots.** Streaming simulations now honor the preprocessed buffer produced by the match finder, so the fuzzy tolerance pill, copy-to-clipboard report, and diagnostics stay in sync with the text that actually triggered fuzzy rescues.
 - **Legacy clone fallback.** Replaced direct `structuredClone` calls with a resilient deep clone helper so Electron builds and browsers without the native API can load Costume Switcher without crashing on startup.

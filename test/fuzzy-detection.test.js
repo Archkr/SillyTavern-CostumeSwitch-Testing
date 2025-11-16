@@ -144,6 +144,77 @@ test("collectDetections rescues action cues when general detection disabled", ()
     assert.equal(matches.fuzzyResolution.used, true);
 });
 
+test("collectDetections ignores lowercase connectors for fuzzy fallback tokens", () => {
+    const profile = {
+        patternSlots: [
+            { name: "Anders" },
+            { name: "Butler" },
+        ],
+        ignorePatterns: [],
+        attributionVerbs: [],
+        actionVerbs: [],
+        pronounVocabulary: ["she"],
+        detectAttribution: false,
+        detectAction: false,
+        detectVocative: false,
+        detectPossessive: false,
+        detectPronoun: false,
+        detectGeneral: true,
+        fuzzyTolerance: "auto",
+    };
+
+    const { regexes } = compileProfileRegexes(profile, {
+        unicodeWordPattern: "[\\p{L}\\p{M}]",
+        defaultPronouns: ["she"],
+    });
+
+    const sample = "Andres waited and but and looked ahead.";
+    const matches = collectDetections(sample, profile, regexes, {
+        priorityWeights: { name: 1 },
+    });
+    const fallbackMatches = matches.filter(entry => entry.matchKind === "fuzzy-fallback");
+    assert.ok(fallbackMatches.some(entry => entry.rawName === "Andres"), "expected near-miss fallback");
+    const connectorMatches = fallbackMatches.filter(entry => {
+        const lowered = entry.rawName?.toLowerCase();
+        return lowered === "and" || lowered === "but";
+    });
+    assert.equal(connectorMatches.length, 0, "should ignore lowercase connectors");
+});
+
+test("collectDetections can opt into lowercase fallback scanning when requested", () => {
+    const profile = {
+        patternSlots: [
+            { name: "Anders" },
+            { name: "Butler" },
+        ],
+        ignorePatterns: [],
+        attributionVerbs: [],
+        actionVerbs: [],
+        pronounVocabulary: ["she"],
+        detectAttribution: false,
+        detectAction: false,
+        detectVocative: false,
+        detectPossessive: false,
+        detectPronoun: false,
+        detectGeneral: true,
+        fuzzyTolerance: "auto",
+        scanLowercaseFallbackTokens: true,
+    };
+
+    const { regexes } = compileProfileRegexes(profile, {
+        unicodeWordPattern: "[\\p{L}\\p{M}]",
+        defaultPronouns: ["she"],
+    });
+
+    const sample = "Andres waited and but and looked ahead.";
+    const matches = collectDetections(sample, profile, regexes, {
+        priorityWeights: { name: 1 },
+    });
+    const fallbackMatches = matches.filter(entry => entry.matchKind === "fuzzy-fallback");
+    const connectorMatches = fallbackMatches.filter(entry => entry.rawName?.toLowerCase() === "and");
+    assert.ok(connectorMatches.length >= 1, "expected lowercase connector when opt-in enabled");
+});
+
 test("resolveOutfitForMatch reuses fuzzy resolution for mapping lookup", () => {
     const profileDraft = {
         enableOutfits: true,

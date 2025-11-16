@@ -368,6 +368,7 @@ const PROFILE_DEFAULTS = {
     detectPronoun: true,
     detectGeneral: false,
     scanDialogueActions: false,
+    scanLowercaseFallbackTokens: false,
     pronounVocabulary: [...DEFAULT_PRONOUNS],
     attributionVerbs: [...DEFAULT_ATTRIBUTION_VERB_FORMS],
     actionVerbs: [...DEFAULT_ACTION_VERB_FORMS],
