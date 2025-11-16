@@ -533,6 +533,7 @@ const state = {
     lastPreprocessedText: "",
     lastPreprocessorScripts: [],
     lastFuzzyResolution: null,
+    lastDetectionCount: 0,
     recentDecisionEvents: [],
     lastVetoMatch: null,
     buildMeta: null,
@@ -893,6 +894,8 @@ function shouldLogMatchEvent(matchKind, reason) {
 function findAllMatches(combined, options = {}) {
     const profile = getActiveProfile();
     const { compiledRegexes } = state;
+    state.lastDetectionCount = 0;
+    state.lastFuzzyResolution = null;
     if (!profile || !combined) {
         return [];
     }
@@ -944,6 +947,7 @@ function findAllMatches(combined, options = {}) {
     state.lastPreprocessedText = processed;
     state.lastPreprocessorScripts = clonePreprocessorScripts(matches?.preprocessorScripts || []);
     state.lastFuzzyResolution = cloneFuzzyResolution(matches?.fuzzyResolution);
+    state.lastDetectionCount = Array.isArray(matches) ? matches.length : 0;
     return matches;
 }
 
@@ -6523,7 +6527,7 @@ function renderTesterRosterTimeline(events, warnings) {
                 warningContainer.append($('<div>').addClass('cs-roster-warning').text(message));
             });
         } else {
-            warningContainer.text('No TTL warnings triggered.');
+            warningContainer.text('No tester warnings triggered.');
         }
     }
 }
@@ -7362,6 +7366,8 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
     let buffer = "";
     const rosterTimeline = [];
     const rosterWarnings = [];
+    let lastFuzzySnapshot = null;
+    let detectedAnyCandidates = false;
 
     for (let i = 0; i < combined.length; i++) {
         const appended = buffer + combined[i];
@@ -7401,7 +7407,14 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
             matchOptions.minIndex = minIndexRelative;
         }
 
-        const bestMatch = findBestMatch(buffer, null, matchOptions);
+        const matches = findAllMatches(buffer, matchOptions);
+        if (Array.isArray(matches) && matches.length) {
+            detectedAnyCandidates = true;
+        }
+        if (matches?.fuzzyResolution) {
+            lastFuzzySnapshot = cloneFuzzyResolution(matches.fuzzyResolution);
+        }
+        const bestMatch = findBestMatch(buffer, matches, matchOptions);
         if (!bestMatch) {
             continue;
         }
@@ -7581,6 +7594,17 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
     }
 
     const finalState = buildSimulationFinalState(msgState);
+    const fuzzySnapshot = lastFuzzySnapshot || cloneFuzzyResolution(state.lastFuzzyResolution);
+    const fuzzyToleranceEnabled = Boolean(fuzzySnapshot?.tolerance?.enabled);
+    const fuzzyCandidates = Number.isFinite(fuzzySnapshot?.candidateCount) ? fuzzySnapshot.candidateCount : 0;
+    const hasInputText = typeof combined === "string" ? Boolean(combined.trim()) : false;
+
+    if (hasInputText && fuzzyToleranceEnabled && !fuzzySnapshot?.used && !detectedAnyCandidates && fuzzyCandidates > 0) {
+        rosterWarnings.push({
+            type: "fuzzy-idle",
+            message: "Fuzzy tolerance is enabled, but no names were normalized. Enable General Name detection or verify attribution/action verbs so detections exist for fuzzy matching.",
+        });
+    }
 
     if (profile.enableSceneRoster && msgState.rosterTurns instanceof Map && msgState.rosterTurns.size > 0) {
         const expiring = [];
