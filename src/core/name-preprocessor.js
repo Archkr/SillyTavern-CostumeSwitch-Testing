@@ -1,6 +1,8 @@
 import Fuse from "../vendor/fuse.mjs";
 import { sampleClassifyText } from "./sample-text.js";
 
+const MIN_FUZZY_CHARACTER_OVERLAP_RATIO = 0.5;
+
 function toTrimmedString(value) {
     if (value == null) {
         return "";
@@ -13,6 +15,35 @@ export function stripDiacritics(value) {
         return "";
     }
     return value.normalize("NFD").replace(/\p{M}+/gu, "");
+}
+
+function normalizeOverlapKey(value) {
+    if (typeof value !== "string" || !value.trim()) {
+        return "";
+    }
+    return stripDiacritics(value)
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function computeCharacterOverlapRatio(source, target) {
+    if (!source || !target) {
+        return 0;
+    }
+    const sourceCounts = new Map();
+    for (const char of source) {
+        sourceCounts.set(char, (sourceCounts.get(char) || 0) + 1);
+    }
+    let shared = 0;
+    for (const char of target) {
+        const available = sourceCounts.get(char);
+        if (available > 0) {
+            shared += 1;
+            sourceCounts.set(char, available - 1);
+        }
+    }
+    const maxLength = Math.max(source.length, target.length);
+    return maxLength > 0 ? shared / maxLength : 0;
 }
 
 export function hasDiacritics(value) {
@@ -206,6 +237,7 @@ export function createNamePreprocessor({
         const sampled = sample(raw) || raw;
         const sampledTrimmed = toTrimmedString(sampled);
         const normalized = translate ? stripDiacritics(sampledTrimmed) : sampledTrimmed;
+        const overlapKey = normalizeOverlapKey(sampledTrimmed);
         const lowered = normalized.toLowerCase();
         let canonical = null;
         let method = "raw";
@@ -239,11 +271,27 @@ export function createNamePreprocessor({
                 const query = translate ? normalized : stripDiacritics(sampledTrimmed);
                 const results = fuse.search(query);
                 if (Array.isArray(results) && results.length) {
-                    const top = results[0];
-                    if (top?.item && (top.score == null || top.score <= tolerance.maxScore)) {
-                        canonical = top.item;
+                    const selected = results.find((entry) => {
+                        if (!entry?.item) {
+                            return false;
+                        }
+                        if (entry.score != null && entry.score > tolerance.maxScore) {
+                            return false;
+                        }
+                        if (!overlapKey) {
+                            return true;
+                        }
+                        const candidateKey = normalizeOverlapKey(entry.item);
+                        if (!candidateKey) {
+                            return true;
+                        }
+                        const overlapRatio = computeCharacterOverlapRatio(overlapKey, candidateKey);
+                        return overlapRatio >= MIN_FUZZY_CHARACTER_OVERLAP_RATIO;
+                    });
+                    if (selected?.item) {
+                        canonical = selected.item;
                         method = "fuzzy";
-                        score = typeof top.score === "number" ? top.score : null;
+                        score = typeof selected.score === "number" ? selected.score : null;
                     }
                 }
             }
