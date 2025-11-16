@@ -7220,7 +7220,7 @@ function buildSimulationFinalState(msgState) {
     };
 }
 
-function simulateTesterStream(combined, profile, bufKey) {
+function simulateTesterStream(combined, profile, bufKey, options = {}) {
     const events = [];
     const normalizedKey = normalizeMessageKey(bufKey) || bufKey;
     const msgState = state.perMessageStates.get(normalizedKey);
@@ -7244,6 +7244,9 @@ function simulateTesterStream(combined, profile, bufKey) {
     const testerMessageKey = normalizedTesterKey.startsWith("tester:")
         ? normalizedTesterKey
         : `tester:${normalizedTesterKey}`;
+    const overridePreprocessedText = typeof options?.preprocessedText === "string"
+        ? options.preprocessedText
+        : null;
     const finalizeResult = (result, extra = {}) => {
         const rosterSnapshot = Array.isArray(result?.finalState?.sceneRoster)
             ? result.finalState.sceneRoster
@@ -7251,13 +7254,14 @@ function simulateTesterStream(combined, profile, bufKey) {
         const eventList = Array.isArray(result?.events) ? result.events : events;
         const preprocessedText = typeof extra.preprocessedText === "string"
             ? extra.preprocessedText
-            : state.lastPreprocessedText;
+            : (overridePreprocessedText ?? state.lastPreprocessedText);
         overwriteRecentDecisionEvents(testerMessageKey, eventList);
         replaceLiveTesterOutputs(eventList, {
             roster: rosterSnapshot,
             displayNames: rosterDisplayNames,
             preprocessedText,
         });
+        state.lastPreprocessedText = preprocessedText;
         requestScenePanelRender("tester-stream", { source: "tester" });
         return result;
     };
@@ -7557,7 +7561,9 @@ function simulateTesterStream(combined, profile, bufKey) {
         }
     }
 
-    return finalizeResult({ events, finalState, rosterTimeline, rosterWarnings });
+    return finalizeResult({ events, finalState, rosterTimeline, rosterWarnings }, {
+        preprocessedText: overridePreprocessedText ?? state.lastPreprocessedText,
+    });
 }
 
 
@@ -7715,8 +7721,13 @@ function testRegexPattern() {
         $("#cs-test-veto-result").text('No veto phrases matched.').css('color', 'var(--green)');
 
         const allMatches = findAllMatches(combined).sort((a, b) => a.matchIndex - b.matchIndex);
-        renderTesterPreprocessorMeta();
-        updateTesterPreprocessedDisplay(state.lastPreprocessedText);
+        const preprocessedSnapshot = typeof state.lastPreprocessedText === "string"
+            ? state.lastPreprocessedText
+            : combined;
+        const scriptSnapshot = clonePreprocessorScripts(state.lastPreprocessorScripts);
+        const fuzzySnapshot = cloneFuzzyResolution(state.lastFuzzyResolution);
+        renderTesterPreprocessorMeta({ scripts: scriptSnapshot, fuzzy: fuzzySnapshot });
+        updateTesterPreprocessedDisplay(preprocessedSnapshot);
         allDetectionsList.empty();
         if (allMatches.length > 0) {
             allMatches.forEach(m => {
@@ -7742,11 +7753,13 @@ function testRegexPattern() {
         }
 
         resetTesterMessageState();
-        const simulationResult = simulateTesterStream(combined, tempProfile, bufKey);
+        const simulationResult = simulateTesterStream(combined, tempProfile, bufKey, {
+            preprocessedText: preprocessedSnapshot,
+        });
         const events = Array.isArray(simulationResult?.events) ? simulationResult.events : [];
         renderTesterStream(streamList, events);
         updateSkipReasonSummaryDisplay(events);
-        updateTesterPreprocessedDisplay(state.lastPreprocessedText);
+        updateTesterPreprocessedDisplay(preprocessedSnapshot);
         const testerRoster = simulationResult?.finalState?.sceneRoster || [];
         const topCharacters = rankSceneCharacters(allMatches, {
             rosterSet: testerRoster,
@@ -7769,6 +7782,10 @@ function testRegexPattern() {
         renderTesterRosterTimeline(simulationResult?.rosterTimeline || [], simulationResult?.rosterWarnings || []);
         renderCoverageDiagnostics(coverage);
         updateTesterTopCharactersDisplay(topCharacters);
+        state.lastPreprocessedText = preprocessedSnapshot;
+        state.lastPreprocessorScripts = clonePreprocessorScripts(scriptSnapshot);
+        state.lastFuzzyResolution = cloneFuzzyResolution(fuzzySnapshot);
+
         state.lastTesterReport = {
             ...reportBase,
             vetoed: false,
@@ -7796,9 +7813,9 @@ function testRegexPattern() {
             rosterWarnings: Array.isArray(simulationResult?.rosterWarnings) ? simulationResult.rosterWarnings.map(warn => ({ ...warn })) : [],
             scoreDetails: detailedScores.map(detail => ({ ...detail })),
             coverage,
-            preprocessedText: state.lastPreprocessedText,
-            preprocessorScripts: clonePreprocessorScripts(state.lastPreprocessorScripts),
-            fuzzyResolution: cloneFuzzyResolution(state.lastFuzzyResolution),
+            preprocessedText: preprocessedSnapshot,
+            preprocessorScripts: clonePreprocessorScripts(scriptSnapshot),
+            fuzzyResolution: cloneFuzzyResolution(fuzzySnapshot),
         };
         updateTesterCopyButton();
     }

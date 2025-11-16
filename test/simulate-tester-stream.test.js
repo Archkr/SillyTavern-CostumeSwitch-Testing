@@ -227,6 +227,26 @@ test("simulateTesterStream records per-character tester outputs", () => {
         "tester snapshot should expose the latest preprocessed buffer");
 });
 
+test("simulateTesterStream accepts a preprocessed text snapshot override", () => {
+    const profile = setupProfile();
+    const bufKey = "tester-preprocessed-override";
+    const msgState = createMessageState(profile);
+    state.perMessageStates = new Map([[bufKey, msgState]]);
+    state.perMessageBuffers = new Map([[bufKey, ""]]);
+
+    clearLiveTesterOutputs();
+
+    const text = "Kotori waves hello.";
+    const overrideText = "[Kotori] waves hello.";
+    simulateTesterStream(text, profile, bufKey, { preprocessedText: overrideText });
+
+    const snapshot = getLiveTesterOutputsSnapshot();
+    assert.equal(snapshot.preprocessedText, overrideText,
+        "tester outputs should respect the provided preprocessed text snapshot");
+    assert.equal(state.lastPreprocessedText, overrideText,
+        "state should retain the override preprocessed text after the simulation");
+});
+
 test("simulateTesterStream syncs tester events into the shared decision log", () => {
     const profile = setupProfile();
     const bufKey = "tester-shared-log";
