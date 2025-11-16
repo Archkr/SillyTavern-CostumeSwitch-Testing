@@ -98,12 +98,49 @@ test("collectDetections rescues near-miss tokens when fuzzy tolerance active", (
         priorityWeights: { action: 1, name: 1 },
         unicodeWordPattern: "[\\p{L}\\p{M}]",
     });
-    const rescued = matches.find(entry => entry.matchKind === "fuzzy-fallback");
+    const rescued = matches.find(entry => entry.rawName === "Ailce");
     assert.ok(rescued, "expected fuzzy fallback match");
     assert.equal(rescued.name, "Alice");
-    assert.equal(rescued.rawName, "Ailce");
+    assert.equal(rescued.matchKind, "action");
     assert.equal(rescued.nameResolution?.method, "fuzzy");
     assert.equal(rescued.nameResolution?.canonical, "Alice");
+    assert.equal(matches.fuzzyResolution.used, true);
+});
+
+test("collectDetections rescues action cues when general detection disabled", () => {
+    const profile = {
+        patternSlots: [
+            { name: "Alice" },
+            { name: "Kotori" },
+        ],
+        ignorePatterns: [],
+        attributionVerbs: [],
+        actionVerbs: ["reached"],
+        pronounVocabulary: ["she"],
+        detectAttribution: false,
+        detectAction: true,
+        detectVocative: false,
+        detectPossessive: false,
+        detectPronoun: false,
+        detectGeneral: false,
+        fuzzyTolerance: "auto",
+    };
+
+    const { regexes } = compileProfileRegexes(profile, {
+        unicodeWordPattern: "[\\p{L}\\p{M}]",
+        defaultPronouns: ["she"],
+    });
+
+    const sample = "Ailce reached for her staff.";
+    const matches = collectDetections(sample, profile, regexes, {
+        priorityWeights: { action: 3 },
+        unicodeWordPattern: "[\\p{L}\\p{M}]",
+    });
+    const fallback = matches.find(entry => entry.matchKind === "action");
+    assert.ok(fallback, "expected action fallback match");
+    assert.equal(fallback.name, "Alice");
+    assert.equal(fallback.rawName, "Ailce");
+    assert.equal(fallback.nameResolution?.method, "fuzzy");
     assert.equal(matches.fuzzyResolution.used, true);
 });
 
