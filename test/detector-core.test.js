@@ -81,6 +81,83 @@ test('collectDetections identifies action matches for narrative cues', () => {
     assert.ok(attributionMatches.includes('Yuzuru'), 'expected Yuzuru attribution detection');
 });
 
+test("collectDetections currently misses fuzzy fallback for a 15-character roster sample", () => {
+    const roster = [
+        "Shido",
+        "Kotori",
+        "Tohka",
+        "Origami",
+        "Kurumi",
+        "Yoshino",
+        "Yoshinon",
+        "Miku",
+        "Natsumi",
+        "Nia",
+        "Mukuro",
+        "Mana",
+        "Reine",
+        "Kaguya",
+        "Yuzuru",
+    ];
+
+    const profile = {
+        patterns: roster,
+        ignorePatterns: [],
+        attributionVerbs: DEFAULT_ATTRIBUTION_VERB_FORMS,
+        actionVerbs: [...DEFAULT_ACTION_VERB_FORMS, "looked"],
+        pronounVocabulary: ["he", "she", "they"],
+        detectAttribution: true,
+        detectAction: true,
+        detectVocative: true,
+        detectPossessive: true,
+        detectPronoun: true,
+        detectGeneral: true,
+    };
+
+    const { regexes } = compileProfileRegexes(profile, {
+        unicodeWordPattern: "[\\p{L}\\p{M}\\p{N}_]",
+        defaultPronouns: ["he", "she", "they"],
+    });
+
+    const sample = "Xhido looked around the room for the others.";
+
+    const priorityWeights = {
+        speaker: 5,
+        attribution: 4,
+        action: 3,
+        pronoun: 2,
+        vocative: 2,
+        possessive: 1,
+        name: 0,
+    };
+
+    const defaultMatches = collectDetections(sample, profile, regexes, {
+        priorityWeights,
+    });
+
+    assert.equal(
+        defaultMatches.length,
+        0,
+        "known issue: sample roster message currently yields no detections without fuzzy tolerance",
+    );
+
+    const fuzzyMatches = collectDetections(sample, profile, regexes, {
+        priorityWeights,
+        fuzzyTolerance: "auto",
+    });
+
+    assert.equal(
+        fuzzyMatches.length,
+        0,
+        "known issue: fuzzy auto currently fails to rescue the misspelled roster entry",
+    );
+    assert.equal(
+        fuzzyMatches.fuzzyResolution.used,
+        false,
+        "known issue: fuzzy resolution should be engaged for the roster sample once fixed",
+    );
+});
+
 test("collectDetections records match lengths for downstream scoring", () => {
     const profile = {
         patterns: ["Kotori"],
