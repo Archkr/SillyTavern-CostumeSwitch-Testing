@@ -286,6 +286,124 @@ function buildAlternation(list) {
         .join("|");
 }
 
+function buildCandidateInitials(candidates = []) {
+    const initials = new Set();
+    candidates.forEach((entry) => {
+        const trimmed = typeof entry === "string" ? entry.trim() : String(entry ?? "").trim();
+        if (!trimmed) {
+            return;
+        }
+        const normalized = stripDiacritics(trimmed).toLowerCase();
+        if (!normalized) {
+            return;
+        }
+        initials.add(normalized[0]);
+    });
+    return initials;
+}
+
+function scanNameLikeTokens(text, unicodeWordPattern = DEFAULT_UNICODE_WORD_PATTERN) {
+    if (!text) {
+        return [];
+    }
+    const pattern = new RegExp(`\\b(${unicodeWordPattern}+?(?:['’\-]${unicodeWordPattern}+?)*)\\b`, "gu");
+    const matches = [];
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+        const value = match[1] ?? match[0];
+        if (!value || value.length < 3) {
+            continue;
+        }
+        matches.push({ value, index: match.index, length: value.length });
+    }
+    return matches;
+}
+
+function rangesOverlap(existingRanges, start, end) {
+    if (!existingRanges || !existingRanges.length) {
+        return false;
+    }
+    const safeStart = Math.max(0, start);
+    const safeEnd = Math.max(safeStart, end);
+    return existingRanges.some((range) => {
+        if (!range) {
+            return false;
+        }
+        const rangeStart = Number.isFinite(range.start) ? range.start : null;
+        const rangeEnd = Number.isFinite(range.end) ? range.end : null;
+        if (rangeStart == null || rangeEnd == null) {
+            return false;
+        }
+        return safeStart < rangeEnd && safeEnd > rangeStart;
+    });
+}
+
+function collectFuzzyFallbackMatches({
+    text,
+    preprocessName,
+    tolerance,
+    candidateInitials,
+    existingMatches,
+    unicodeWordPattern,
+    fallbackPriority,
+    tokenOffsets,
+}) {
+    if (!text || !preprocessName || !tolerance?.enabled) {
+        return [];
+    }
+    const initials = candidateInitials instanceof Set && candidateInitials.size ? candidateInitials : null;
+    const ranges = Array.isArray(existingMatches)
+        ? existingMatches
+            .map((match) => {
+                if (!Number.isFinite(match?.matchIndex) || !Number.isFinite(match?.matchLength)) {
+                    return null;
+                }
+                return {
+                    start: Math.max(0, Math.floor(match.matchIndex)),
+                    end: Math.max(0, Math.floor(match.matchIndex + match.matchLength)),
+                };
+            })
+            .filter(Boolean)
+        : [];
+    const fallbackPriorityValue = Number.isFinite(fallbackPriority) ? fallbackPriority : 0;
+    const tokens = scanNameLikeTokens(text, unicodeWordPattern);
+    const fallbackMatches = [];
+    tokens.forEach((token) => {
+        if (!token || !token.value) {
+            return;
+        }
+        const normalizedInitial = stripDiacritics(token.value).toLowerCase()[0];
+        if (initials && normalizedInitial && !initials.has(normalizedInitial)) {
+            return;
+        }
+        const start = token.index;
+        const end = start + token.length;
+        if (rangesOverlap(ranges, start, end)) {
+            return;
+        }
+        const resolution = preprocessName(token.value, { priority: fallbackPriorityValue });
+        if (!resolution || !resolution.canonical || resolution.method !== "fuzzy" || !resolution.changed) {
+            return;
+        }
+        const span = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, start, token.length) : null;
+        const matchEntry = {
+            name: token.value,
+            rawName: token.value,
+            matchKind: "fuzzy-fallback",
+            matchIndex: start,
+            priority: fallbackPriorityValue,
+            matchLength: token.length,
+            tokenIndex: Number.isFinite(span?.start) ? span.start : null,
+            tokenLength: Number.isFinite(span?.length) ? span.length : null,
+            nameResolution: null,
+            __preResolved: resolution,
+        };
+        fallbackMatches.push(matchEntry);
+        ranges.push({ start, end });
+    });
+    return fallbackMatches;
+}
+
 function gatherProfilePatterns(profile) {
     const result = [];
     const seen = new Set();
@@ -692,6 +810,7 @@ export function compileProfileRegexes(profile = {}, options = {}) {
     const preprocessorScripts = collectProfilePreprocessorScripts(profile);
     regexes.preprocessorScripts = preprocessorScripts;
 
+    regexes.effectivePatterns = effectivePatterns;
     return {
         regexes,
         effectivePatterns,
@@ -773,6 +892,7 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
     const tolerance = resolveFuzzyTolerance(toleranceSetting);
     const translateNames = Boolean(options?.translateFuzzyNames ?? profile?.translateFuzzyNames ?? profile?.translateNames ?? false);
     const candidateList = Array.isArray(regexes?.effectivePatterns) ? regexes.effectivePatterns : [];
+    const candidateInitials = buildCandidateInitials(candidateList);
     const aliasMap = buildAliasCanonicalMap(profile);
     const preprocessName = createNamePreprocessor({
         candidates: candidateList,
@@ -823,6 +943,9 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         quoteRanges = getQuoteRanges(sourceText);
     }
     const priorityWeights = options.priorityWeights || {};
+    const fallbackWordPattern = typeof options?.unicodeWordPattern === "string" && options.unicodeWordPattern.trim()
+        ? options.unicodeWordPattern.trim()
+        : DEFAULT_UNICODE_WORD_PATTERN;
     const scanDialogueActions = Boolean(options.scanDialogueActions);
     const tokenProjection = buildTokenProjection(profile, sourceText);
     const tokenOffsets = Array.isArray(tokenProjection?.offsets) && tokenProjection.offsets.length
@@ -961,8 +1084,29 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         });
     }
 
+    if (profile.detectGeneral !== false && tolerance?.enabled) {
+        const fallbackPriority = Number.isFinite(priorityWeights.name) ? priorityWeights.name : 0;
+        const fallbackMatches = collectFuzzyFallbackMatches({
+            text: sourceText,
+            preprocessName,
+            tolerance,
+            candidateInitials,
+            existingMatches: matches,
+            unicodeWordPattern: fallbackWordPattern,
+            fallbackPriority,
+            tokenOffsets,
+        });
+        if (fallbackMatches.length) {
+            matches.push(...fallbackMatches);
+        }
+    }
+
     matches.forEach((match) => {
-        const resolution = preprocessName(match.name, { priority: match.priority });
+        const preResolved = match.__preResolved;
+        if (preResolved) {
+            delete match.__preResolved;
+        }
+        const resolution = preResolved || preprocessName(match.name, { priority: match.priority });
         if (resolution) {
             match.rawName = resolution.raw || match.rawName || match.name;
             match.name = resolution.canonical || match.name;

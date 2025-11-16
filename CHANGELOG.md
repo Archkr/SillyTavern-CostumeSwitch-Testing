@@ -27,6 +27,7 @@
 - **Regex & fuzzy UX copy.** Settings toggles now spell out real-world use cases for the regex preprocessor tiers and fuzzy tolerance presets, with matching README guidance so new users know why and when to enable them.
 
 ### Fixed
+- **Fuzzy fallback rescues.** Near-miss character names such as “Ailce” now trigger the fuzzy fallback scanner and the default tolerance accepts one-letter swaps, so low-confidence detections can be remapped to the right character instead of being ignored entirely.
 - **Live tester fuzzy snapshots.** Streaming simulations now honor the preprocessed buffer produced by the match finder, so the fuzzy tolerance pill, copy-to-clipboard report, and diagnostics stay in sync with the text that actually triggered fuzzy rescues.
 - **Legacy clone fallback.** Replaced direct `structuredClone` calls with a resilient deep clone helper so Electron builds and browsers without the native API can load Costume Switcher without crashing on startup.
 - **Host module imports.** Costume Switcher now mirrors the official SillyTavern extension import pattern so the browser loads `script.js`, `extensions.js`, and `slash-commands.js` without triggering MIME-type errors.

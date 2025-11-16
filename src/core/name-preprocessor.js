@@ -26,7 +26,7 @@ const DEFAULT_TOLERANCE = Object.freeze({
     enabled: false,
     accentSensitive: true,
     lowConfidenceThreshold: null,
-    maxScore: 0.35,
+    maxScore: 0.45,
 });
 
 function normalizeBoolean(value, fallback = false) {
@@ -207,15 +207,25 @@ export function createNamePreprocessor({
         const sampledTrimmed = toTrimmedString(sampled);
         const normalized = translate ? stripDiacritics(sampledTrimmed) : sampledTrimmed;
         const lowered = normalized.toLowerCase();
-        let canonical = maps.direct.get(lowered) || aliasLookup.get(lowered) || null;
-        let method = canonical ? "direct" : "raw";
+        let canonical = null;
+        let method = "raw";
+        if (aliasLookup.has(lowered)) {
+            canonical = aliasLookup.get(lowered);
+            method = "alias";
+        } else if (maps.direct.has(lowered)) {
+            canonical = maps.direct.get(lowered);
+            method = "direct";
+        }
         let score = null;
         let applied = false;
 
         if (!canonical) {
             const accentKey = stripDiacritics(normalized).toLowerCase();
-            canonical = maps.accentless.get(accentKey) || aliasLookup.get(accentKey) || null;
-            if (canonical) {
+            if (aliasLookup.has(accentKey)) {
+                canonical = aliasLookup.get(accentKey);
+                method = "alias";
+            } else if (maps.accentless.has(accentKey)) {
+                canonical = maps.accentless.get(accentKey);
                 method = "accent-fold";
             }
         }
