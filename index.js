@@ -242,6 +242,8 @@ const AUTO_SAVE_REASON_OVERRIDES = {
     detectGeneral: 'general name detection',
     scanLowercaseFallbackTokens: 'lowercase fallback scanning',
     fuzzyTolerance: 'name matching tolerance',
+    fuzzyFallbackMaxScore: 'fuzzy fallback score cap',
+    fuzzyFallbackCooldown: 'fuzzy fallback cooldown',
     translateFuzzyNames: 'accent translation',
     scriptCollections: 'regex preprocessor',
     enableOutfits: 'outfit automation',
@@ -378,6 +380,8 @@ const PROFILE_DEFAULTS = {
     enableSceneRoster: true,
     sceneRosterTTL: 5,
     fuzzyTolerance: "off",
+    fuzzyFallbackMaxScore: null,
+    fuzzyFallbackCooldown: null,
     translateFuzzyNames: false,
     translateNames: false,
     prioritySpeakerWeight: 5,
@@ -4088,6 +4092,8 @@ const uiMapping = {
     detectGeneral: { selector: '#cs-detect-general', type: 'checkbox' },
     scanLowercaseFallbackTokens: { selector: '#cs-scan-lowercase-fallback', type: 'checkbox' },
     fuzzyTolerance: { selector: '#cs-fuzzy-tolerance', type: 'fuzzyTolerance' },
+    fuzzyFallbackMaxScore: { selector: '#cs-fuzzy-fallback-max-score', type: 'optionalNumber' },
+    fuzzyFallbackCooldown: { selector: '#cs-fuzzy-fallback-cooldown', type: 'optionalNumber' },
     translateFuzzyNames: { selector: '#cs-translate-fuzzy-names', type: 'checkbox' },
     attributionVerbs: { selector: '#cs-attribution-verbs', type: 'csvTextarea' },
     actionVerbs: { selector: '#cs-action-verbs', type: 'csvTextarea' },
@@ -4267,6 +4273,22 @@ function resolveMaxBufferChars(profile) {
 function resolveNumericSetting(value, fallback) {
     const num = Number(value);
     return Number.isFinite(num) ? num : fallback;
+}
+
+function resolveOptionalScoreLimit(value, fallback = null) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) {
+        return fallback;
+    }
+    return Math.min(1, Math.max(0, num));
+}
+
+function resolveFallbackCooldown(value, fallback = null) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) {
+        return fallback;
+    }
+    return Math.max(0, Math.floor(num));
 }
 
 function populateProfileDropdown() {
@@ -4608,6 +4630,9 @@ function syncProfileFieldsToUI(profile, fields = []) {
             case 'patternEditor':
                 renderPatternEditor(profile);
                 break;
+            case 'optionalNumber':
+                field.val(value ?? '');
+                break;
             default:
                 field.val(value ?? '');
                 break;
@@ -4630,6 +4655,12 @@ function getProfileValueForUI(profile, key) {
     }
     if (key === 'fuzzyTolerance') {
         return profile.fuzzyTolerance ?? PROFILE_DEFAULTS.fuzzyTolerance;
+    }
+    if (key === 'fuzzyFallbackMaxScore') {
+        return resolveOptionalScoreLimit(profile?.fuzzyFallbackMaxScore, PROFILE_DEFAULTS.fuzzyFallbackMaxScore);
+    }
+    if (key === 'fuzzyFallbackCooldown') {
+        return resolveFallbackCooldown(profile?.fuzzyFallbackCooldown, PROFILE_DEFAULTS.fuzzyFallbackCooldown);
     }
     return profile[key];
 }
@@ -4680,6 +4711,7 @@ function loadProfile(profileName) {
             case 'csvTextarea': $(selector).val((value || []).join(', ')); break;
             case 'patternEditor': renderPatternEditor(profile); break;
             case 'fuzzyTolerance': setFuzzyToleranceUI(value); break;
+            case 'optionalNumber': $(selector).val(value ?? ''); break;
             default: $(selector).val(value); break;
         }
     }
@@ -4707,7 +4739,9 @@ function saveCurrentProfileData() {
         const field = $(selector);
         if (!field.length) {
             const fallback = PROFILE_DEFAULTS[key];
-            if (type === 'textarea' || type === 'csvTextarea') {
+            if (type === 'optionalNumber') {
+                profileData[key] = fallback ?? null;
+            } else if (type === 'textarea' || type === 'csvTextarea') {
                 profileData[key] = Array.isArray(fallback) ? [...fallback] : [];
             } else if (type === 'checkbox') {
                 profileData[key] = Boolean(fallback);
@@ -4735,6 +4769,24 @@ function saveCurrentProfileData() {
                 const parsed = parseFloat(field.val());
                 const fallback = PROFILE_DEFAULTS[key] ?? 0;
                 value = Number.isFinite(parsed) ? parsed : fallback;
+                break;
+            }
+            case 'optionalNumber': {
+                const raw = String(field.val() ?? '').trim();
+                if (!raw) {
+                    value = PROFILE_DEFAULTS[key] ?? null;
+                    break;
+                }
+                const parsed = Number(raw);
+                if (key === 'fuzzyFallbackMaxScore') {
+                    value = resolveOptionalScoreLimit(parsed, PROFILE_DEFAULTS[key] ?? null);
+                    break;
+                }
+                if (key === 'fuzzyFallbackCooldown') {
+                    value = resolveFallbackCooldown(parsed, PROFILE_DEFAULTS[key] ?? null);
+                    break;
+                }
+                value = Number.isFinite(parsed) ? parsed : (PROFILE_DEFAULTS[key] ?? null);
                 break;
             }
             default:
@@ -7844,7 +7896,7 @@ function wireUI() {
             return;
         }
         $(document).on('change', selector, (event) => handleAutoSaveFieldEvent(event, key));
-        if (['text', 'textarea', 'csvTextarea', 'number', 'range'].includes(mapping.type)) {
+        if (['text', 'textarea', 'csvTextarea', 'number', 'range', 'optionalNumber'].includes(mapping.type)) {
             $(document).on('input', selector, (event) => handleAutoSaveFieldEvent(event, key));
         }
     });

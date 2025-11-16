@@ -102,6 +102,26 @@ test('normalizeProfile normalizes script collection opt-ins', () => {
         'script collections should normalize to an ordered opt-in list');
 });
 
+test('normalizeProfile preserves fuzzy fallback tuning defaults', () => {
+    const defaults = {
+        ...PROFILE_DEFAULTS,
+        fuzzyFallbackMaxScore: null,
+        fuzzyFallbackCooldown: null,
+    };
+
+    const withCustomValues = normalizeProfile({
+        fuzzyFallbackMaxScore: 0.45,
+        fuzzyFallbackCooldown: 40,
+    }, defaults);
+
+    assert.equal(withCustomValues.fuzzyFallbackMaxScore, 0.45);
+    assert.equal(withCustomValues.fuzzyFallbackCooldown, 40);
+
+    const roundTrip = normalizeProfile({}, defaults);
+    assert.equal(roundTrip.fuzzyFallbackMaxScore, null);
+    assert.equal(roundTrip.fuzzyFallbackCooldown, null);
+});
+
 test('mappingHasIdentity accepts partially configured character slots', () => {
     assert.equal(mappingHasIdentity({}), false, 'empty mapping should not persist');
     assert.equal(mappingHasIdentity({ name: 'Draft Character' }), true, 'name-only mapping should persist');

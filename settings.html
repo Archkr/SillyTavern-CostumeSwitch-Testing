@@ -337,6 +337,16 @@
                       <small>Let fuzzy fallback scan lowercase speaker cues and system prompts. Keep off unless your scripts intentionally lowercase names.</small>
                     </span>
                   </label>
+                  <div class="cs-number-field">
+                    <label for="cs-fuzzy-fallback-max-score">Max fuzzy fallback score</label>
+                    <input id="cs-fuzzy-fallback-max-score" class="text_pole" type="number" min="0" max="1" step="0.01" inputmode="decimal" placeholder="Optional (0–1)" title="Clamp Fuse-powered fallback rescues to scores at or below this value. Leave blank to rely on the active tolerance and block only distant outliers." data-change-notice="Auto-saving fuzzy fallback score cap." />
+                    <small>Limit fuzzy rescues to the nearest matches. Set a cap near 0.4–0.6 to prevent distant capitalized words from mapping to live characters.</small>
+                  </div>
+                  <div class="cs-number-field">
+                    <label for="cs-fuzzy-fallback-cooldown">Fallback cooldown (characters)</label>
+                    <input id="cs-fuzzy-fallback-cooldown" class="text_pole" type="number" min="0" step="1" inputmode="numeric" placeholder="Default: 200" title="Require this many characters to pass before the same name can be rescued again. Leave blank to rely on the built-in 200 character guard." data-change-notice="Auto-saving fuzzy fallback cooldown." />
+                    <small>Throttle repeated rescues. Keep the default 200-character padding to stop spammy repeats, or lower it for tight call-and-response logs.</small>
+                  </div>
                   <div class="cs-helper-text">
                     <p><strong>How each preset behaves:</strong></p>
                     <ul>

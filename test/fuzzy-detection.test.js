@@ -440,6 +440,40 @@ test("collectDetections throttles repeated fuzzy fallback candidates", () => {
     assert.equal(fallbackMatches[0]?.rawName, "Ailce");
 });
 
+test("collectDetections honors custom fuzzy fallback cooldown distances", () => {
+    const profile = {
+        patternSlots: [
+            { name: "Alice" },
+        ],
+        ignorePatterns: [],
+        attributionVerbs: [],
+        actionVerbs: [],
+        pronounVocabulary: ["she"],
+        detectAttribution: false,
+        detectAction: false,
+        detectVocative: false,
+        detectPossessive: false,
+        detectPronoun: false,
+        detectGeneral: false,
+        fuzzyTolerance: "auto",
+        fuzzyFallbackCooldown: 0,
+    };
+
+    const { regexes } = compileProfileRegexes(profile, {
+        unicodeWordPattern: "[\\p{L}\\p{M}]",
+        defaultPronouns: ["she"],
+    });
+
+    const sample = "Ailce waved. Ailce waved again. Ailce waved a third time.";
+    const matches = collectDetections(sample, profile, regexes, {
+        priorityWeights: { name: 1 },
+        unicodeWordPattern: "[\\p{L}\\p{M}]",
+    });
+
+    const fallbackMatches = matches.filter(entry => entry.matchKind === "fuzzy-fallback");
+    assert.ok(fallbackMatches.length > 1, "expected repeated fuzzy fallback candidates to register without cooldown padding");
+});
+
 test("resolveOutfitForMatch reuses fuzzy resolution for mapping lookup", () => {
     const profileDraft = {
         enableOutfits: true,
