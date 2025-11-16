@@ -36,6 +36,7 @@
 - **Top character canonical labels.** Live tester and scene panel leaderboards now always show the normalized character name,
   even when a fuzzy fallback trigger originated from filler words like “Now,” keeping phantom entries out of the rankings.
 - **Fuzzy fallback rescues.** Near-miss character names such as “Ailce” now trigger the fuzzy fallback scanner even when only speaker/action cues are enabled, and the default tolerance accepts one-letter swaps so low-confidence detections remap to the right character instead of being ignored entirely.
+- **Fuzzy fallback cooldown.** Contextual and standalone fuzzy collectors now pad prior match ranges and enforce a canonical/token cooldown so repeated mentions stop requeueing detections or spamming tester logs.
 - **Fuzzy fallback general scan.** The standalone fallback sweep now runs whenever fuzzy tolerance is enabled, even if general detection is disabled, so misspelled names typed outside scripted cues still remap to the right characters.
 - **Live tester fuzzy snapshots.** Streaming simulations now honor the preprocessed buffer produced by the match finder, so the fuzzy tolerance pill, copy-to-clipboard report, and diagnostics stay in sync with the text that actually triggered fuzzy rescues.
 - **Legacy clone fallback.** Replaced direct `structuredClone` calls with a resilient deep clone helper so Electron builds and browsers without the native API can load Costume Switcher without crashing on startup.
