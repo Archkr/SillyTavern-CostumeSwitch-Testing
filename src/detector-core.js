@@ -358,22 +358,6 @@ function buildAlternation(list) {
         .join("|");
 }
 
-function buildCandidateInitials(candidates = []) {
-    const initials = new Set();
-    candidates.forEach((entry) => {
-        const trimmed = typeof entry === "string" ? entry.trim() : String(entry ?? "").trim();
-        if (!trimmed) {
-            return;
-        }
-        const normalized = stripDiacritics(trimmed).toLowerCase();
-        if (!normalized) {
-            return;
-        }
-        initials.add(normalized[0]);
-    });
-    return initials;
-}
-
 function buildFallbackTokenPattern(unicodeWordPattern = DEFAULT_UNICODE_WORD_PATTERN) {
     const pattern = typeof unicodeWordPattern === "string" && unicodeWordPattern.trim()
         ? unicodeWordPattern.trim()
@@ -585,7 +569,6 @@ function collectSimpleFuzzyFallbackMatches({
     text,
     preprocessName,
     tolerance,
-    candidateInitials,
     existingMatches,
     unicodeWordPattern,
     fallbackPriority,
@@ -597,7 +580,6 @@ function collectSimpleFuzzyFallbackMatches({
     if (!text || !preprocessName || !tolerance?.enabled) {
         return [];
     }
-    const initials = candidateInitials instanceof Set && candidateInitials.size ? candidateInitials : null;
     const ranges = Array.isArray(existingMatches)
         ? existingMatches
             .map((match) => {
@@ -617,10 +599,6 @@ function collectSimpleFuzzyFallbackMatches({
     const cooldownTracker = createFallbackCooldownTracker({ fallbackCooldown, existingMatches });
     tokens.forEach((token) => {
         if (!token || !token.value) {
-            return;
-        }
-        const normalizedInitial = stripDiacritics(token.value).toLowerCase()[0];
-        if (initials && normalizedInitial && !initials.has(normalizedInitial)) {
             return;
         }
         const start = token.index;
@@ -689,7 +667,6 @@ function collectContextualFuzzyFallbackMatches({
     text,
     preprocessName,
     tolerance,
-    candidateInitials,
     existingMatches,
     contexts,
     tokenOffsets,
@@ -706,7 +683,6 @@ function collectContextualFuzzyFallbackMatches({
     if (!detectors.length) {
         return [];
     }
-    const initials = candidateInitials instanceof Set && candidateInitials.size ? candidateInitials : null;
     const ranges = Array.isArray(existingMatches)
         ? existingMatches
             .map((match) => {
@@ -750,10 +726,6 @@ function collectContextualFuzzyFallbackMatches({
                 return;
             }
             if (!tokenLooksLikeProperNoun(candidate, { allowLowercaseTokens: allowLowercaseFallbackTokens })) {
-                return;
-            }
-            const normalizedInitial = stripDiacritics(candidate).toLowerCase()[0];
-            if (initials && normalizedInitial && !initials.has(normalizedInitial)) {
                 return;
             }
             const localIndex = typeof match.match === "string"
@@ -1327,7 +1299,6 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         ? options.fuseOptions
         : null;
     const candidateList = Array.isArray(regexes?.effectivePatterns) ? regexes.effectivePatterns : [];
-    const candidateInitials = buildCandidateInitials(candidateList);
     const aliasMap = buildAliasCanonicalMap(profile);
     const preprocessName = createNamePreprocessor({
         candidates: candidateList,
@@ -1575,7 +1546,6 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
             text: sourceText,
             preprocessName,
             tolerance,
-            candidateInitials,
             existingMatches: matches,
             contexts: fallbackContexts,
             tokenOffsets,
@@ -1593,7 +1563,6 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
             text: sourceText,
             preprocessName,
             tolerance,
-            candidateInitials,
             existingMatches: matches,
             unicodeWordPattern: fallbackWordPattern,
             fallbackPriority,
