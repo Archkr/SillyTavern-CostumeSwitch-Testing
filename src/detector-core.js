@@ -302,6 +302,33 @@ function buildCandidateInitials(candidates = []) {
     return initials;
 }
 
+function buildFallbackTokenPattern(unicodeWordPattern = DEFAULT_UNICODE_WORD_PATTERN) {
+    const pattern = typeof unicodeWordPattern === "string" && unicodeWordPattern.trim()
+        ? unicodeWordPattern.trim()
+        : DEFAULT_UNICODE_WORD_PATTERN;
+    return `${pattern}+?(?:['’\-]${pattern}+?)*`;
+}
+
+function buildFallbackRegexFromTemplate(template, unicodeWordPattern = DEFAULT_UNICODE_WORD_PATTERN, options = {}) {
+    if (typeof template !== "string" || !template.includes("{{PATTERNS}}")) {
+        return null;
+    }
+    const captureBase = buildFallbackTokenPattern(unicodeWordPattern);
+    const captureGroup = `(${captureBase})`;
+    const wrappedPlaceholder = "({{PATTERNS}})";
+    const body = template.includes(wrappedPlaceholder)
+        ? template.replace(wrappedPlaceholder, captureGroup)
+        : template.replace("{{PATTERNS}}", captureGroup);
+    const flagSet = new Set(options.requireI === false ? [] : ["i"]);
+    const extraFlags = typeof options.extraFlags === "string" ? options.extraFlags : "";
+    for (const flag of extraFlags) {
+        if (flag && !flagSet.has(flag) && "gimsuyd".includes(flag)) {
+            flagSet.add(flag);
+        }
+    }
+    return new RegExp(body, Array.from(flagSet).join(""));
+}
+
 function scanNameLikeTokens(text, unicodeWordPattern = DEFAULT_UNICODE_WORD_PATTERN) {
     if (!text) {
         return [];
@@ -401,6 +428,106 @@ function collectFuzzyFallbackMatches({
         fallbackMatches.push(matchEntry);
         ranges.push({ start, end });
     });
+    return fallbackMatches;
+}
+
+function collectContextualFuzzyFallbackMatches({
+    text,
+    preprocessName,
+    tolerance,
+    candidateInitials,
+    existingMatches,
+    contexts,
+    tokenOffsets,
+    quoteRanges,
+    matchOptions,
+}) {
+    if (!text || !preprocessName || !tolerance?.enabled) {
+        return [];
+    }
+    const detectors = Array.isArray(contexts) ? contexts.filter((context) => context?.regex) : [];
+    if (!detectors.length) {
+        return [];
+    }
+    const initials = candidateInitials instanceof Set && candidateInitials.size ? candidateInitials : null;
+    const ranges = Array.isArray(existingMatches)
+        ? existingMatches
+            .map((match) => {
+                if (!Number.isFinite(match?.matchIndex) || !Number.isFinite(match?.matchLength)) {
+                    return null;
+                }
+                return {
+                    start: Math.max(0, Math.floor(match.matchIndex)),
+                    end: Math.max(0, Math.floor(match.matchIndex + match.matchLength)),
+                };
+            })
+            .filter(Boolean)
+        : [];
+    const fallbackMatches = [];
+
+    const resolveCandidate = (match) => {
+        if (!match) {
+            return null;
+        }
+        if (Array.isArray(match.groups)) {
+            for (const group of match.groups) {
+                if (typeof group === "string" && group.trim()) {
+                    return group.trim();
+                }
+            }
+        }
+        return null;
+    };
+
+    detectors.forEach((context) => {
+        const contextMatches = findMatches(
+            text,
+            context.regex,
+            quoteRanges,
+            { ...matchOptions, ...(context.options || {}) },
+        );
+        contextMatches.forEach((match) => {
+            const candidate = resolveCandidate(match);
+            if (!candidate || candidate.length < 3) {
+                return;
+            }
+            const normalizedInitial = stripDiacritics(candidate).toLowerCase()[0];
+            if (initials && normalizedInitial && !initials.has(normalizedInitial)) {
+                return;
+            }
+            const localIndex = typeof match.match === "string"
+                ? match.match.indexOf(candidate)
+                : -1;
+            const start = match.index + (localIndex >= 0 ? localIndex : 0);
+            const end = start + candidate.length;
+            if (rangesOverlap(ranges, start, end)) {
+                return;
+            }
+            const resolutionPriority = Number.isFinite(context.resolutionPriority)
+                ? context.resolutionPriority
+                : context.priority;
+            const resolution = preprocessName(candidate, { priority: resolutionPriority });
+            if (!resolution || !resolution.canonical || resolution.method !== "fuzzy" || !resolution.changed) {
+                return;
+            }
+            const span = tokenOffsets ? computeMatchTokenSpan(tokenOffsets, start, candidate.length) : null;
+            const matchEntry = {
+                name: candidate,
+                rawName: candidate,
+                matchKind: context.matchKind || "fuzzy-fallback",
+                matchIndex: start,
+                priority: Number.isFinite(context.priority) ? context.priority : 0,
+                matchLength: candidate.length,
+                tokenIndex: Number.isFinite(span?.start) ? span.start : null,
+                tokenLength: Number.isFinite(span?.length) ? span.length : null,
+                nameResolution: null,
+                __preResolved: resolution,
+            };
+            fallbackMatches.push(matchEntry);
+            ranges.push({ start, end });
+        });
+    });
+
     return fallbackMatches;
 }
 
@@ -793,8 +920,17 @@ export function compileProfileRegexes(profile = {}, options = {}) {
 
     const regexes = {
         speakerRegex: buildRegex(effectivePatterns, speakerTemplate),
+        speakerFallbackRegex: speakerTemplate
+            ? buildFallbackRegexFromTemplate(speakerTemplate, unicodeWordPattern)
+            : null,
         attributionRegex: attributionTemplate ? buildRegex(effectivePatterns, attributionTemplate, { extraFlags: "u" }) : null,
+        attributionFallbackRegex: attributionTemplate
+            ? buildFallbackRegexFromTemplate(attributionTemplate, unicodeWordPattern, { extraFlags: "u" })
+            : null,
         actionRegex: actionTemplate ? buildRegex(effectivePatterns, actionTemplate, { extraFlags: "u" }) : null,
+        actionFallbackRegex: actionTemplate
+            ? buildFallbackRegexFromTemplate(actionTemplate, unicodeWordPattern, { extraFlags: "u" })
+            : null,
         pronounRegex: (actionVerbsPattern && pronounPattern)
             ? new RegExp(
                 `${pronounLeadBoundary}(?:${pronounPattern})(?:['’]s)?\\s+(?:${unicodeWordPattern}+\\s+){0,3}?(?:${actionVerbsPattern})`,
@@ -802,7 +938,9 @@ export function compileProfileRegexes(profile = {}, options = {}) {
             )
             : null,
         vocativeRegex: buildRegex(effectivePatterns, `["“'\\s]({{PATTERNS}})[,.!?]`),
+        vocativeFallbackRegex: buildFallbackRegexFromTemplate(`["“'\\s]({{PATTERNS}})[,.!?]`, unicodeWordPattern),
         possessiveRegex: buildRegex(effectivePatterns, `\\b({{PATTERNS}})['’]s\\b`),
+        possessiveFallbackRegex: buildFallbackRegexFromTemplate(`\\b({{PATTERNS}})['’]s\\b`, unicodeWordPattern),
         nameRegex: buildRegex(effectivePatterns, `\\b({{PATTERNS}})\\b`),
         vetoRegex: buildGenericRegex(profile.vetoPatterns),
     };
@@ -1084,8 +1222,72 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         });
     }
 
+    const fallbackPriority = Number.isFinite(priorityWeights.name) ? priorityWeights.name : 0;
+
+    if (tolerance?.enabled) {
+        const fallbackContexts = [];
+        if (profile.detectAttribution !== false && regexes.attributionFallbackRegex) {
+            fallbackContexts.push({
+                regex: regexes.attributionFallbackRegex,
+                matchKind: "attribution",
+                priority: priorityWeights.attribution,
+                resolutionPriority: fallbackPriority,
+                options: { searchInsideQuotes: scanDialogueActions },
+            });
+        }
+        if (profile.detectAction !== false && regexes.actionFallbackRegex) {
+            fallbackContexts.push({
+                regex: regexes.actionFallbackRegex,
+                matchKind: "action",
+                priority: priorityWeights.action,
+                resolutionPriority: fallbackPriority,
+                options: { searchInsideQuotes: scanDialogueActions },
+            });
+        }
+        if (profile.detectVocative !== false && regexes.vocativeFallbackRegex) {
+            fallbackContexts.push({
+                regex: regexes.vocativeFallbackRegex,
+                matchKind: "vocative",
+                priority: priorityWeights.vocative,
+                resolutionPriority: fallbackPriority,
+                options: { searchInsideQuotes: true },
+            });
+        }
+        if (profile.detectPossessive && regexes.possessiveFallbackRegex) {
+            fallbackContexts.push({
+                regex: regexes.possessiveFallbackRegex,
+                matchKind: "possessive",
+                priority: priorityWeights.possessive,
+                resolutionPriority: fallbackPriority,
+            });
+        }
+        if (regexes.speakerFallbackRegex) {
+            fallbackContexts.push({
+                regex: regexes.speakerFallbackRegex,
+                matchKind: "speaker",
+                priority: priorityWeights.speaker,
+                resolutionPriority: fallbackPriority,
+            });
+        }
+        if (fallbackContexts.length) {
+            const contextualFallbacks = collectContextualFuzzyFallbackMatches({
+                text: sourceText,
+                preprocessName,
+                tolerance,
+                candidateInitials,
+                existingMatches: matches,
+                contexts: fallbackContexts,
+                tokenOffsets,
+                quoteRanges,
+                matchOptions,
+            });
+            if (contextualFallbacks.length) {
+                matches.push(...contextualFallbacks);
+            }
+        }
+    }
+
     if (profile.detectGeneral !== false && tolerance?.enabled) {
-        const fallbackPriority = Number.isFinite(priorityWeights.name) ? priorityWeights.name : 0;
         const fallbackMatches = collectFuzzyFallbackMatches({
             text: sourceText,
             preprocessName,
