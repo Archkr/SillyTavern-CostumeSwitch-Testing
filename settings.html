@@ -263,7 +263,7 @@
                   <label class="cs-toggle" title="USE WITH CAUTION: Triggers on any mention of a character's name anywhere in the text. Can cause flickering.">
                     <input id="cs-detect-general" type="checkbox" />
                     <span class="cs-toggle-indicator"></span>
-                    <span><i class="fa-solid fa-magnifying-glass"></i>Detect General Mentions</span>
+                    <span><i class="fa-solid fa-magnifying-glass"></i>Detect General Name Mentions</span>
                   </label>
                 </div>
                 <small class="cs-helper-text">Enable the dialogue scan toggle if you work with transcripts that embed narration inside quoted speech, such as “the squad leader recounted, ‘Form up.’”. Use the Regex Preprocessor options below to opt into allowed script collections when you need extra cleanup or translation guards.</small>
@@ -316,6 +316,7 @@
                       <option value="custom">Custom threshold</option>
                     </select>
                   </div>
+                  <small class="cs-helper-text">Fuzzy tolerance needs live detections to normalize. Keep Detect General Name Mentions on or make sure Detect Attribution and Detect Action stay enabled so fuzzy rescue has names to compare.</small>
                   <div id="cs-fuzzy-tolerance-custom-wrapper" class="cs-number-field" hidden>
                     <label for="cs-fuzzy-tolerance-custom">Custom Low-Confidence Threshold</label>
                     <input id="cs-fuzzy-tolerance-custom" class="text_pole" type="number" min="0" step="1" inputmode="numeric" placeholder="e.g., 3" title="Only use fuzzy matching when a detector scores at or below this priority value." />

@@ -7602,7 +7602,7 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
     if (hasInputText && fuzzyToleranceEnabled && !fuzzySnapshot?.used && !detectedAnyCandidates && fuzzyCandidates > 0) {
         rosterWarnings.push({
             type: "fuzzy-idle",
-            message: "Fuzzy tolerance is enabled, but no names were normalized. Enable General Name detection or verify attribution/action verbs so detections exist for fuzzy matching.",
+            message: "Fuzzy tolerance is enabled, but no names were normalized. Turn on Detect General Name Mentions or confirm Detect Attribution and Detect Action are enabled so fuzzy matching has candidates.",
         });
     }
 

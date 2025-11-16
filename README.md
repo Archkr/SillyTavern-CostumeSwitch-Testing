@@ -407,7 +407,7 @@ Because these exports are refreshed on every message, you can wire them directly
 ## Troubleshooting Checklist
 1. **No switches happen:** verify streaming is enabled, the master toggle is on, at least one detection method is selected, and the characters appear in the patterns list exactly as they do in the story.
 2. **The wrong character is chosen:** run the Live Pattern Tester, read the skip reasons, and adjust Detection Bias or enable Scene Roster to give dialogue tags more weight.
-3. **Switches flicker between characters:** raise the global cooldown, tweak per-trigger cooldowns, or disable **Detect General Mentions** for subtle references.
+3. **Switches flicker between characters:** raise the global cooldown, tweak per-trigger cooldowns, or disable **Detect General Name Mentions** for subtle references.
 4. **Reports show a veto:** check the Veto Phrases list to confirm the text did not match an OOC filter.
 5. **Profiles do not persist:** ensure you click **Save** after editing and confirm the SillyTavern browser tab has permission to write local storage.
 

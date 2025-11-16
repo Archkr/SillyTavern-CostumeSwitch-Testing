@@ -291,8 +291,8 @@ test("simulateTesterStream surfaces a fuzzy idle warning when tolerance is enabl
     assert.equal(result.events.length, 0, "expected no detection events when all detectors are disabled");
     const warning = result.rosterWarnings.find(entry => entry?.type === "fuzzy-idle");
     assert.ok(warning, "fuzzy idle warning should be surfaced when tolerance is enabled but unused");
-    assert.match(warning.message, /general name detection/i, "warning should recommend enabling General Name detection");
-    assert.match(warning.message, /attribution\/action verbs/i, "warning should mention attribution or action verbs for fuzzy context");
+    assert.match(warning.message, /detect general name mentions/i, "warning should recommend enabling General Name detection");
+    assert.match(warning.message, /detect attribution and detect action/i, "warning should mention attribution or action verbs for fuzzy context");
 });
 
 test("incremental analytics handles long streaming messages without full rescans", () => {
