@@ -8,6 +8,9 @@ const DEFAULT_BOUNDARY_LOOKBEHIND = "(?<![A-Za-z0-9_'’])";
 const PROPER_NOUN_CHAR_REGEX = /\p{Lu}/u;
 
 const PROFILE_TOKENIZER_CACHE = new WeakMap();
+const FALLBACK_RANGE_CHAR_PADDING = 10;
+const FALLBACK_RANGE_TOKEN_PADDING = 2;
+const DEFAULT_FALLBACK_MATCH_COOLDOWN = 200;
 
 function normalizeTokenizerPreference(value) {
     if (typeof value === "string") {
@@ -448,6 +451,110 @@ function rangesOverlap(existingRanges, start, end) {
     });
 }
 
+function expandRangeWithPadding(start, end, tokenOffsets, {
+    charPadding = FALLBACK_RANGE_CHAR_PADDING,
+    tokenPadding = FALLBACK_RANGE_TOKEN_PADDING,
+} = {}) {
+    const safeStart = Number.isFinite(start) ? Math.max(0, Math.floor(start)) : 0;
+    const safeEndExclusive = Number.isFinite(end) ? Math.max(safeStart, Math.floor(end)) : safeStart;
+    let paddedStart = Math.max(0, safeStart - Math.max(0, charPadding));
+    let paddedEnd = safeEndExclusive + Math.max(0, charPadding);
+    const offsets = Array.isArray(tokenOffsets) && tokenOffsets.length ? tokenOffsets : null;
+    if (offsets && tokenPadding > 0) {
+        const inclusiveEnd = Math.max(safeStart, safeEndExclusive - 1);
+        const tokenStart = findTokenIndexCeil(offsets, safeStart);
+        if (tokenStart != null && tokenStart >= 0) {
+            const paddedTokenStart = Math.max(0, tokenStart - tokenPadding);
+            const startOffset = offsets[paddedTokenStart]?.start;
+            if (Number.isFinite(startOffset)) {
+                paddedStart = Math.min(paddedStart, startOffset);
+            }
+        }
+        const tokenEnd = findTokenIndexFloor(offsets, inclusiveEnd);
+        if (tokenEnd != null && tokenEnd >= 0) {
+            const paddedTokenEnd = Math.min(offsets.length - 1, tokenEnd + tokenPadding);
+            const endOffset = offsets[paddedTokenEnd]?.end;
+            if (Number.isFinite(endOffset)) {
+                paddedEnd = Math.max(paddedEnd, endOffset);
+            }
+        }
+    }
+    return { start: paddedStart, end: paddedEnd };
+}
+
+function createFallbackMatchHash(canonicalName, tokenIndex) {
+    if (!canonicalName || !Number.isFinite(tokenIndex)) {
+        return null;
+    }
+    return `${canonicalName.toLowerCase()}#${Math.max(0, Math.floor(tokenIndex))}`;
+}
+
+function createFallbackCooldownTracker({ fallbackCooldown, existingMatches }) {
+    const cooldownDistance = Number.isFinite(fallbackCooldown)
+        ? Math.max(0, Math.floor(fallbackCooldown))
+        : DEFAULT_FALLBACK_MATCH_COOLDOWN;
+    const hashTracker = new Map();
+    const nameTracker = new Map();
+
+    const seedFromMatch = (match) => {
+        if (!match) {
+            return;
+        }
+        const tokenIndex = Number.isFinite(match.tokenIndex) ? match.tokenIndex : null;
+        const canonicalName = typeof match.__preResolved?.canonical === "string"
+            ? match.__preResolved.canonical
+            : (typeof match.normalizedName === "string"
+                ? match.normalizedName
+                : (typeof match.name === "string" ? match.name : null));
+        const startIndex = Number.isFinite(match.matchIndex) ? match.matchIndex : 0;
+        const hash = createFallbackMatchHash(canonicalName, tokenIndex);
+        if (hash) {
+            hashTracker.set(hash, startIndex);
+        }
+        if (canonicalName) {
+            nameTracker.set(canonicalName.toLowerCase(), startIndex);
+        }
+    };
+
+    if (Array.isArray(existingMatches)) {
+        existingMatches.forEach(seedFromMatch);
+    }
+
+    return {
+        cooldown: cooldownDistance,
+        shouldSkip(hash, canonicalName, index) {
+            if (!Number.isFinite(index)) {
+                return false;
+            }
+            if (hash) {
+                const lastIndex = hashTracker.get(hash);
+                if (Number.isFinite(lastIndex) && index - lastIndex < cooldownDistance) {
+                    return true;
+                }
+            }
+            if (canonicalName) {
+                const nameKey = canonicalName.toLowerCase();
+                const lastIndex = nameTracker.get(nameKey);
+                if (Number.isFinite(lastIndex) && index - lastIndex < cooldownDistance) {
+                    return true;
+                }
+            }
+            return false;
+        },
+        record(hash, canonicalName, index) {
+            if (!Number.isFinite(index)) {
+                return;
+            }
+            if (hash) {
+                hashTracker.set(hash, index);
+            }
+            if (canonicalName) {
+                nameTracker.set(canonicalName.toLowerCase(), index);
+            }
+        },
+    };
+}
+
 function clampScoreLimit(value) {
     if (value == null) {
         return null;
@@ -485,6 +592,7 @@ function collectSimpleFuzzyFallbackMatches({
     tokenOffsets,
     allowLowercaseFallbackTokens,
     fallbackMaxScore,
+    fallbackCooldown,
 }) {
     if (!text || !preprocessName || !tolerance?.enabled) {
         return [];
@@ -496,10 +604,9 @@ function collectSimpleFuzzyFallbackMatches({
                 if (!Number.isFinite(match?.matchIndex) || !Number.isFinite(match?.matchLength)) {
                     return null;
                 }
-                return {
-                    start: Math.max(0, Math.floor(match.matchIndex)),
-                    end: Math.max(0, Math.floor(match.matchIndex + match.matchLength)),
-                };
+                const rawStart = Math.max(0, Math.floor(match.matchIndex));
+                const rawEnd = Math.max(0, Math.floor(match.matchIndex + match.matchLength));
+                return expandRangeWithPadding(rawStart, rawEnd, tokenOffsets);
             })
             .filter(Boolean)
         : [];
@@ -507,6 +614,7 @@ function collectSimpleFuzzyFallbackMatches({
     const scoreLimit = resolveFuzzyScoreLimit(tolerance, fallbackMaxScore);
     const tokens = scanNameLikeTokens(text, unicodeWordPattern, { allowLowercaseTokens: allowLowercaseFallbackTokens });
     const fallbackMatches = [];
+    const cooldownTracker = createFallbackCooldownTracker({ fallbackCooldown, existingMatches });
     tokens.forEach((token) => {
         if (!token || !token.value) {
             return;
@@ -550,6 +658,13 @@ function collectSimpleFuzzyFallbackMatches({
         if (scoreLimit != null && resolutionScore > scoreLimit) {
             return;
         }
+        const tokenIndex = Number.isFinite(matchSpan?.start) ? matchSpan.start : null;
+        const tokenLength = Number.isFinite(matchSpan?.length) ? matchSpan.length : null;
+        const canonicalName = typeof resolution.canonical === "string" ? resolution.canonical : null;
+        const matchHash = createFallbackMatchHash(canonicalName, tokenIndex);
+        if (cooldownTracker.shouldSkip(matchHash, canonicalName, start)) {
+            return;
+        }
         const matchEntry = {
             name: token.value,
             rawName: token.value,
@@ -557,13 +672,15 @@ function collectSimpleFuzzyFallbackMatches({
             matchIndex: start,
             priority: fallbackPriorityValue,
             matchLength: token.length,
-            tokenIndex: Number.isFinite(matchSpan?.start) ? matchSpan.start : null,
-            tokenLength: Number.isFinite(matchSpan?.length) ? matchSpan.length : null,
+            tokenIndex,
+            tokenLength,
             nameResolution: null,
             __preResolved: resolution,
+            __fallbackHash: matchHash,
         };
         fallbackMatches.push(matchEntry);
-        ranges.push({ start, end });
+        cooldownTracker.record(matchHash, canonicalName, start);
+        ranges.push(expandRangeWithPadding(start, end, tokenOffsets));
     });
     return fallbackMatches;
 }
@@ -580,6 +697,7 @@ function collectContextualFuzzyFallbackMatches({
     matchOptions,
     allowLowercaseFallbackTokens,
     fallbackMaxScore,
+    fallbackCooldown,
 }) {
     if (!text || !preprocessName || !tolerance?.enabled) {
         return [];
@@ -595,15 +713,15 @@ function collectContextualFuzzyFallbackMatches({
                 if (!Number.isFinite(match?.matchIndex) || !Number.isFinite(match?.matchLength)) {
                     return null;
                 }
-                return {
-                    start: Math.max(0, Math.floor(match.matchIndex)),
-                    end: Math.max(0, Math.floor(match.matchIndex + match.matchLength)),
-                };
+                const rawStart = Math.max(0, Math.floor(match.matchIndex));
+                const rawEnd = Math.max(0, Math.floor(match.matchIndex + match.matchLength));
+                return expandRangeWithPadding(rawStart, rawEnd, tokenOffsets);
             })
             .filter(Boolean)
         : [];
     const scoreLimit = resolveFuzzyScoreLimit(tolerance, fallbackMaxScore);
     const fallbackMatches = [];
+    const cooldownTracker = createFallbackCooldownTracker({ fallbackCooldown, existingMatches });
 
     const resolveCandidate = (match) => {
         if (!match) {
@@ -673,6 +791,13 @@ function collectContextualFuzzyFallbackMatches({
             if (scoreLimit != null && resolutionScore > scoreLimit) {
                 return;
             }
+            const tokenIndex = Number.isFinite(matchSpan?.start) ? matchSpan.start : null;
+            const tokenLength = Number.isFinite(matchSpan?.length) ? matchSpan.length : null;
+            const canonicalName = typeof resolution.canonical === "string" ? resolution.canonical : null;
+            const matchHash = createFallbackMatchHash(canonicalName, tokenIndex);
+            if (cooldownTracker.shouldSkip(matchHash, canonicalName, start)) {
+                return;
+            }
             const matchEntry = {
                 name: candidate,
                 rawName: candidate,
@@ -680,13 +805,15 @@ function collectContextualFuzzyFallbackMatches({
                 matchIndex: start,
                 priority: Number.isFinite(context.priority) ? context.priority : 0,
                 matchLength: candidate.length,
-                tokenIndex: Number.isFinite(matchSpan?.start) ? matchSpan.start : null,
-                tokenLength: Number.isFinite(matchSpan?.length) ? matchSpan.length : null,
+                tokenIndex,
+                tokenLength,
                 nameResolution: null,
                 __preResolved: resolution,
+                __fallbackHash: matchHash,
             };
             fallbackMatches.push(matchEntry);
-            ranges.push({ start, end });
+            cooldownTracker.record(matchHash, canonicalName, start);
+            ranges.push(expandRangeWithPadding(start, end, tokenOffsets));
         });
     });
 
@@ -1192,6 +1319,10 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
     const tolerance = resolveFuzzyTolerance(toleranceSetting);
     const translateNames = Boolean(options?.translateFuzzyNames ?? profile?.translateFuzzyNames ?? profile?.translateNames ?? false);
     const fallbackScoreLimit = clampScoreLimit(options?.fuzzyFallbackMaxScore ?? profile?.fuzzyFallbackMaxScore);
+    const configuredFallbackCooldown = options?.fuzzyFallbackCooldown ?? profile?.fuzzyFallbackCooldown;
+    const fallbackMatchCooldown = Number.isFinite(configuredFallbackCooldown)
+        ? Math.max(0, Math.floor(configuredFallbackCooldown))
+        : DEFAULT_FALLBACK_MATCH_COOLDOWN;
     const fuseOverrides = options?.fuseOptions && typeof options.fuseOptions === "object"
         ? options.fuseOptions
         : null;
@@ -1452,6 +1583,7 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
                 matchOptions,
                 allowLowercaseFallbackTokens,
                 fallbackMaxScore: fallbackScoreLimit,
+                fallbackCooldown: fallbackMatchCooldown,
             });
             if (contextualFallbacks.length) {
                 matches.push(...contextualFallbacks);
@@ -1471,6 +1603,7 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
             tokenOffsets,
             allowLowercaseFallbackTokens,
             fallbackMaxScore: fallbackScoreLimit,
+            fallbackCooldown: fallbackMatchCooldown,
         });
         if (fallbackMatches.length) {
             matches.push(...fallbackMatches);
@@ -1481,6 +1614,9 @@ export function collectDetections(text, profile = {}, regexes = {}, options = {}
         const preResolved = match.__preResolved;
         if (preResolved) {
             delete match.__preResolved;
+        }
+        if ("__fallbackHash" in match) {
+            delete match.__fallbackHash;
         }
         const resolution = preResolved || preprocessName(match.name, { priority: match.priority });
         if (resolution) {
