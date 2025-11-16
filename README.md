@@ -171,16 +171,26 @@ Kickstart new profiles with curated presets, configure a **Default Costume** to 
 Toggle the individual detectors the engine can use. Tooltips in the UI explain the common scenarios for each detection type. Enable **Scene Roster** to maintain a rolling list of characters active in the conversation and adjust the **Scene Roster TTL (messages)** to control how long they stay on that list.
 
 #### Regex Preprocessor quick guide
-Live chats rarely look like tidy handbook samples. The regex preprocessor is the “tidy up the transcript before anyone reads it” layer that runs before detections and outfit logic make a decision. Each profile can opt into three script collections without editing JSON:
+Live chats rarely look like tidy handbook samples. The regex preprocessor is the “tidy up the transcript before anyone reads it” layer that runs before detections and outfit logic make a decision. Think of it as a programmable dishwasher: every message is run through a stack of regex scripts that scrub away the junk *before* the detectors even try to score a character.
+
+**How it works in practice**
+
+1. As soon as the model streams a token, Costume Switcher appends it to the buffer.
+2. The buffer is cloned and passed through the regex scripts you have enabled.
+3. Only the cleaned copy is handed to the detection and outfit engines, so none of the mess leaks into scoring.
+
+That cleaned copy can be shaped by three script collections without editing JSON:
 
 - **Global scripts** – Safe punctuation, spacing, and honorific cleanup for every profile. Use this whenever you pull text from AI models that like curly quotes, narrators that attach honorifics ("Alice-san"), or logs copied from streams with odd spacing.
 - **Preset scripts** – Curated bundles for community roleplay formats or popular stream layouts. Turn this on when your group shares a common markup style (bracketed actions, emoji markers, etc.) so everyone benefits from the same cleanup rules.
 - **Scoped scripts** – Per-character or per-profile helpers that only activate when their owner is in play. These are perfect for bilingual sheets that need kana → romaji guards, sci-fi logs that swap call signs, or any bespoke filter that should not affect the rest of your roster.
 
-Because the preprocessor runs in the live six-stage pipeline, the cleaned text feeds directly into live `/costume` calls, and the Live Pattern Tester simply mirrors what already happened in real time.
+For example, a preset script can convert `[Alice - whispers]` into `Alice whispers` so the attribution detector still fires, while a scoped script for `Yūri` can replace accented letters with plain ASCII only when she is on stage. Because the preprocessor runs inside the six-stage pipeline, the cleaned text feeds directly into live `/costume` calls, and the Live Pattern Tester shows the already-scrubbed version so you can confirm your scripts behave as expected.
 
 #### Fuzzy name matching quick guide
-Fuzzy matching is the “don’t panic when the spelling drifts” safety net. Both detection engines share the same normalization buffer, so the settings you pick here apply equally to live chat and the tester. Choose a preset from **Name Matching → Fuzzy Tolerance** based on how messy your chat usually is:
+Fuzzy matching is the “don’t panic when the spelling drifts” safety net. After the regex preprocessor finishes, both detection engines share the same normalization buffer. When a detector thinks it found a character but the score is too low (or the text contains heavy diacritics), the fuzzy module compares the detected text against your character list using edit distance. If the distance is within the active tolerance, the detector is upgraded to the closest character, the score is boosted, and the `/costume` call proceeds as if the spelling was perfect.
+
+Choose a preset from **Name Matching → Fuzzy Tolerance** based on how messy your chat usually is:
 
 - **Off** – Use when you are debugging or when the cast names are short, unique, and always typed correctly.
 - **Auto / Low Confidence** – Best everyday mode. The engine only attempts fuzzy rescue when a detector posts a weak score or when it spots accent-heavy text, keeping confident matches strict.
@@ -188,7 +198,7 @@ Fuzzy matching is the “don’t panic when the spelling drifts” safety net. B
 - **Always** – Fast-paced chats with constant misspellings benefit from always-on fuzzy rescue so “Ailce” still maps to Alice mid-stream.
 - **Custom threshold** – Set your own low-confidence score ceiling when you know exactly how aggressive the fallback should be.
 
-Pair the tolerance with the **Translate Accents** toggle whenever a scene swaps alphabets or diacritics frequently. The shared buffer ensures the extension rescues live detections immediately, while the Live Pattern Tester gives you a safe sandbox to preview how each preset behaves.
+To see the difference, paste `"Ailce reached for her staff."` into the Live Pattern Tester. With fuzzy matching off the action detector ignores the typo. Enable **Auto** and the detector rewrites the hit to **Alice** because the edit distance is only one letter, and the score now clears the decision gate. Pair the tolerance with the **Translate Accents** toggle whenever a scene swaps alphabets or diacritics frequently—the shared buffer ensures the extension rescues live detections immediately, while the tester mirrors every fuzzy rescue so you can preview the outcome.
 
 ### Performance & Bias
 Fine-tune responsiveness and tie-breaking behaviour:
