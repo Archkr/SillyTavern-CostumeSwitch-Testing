@@ -239,6 +239,8 @@ const AUTO_SAVE_REASON_OVERRIDES = {
     detectPossessive: 'possessive detection',
     detectPronoun: 'pronoun detection',
     detectGeneral: 'general name detection',
+    fuzzyTolerance: 'name matching tolerance',
+    translateFuzzyNames: 'accent translation',
     scriptCollections: 'regex preprocessor',
     enableOutfits: 'outfit automation',
     attributionVerbs: 'attribution verbs',
@@ -897,6 +899,8 @@ function findAllMatches(combined, options = {}) {
         priorityWeights: getPriorityWeights(profile),
         lastSubject,
         scanDialogueActions: Boolean(profile.scanDialogueActions),
+        fuzzyTolerance: profile.fuzzyTolerance,
+        translateFuzzyNames: profile.translateFuzzyNames ?? profile.translateNames ?? PROFILE_DEFAULTS.translateFuzzyNames,
     };
 
     if (Number.isFinite(options?.startIndex) && options.startIndex >= 0) {
@@ -3906,6 +3910,149 @@ async function issueCostumeForName(name, opts = {}) {
 // ======================================================================
 // UI MANAGEMENT
 // ======================================================================
+const FUZZY_TOLERANCE_PRESETS = new Set(['off', 'auto', 'accent', 'always', 'low', 'custom']);
+const DEFAULT_FUZZY_TOLERANCE_PRESET = PROFILE_DEFAULTS.fuzzyTolerance || 'off';
+
+function interpretFuzzyToleranceSetting(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return { preset: 'custom', customValue: Math.max(0, Math.floor(value)) };
+    }
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        switch (normalized) {
+            case 'off':
+            case 'disabled':
+                return { preset: 'off', customValue: '' };
+            case 'auto':
+            case 'default':
+                return { preset: 'auto', customValue: '' };
+            case 'accent':
+            case 'accented':
+            case 'accent-only':
+                return { preset: 'accent', customValue: '' };
+            case 'always':
+            case 'on':
+                return { preset: 'always', customValue: '' };
+            case 'low':
+            case 'low-confidence':
+            case 'lowconfidence':
+                return { preset: 'low', customValue: '' };
+            case 'custom':
+                return { preset: 'custom', customValue: '' };
+            default:
+                return { preset: DEFAULT_FUZZY_TOLERANCE_PRESET, customValue: '' };
+        }
+    }
+    if (value && typeof value === 'object') {
+        const resolved = resolveFuzzyTolerance(value);
+        if (!resolved || !resolved.enabled) {
+            return { preset: 'off', customValue: '' };
+        }
+        const accentSensitive = resolved.accentSensitive !== false;
+        const threshold = Number.isFinite(resolved.lowConfidenceThreshold)
+            ? Math.max(0, Math.floor(resolved.lowConfidenceThreshold))
+            : null;
+        if (threshold == null) {
+            return accentSensitive
+                ? { preset: 'accent', customValue: '' }
+                : { preset: 'always', customValue: '' };
+        }
+        if (accentSensitive && threshold === 2) {
+            return { preset: 'auto', customValue: '' };
+        }
+        if (!accentSensitive && threshold === 2) {
+            return { preset: 'low', customValue: '' };
+        }
+        return { preset: 'custom', customValue: threshold };
+    }
+    if (value === true) {
+        return { preset: 'auto', customValue: '' };
+    }
+    return { preset: DEFAULT_FUZZY_TOLERANCE_PRESET, customValue: '' };
+}
+
+function sanitizeCustomFuzzyToleranceValue(rawValue) {
+    if (rawValue == null) {
+        return null;
+    }
+    const normalized = String(rawValue).trim();
+    if (!normalized) {
+        return null;
+    }
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed)) {
+        return null;
+    }
+    return Math.max(0, Math.floor(parsed));
+}
+
+function updateFuzzyToleranceCustomVisibility(preset) {
+    const wrapper = document.getElementById('cs-fuzzy-tolerance-custom-wrapper');
+    if (!wrapper) {
+        return;
+    }
+    wrapper.hidden = preset !== 'custom';
+}
+
+function setFuzzyToleranceUI(value) {
+    const { preset, customValue } = interpretFuzzyToleranceSetting(value);
+    const select = document.querySelector('#cs-fuzzy-tolerance');
+    const normalizedPreset = FUZZY_TOLERANCE_PRESETS.has(preset)
+        ? preset
+        : DEFAULT_FUZZY_TOLERANCE_PRESET;
+    if (select) {
+        select.value = normalizedPreset;
+    }
+    const customField = document.querySelector('#cs-fuzzy-tolerance-custom');
+    if (customField) {
+        if (normalizedPreset === 'custom' && customValue !== '' && customValue != null) {
+            customField.value = customValue;
+        } else {
+            customField.value = '';
+        }
+        customField.removeAttribute('aria-invalid');
+    }
+    updateFuzzyToleranceCustomVisibility(select ? select.value : normalizedPreset);
+}
+
+function sanitizeFuzzyToleranceInputField(input) {
+    if (!input) {
+        return;
+    }
+    const sanitized = sanitizeCustomFuzzyToleranceValue(input.value);
+    if (sanitized == null) {
+        if (String(input.value || '').trim()) {
+            input.setAttribute('aria-invalid', 'true');
+        } else {
+            input.removeAttribute('aria-invalid');
+        }
+        return;
+    }
+    input.value = sanitized;
+    input.removeAttribute('aria-invalid');
+}
+
+function readFuzzyToleranceSettingFromUI() {
+    const select = document.querySelector('#cs-fuzzy-tolerance');
+    const preset = select?.value || DEFAULT_FUZZY_TOLERANCE_PRESET;
+    if (preset !== 'custom') {
+        return preset;
+    }
+    const customField = document.querySelector('#cs-fuzzy-tolerance-custom');
+    const sanitized = sanitizeCustomFuzzyToleranceValue(customField?.value);
+    if (sanitized == null) {
+        if (customField && String(customField.value || '').trim()) {
+            customField.setAttribute('aria-invalid', 'true');
+        }
+        return DEFAULT_FUZZY_TOLERANCE_PRESET;
+    }
+    if (customField) {
+        customField.value = sanitized;
+        customField.removeAttribute('aria-invalid');
+    }
+    return sanitized;
+}
+
 const uiMapping = {
     patterns: { selector: '#cs-patterns', type: 'patternEditor' },
     ignorePatterns: { selector: '#cs-ignore-patterns', type: 'textarea' },
@@ -3926,6 +4073,8 @@ const uiMapping = {
     detectPossessive: { selector: '#cs-detect-possessive', type: 'checkbox' },
     detectPronoun: { selector: '#cs-detect-pronoun', type: 'checkbox' },
     detectGeneral: { selector: '#cs-detect-general', type: 'checkbox' },
+    fuzzyTolerance: { selector: '#cs-fuzzy-tolerance', type: 'fuzzyTolerance' },
+    translateFuzzyNames: { selector: '#cs-translate-fuzzy-names', type: 'checkbox' },
     attributionVerbs: { selector: '#cs-attribution-verbs', type: 'csvTextarea' },
     actionVerbs: { selector: '#cs-action-verbs', type: 'csvTextarea' },
     pronounVocabulary: { selector: '#cs-pronoun-vocabulary', type: 'csvTextarea' },
@@ -4420,13 +4569,18 @@ function updateFocusLockUI() {
 }
 
 function syncProfileFieldsToUI(profile, fields = []) {
+    const getValue = (key) => getProfileValueForUI(profile, key);
     if (!profile || !Array.isArray(fields)) return;
     fields.forEach((key) => {
         const mapping = uiMapping[key];
         if (!mapping) return;
+        if (mapping.type === 'fuzzyTolerance') {
+            setFuzzyToleranceUI(getValue(key));
+            return;
+        }
         const field = $(mapping.selector);
         if (!field.length) return;
-        const value = profile[key];
+        const value = getValue(key);
         switch (mapping.type) {
             case 'checkbox':
                 field.prop('checked', !!value);
@@ -4445,6 +4599,25 @@ function syncProfileFieldsToUI(profile, fields = []) {
                 break;
         }
     });
+}
+
+function getProfileValueForUI(profile, key) {
+    if (!profile || typeof profile !== 'object') {
+        return PROFILE_DEFAULTS[key];
+    }
+    if (key === 'translateFuzzyNames') {
+        if (profile.translateFuzzyNames != null) {
+            return profile.translateFuzzyNames;
+        }
+        if (profile.translateNames != null) {
+            return profile.translateNames;
+        }
+        return PROFILE_DEFAULTS.translateFuzzyNames;
+    }
+    if (key === 'fuzzyTolerance') {
+        return profile.fuzzyTolerance ?? PROFILE_DEFAULTS.fuzzyTolerance;
+    }
+    return profile[key];
 }
 
 function applyCommandProfileUpdates(profile, fields, { persist = false } = {}) {
@@ -4486,12 +4659,13 @@ function loadProfile(profileName) {
     updateScenePanelSettingControls(scenePanelSettings);
     for (const key in uiMapping) {
         const { selector, type } = uiMapping[key];
-        const value = profile[key] ?? PROFILE_DEFAULTS[key];
+        const value = getProfileValueForUI(profile, key);
         switch (type) {
             case 'checkbox': $(selector).prop('checked', !!value); break;
             case 'textarea': $(selector).val((value || []).join('\n')); break;
             case 'csvTextarea': $(selector).val((value || []).join(', ')); break;
             case 'patternEditor': renderPatternEditor(profile); break;
+            case 'fuzzyTolerance': setFuzzyToleranceUI(value); break;
             default: $(selector).val(value); break;
         }
     }
@@ -4510,6 +4684,10 @@ function saveCurrentProfileData() {
     for (const key in uiMapping) {
         const { selector, type } = uiMapping[key];
         if (type === 'patternEditor') {
+            continue;
+        }
+        if (type === 'fuzzyTolerance') {
+            profileData[key] = readFuzzyToleranceSettingFromUI();
             continue;
         }
         const field = $(selector);
@@ -4561,6 +4739,11 @@ function saveCurrentProfileData() {
     const mappingSource = Array.isArray(activeProfile?.mappings) ? activeProfile.mappings : [];
     const draftIds = state?.draftMappingIds instanceof Set ? state.draftMappingIds : new Set();
     profileData.mappings = prepareMappingsForSave(mappingSource, draftIds);
+    if (profileData.translateFuzzyNames == null) {
+        profileData.translateNames = PROFILE_DEFAULTS.translateNames;
+    } else {
+        profileData.translateNames = Boolean(profileData.translateFuzzyNames);
+    }
     return profileData;
 }
 
@@ -7372,6 +7555,15 @@ function wireUI() {
             $(document).on('input', selector, (event) => handleAutoSaveFieldEvent(event, key));
         }
     });
+    $(document).on('change', '#cs-fuzzy-tolerance', function() {
+        updateFuzzyToleranceCustomVisibility($(this).val());
+    });
+    const fuzzyToleranceCustomHandler = function(event) {
+        sanitizeFuzzyToleranceInputField(event.currentTarget);
+        handleAutoSaveFieldEvent(event, 'fuzzyTolerance');
+    };
+    $(document).on('input', '#cs-fuzzy-tolerance-custom', fuzzyToleranceCustomHandler);
+    $(document).on('change', '#cs-fuzzy-tolerance-custom', fuzzyToleranceCustomHandler);
     $(document).on('change', '.cs-script-collection-toggle', handleScriptCollectionCheckboxChange);
     $(document).on('focusin mouseenter', '[data-change-notice]', function() {
         if (this?.disabled) {

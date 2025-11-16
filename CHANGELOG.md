@@ -13,6 +13,7 @@
 - **Coverage suggestions in the scene panel.** Vocabulary guidance from the live tester now appears alongside the roster with quick-add pills that update in real time as chats roll in.
 - **Regex preprocessor opt-ins.** Profiles can opt into allowed global, preset, and scoped regex scripts, and the Live Tester now reveals the preprocessed text they run against.
 - **Regex preprocessor controls in Detection.** Added dedicated checkboxes under Detection so profiles can opt into global, preset, or scoped regex collections without editing JSON, complete with inline helper text describing when to enable each tier.
+- **Name matching controls.** The Detection tab now includes fuzzy tolerance presets, a custom low-confidence threshold, and an accent translation toggle so profiles can decide how aggressively diacritics and near-miss names are reconciled.
 
 ### Improved
 - **Scene control center aurora parity.** The roster headline now inherits the hero gradient and animated starfield from the main header so the command center shares the same nebula finish.

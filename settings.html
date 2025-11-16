@@ -295,6 +295,34 @@
                   </label>
                   <small class="cs-helper-text">Global scripts handle safe cleanup for every chat, Preset scripts mirror curated SillyTavern bundles, and Scoped scripts run only when your characters or profiles provide their own filters.</small>
                 </div>
+                <div class="cs-field-group cs-field-group--stacked">
+                  <label class="cs-inline-label" for="cs-fuzzy-tolerance">Name Matching</label>
+                  <div class="cs-number-field">
+                    <label for="cs-fuzzy-tolerance">Fuzzy Tolerance Preset</label>
+                    <select id="cs-fuzzy-tolerance" class="text_pole" title="Choose how aggressively to re-map near-miss names before scoring." data-change-notice="Updates how fuzzy name matching behaves before detections score candidates.">
+                      <option value="off">Off — exact matches only</option>
+                      <option value="auto">Auto — fix accents &amp; low-confidence hits</option>
+                      <option value="accent">Accent-only — strip diacritics</option>
+                      <option value="always">Always — always translate/fuzz</option>
+                      <option value="low">Low Confidence — only when scores dip</option>
+                      <option value="custom">Custom threshold</option>
+                    </select>
+                  </div>
+                  <div id="cs-fuzzy-tolerance-custom-wrapper" class="cs-number-field" hidden>
+                    <label for="cs-fuzzy-tolerance-custom">Custom Low-Confidence Threshold</label>
+                    <input id="cs-fuzzy-tolerance-custom" class="text_pole" type="number" min="0" step="1" inputmode="numeric" placeholder="e.g., 3" title="Only use fuzzy matching when a detector scores at or below this priority value." />
+                    <small>Lower values limit fuzzy fallback to only the weakest detections; higher values allow more aggressive rescue attempts when low-confidence cues appear.</small>
+                  </div>
+                  <label class="cs-toggle cs-toggle--inline" title="Attempt to translate or strip diacritics before comparing names when fuzzy fallback is triggered.">
+                    <input id="cs-translate-fuzzy-names" type="checkbox" />
+                    <span class="cs-toggle-indicator"></span>
+                    <span>
+                      <strong>Translate Accents</strong>
+                      <small>Swap accented/translated characters (Á → A, ゆり → Yuri) before comparing.</small>
+                    </span>
+                  </label>
+                  <small class="cs-helper-text">Fuzzy tolerance decides when to rescue misspelled or diacritic-heavy names. Auto lets low-confidence detections and accented text borrow fuzzy scoring, Accent-only keeps the guardrails tight, and Low Confidence defers fuzzy matching to weaker hits. Enable accent translation when bilingual logs or diacritics frequently hide character names.</small>
+                </div>
                 <div class="cs-field-group">
                   <label class="cs-inline-label" for="cs-scene-roster-enable">Scene Awareness</label>
                   <label class="cs-toggle cs-toggle--inline" title="Improves group scenario accuracy by tracking recently active characters.">
