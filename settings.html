@@ -303,7 +303,11 @@
                     <p>The preprocessor runs in live streams before detections score, and the Live Tester simply mirrors what already happened.</p>
                   </div>
                 </div>
-                <div class="cs-field-group cs-field-group--stacked">
+                <div class="cs-field-group cs-field-group--stacked cs-zone-off" aria-disabled="true" aria-describedby="cs-fuzzy-lockout">
+                  <div id="cs-fuzzy-lockout" class="cs-zone-off-banner" role="note">
+                    <strong>Fuzzy name matching is cooling off.</strong>
+                    <span>Finalized controls land in v3.6.1, so this area is zoned off for now.</span>
+                  </div>
                   <label class="cs-inline-label" for="cs-fuzzy-tolerance">Name Matching</label>
                   <div class="cs-number-field">
                     <label for="cs-fuzzy-tolerance">Fuzzy Tolerance Preset</label>

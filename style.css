@@ -109,6 +109,49 @@
   line-height: 1.4;
 }
 
+#costume-switcher-settings.cs-theme .cs-zone-off {
+  position: relative;
+}
+
+#costume-switcher-settings.cs-theme .cs-zone-off > :not(.cs-zone-off-banner) {
+  opacity: 0.45;
+}
+
+#costume-switcher-settings.cs-theme .cs-zone-off::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(3, 6, 16, 0.78);
+  backdrop-filter: blur(2px);
+  z-index: 2;
+  pointer-events: auto;
+}
+
+#costume-switcher-settings.cs-theme .cs-zone-off-banner {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 26px 24px;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.92);
+  pointer-events: none;
+}
+
+#costume-switcher-settings.cs-theme .cs-zone-off-banner strong {
+  font-size: 1rem;
+}
+
+#costume-switcher-settings.cs-theme .cs-zone-off-banner span {
+  font-size: 0.88rem;
+  color: color-mix(in srgb, var(--accent) 80%, rgba(255, 255, 255, 0.9));
+}
+
 #costume-switcher-settings.cs-theme .cs-card-body {
   display: flex;
   flex-direction: column;

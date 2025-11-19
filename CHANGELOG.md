@@ -17,6 +17,9 @@
 - **Lowercase fallback toggle.** Name Matching also exposes a **Scan Lowercase Cues** checkbox so chats that intentionally lowercase speaker/system prompts can opt back into fuzzy rescues for those cues without re-enabling noisy lowercase scans globally.
 - **Fuzzy fallback tuning.** Added optional score caps and cooldown distance inputs under Name Matching to clamp distant rescues and throttle repeated fallback matches without editing JSON.
 
+### Changed
+- **Fuzzy name matching zoning.** Temporarily fenced off the fuzzy controls in settings with a release note so users know the feature will reopen in v3.6.1 once stability work wraps up.
+
 ### Improved
 - **Live tester preprocessing diagnostics.** The Match Flow panel now itemizes applied regex scripts, shows a fuzzy-tolerance badge, adds normalization notes to detections, and copies the summary data into reports so support can trace preprocessing effects.
 - **Scene control center aurora parity.** The roster headline now inherits the hero gradient and animated starfield from the main header so the command center shares the same nebula finish.
