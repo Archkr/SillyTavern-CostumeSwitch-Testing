@@ -2655,6 +2655,22 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     opacity: 1;
 }
 
+.cs-scene-panel__summon[data-viewport="compact"] {
+    min-width: 60px;
+    min-height: 60px;
+    padding: 14px 18px;
+    border-radius: 16px;
+    right: max(env(safe-area-inset-right, 12px), 12px);
+    bottom: max(env(safe-area-inset-bottom, 12px), 12px);
+    touch-action: manipulation;
+}
+
+.cs-scene-panel__summon[data-viewport="compact"][data-panel-visible="true"] {
+    right: max(env(safe-area-inset-right, 12px), 12px);
+    bottom: max(env(safe-area-inset-bottom, 12px), 12px);
+    opacity: 1;
+}
+
 .cs-scene-panel__summon[hidden] {
     display: none !important;
 }
@@ -2731,6 +2747,57 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     background: rgba(8, 10, 24, 0.78);
     backdrop-filter: blur(12px);
     z-index: 5;
+}
+
+.cs-scene-panel__layer[data-panel-sheet="true"] {
+    position: fixed;
+    align-items: stretch;
+    justify-content: flex-end;
+    padding: 0;
+    background: rgba(8, 10, 24, 0.86);
+    backdrop-filter: blur(14px);
+}
+
+.cs-scene-panel__layer[data-panel-sheet="true"] .cs-scene-panel__sheet {
+    width: min(520px, 100%);
+    max-width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.14);
+    transform: translateX(12px);
+    transition: transform 0.24s ease, opacity 0.18s ease;
+}
+
+.cs-scene-panel__layer[data-panel-sheet-state="closed"] .cs-scene-panel__sheet {
+    opacity: 0;
+    transform: translateX(28px);
+}
+
+.cs-scene-panel__layer[data-panel-sheet="true"] .cs-scene-panel__sheet-body {
+    padding-right: 8px;
+    gap: 18px;
+}
+
+.cs-scene-panel__layer[data-panel-sheet="true"] .cs-scene-panel__sheet-header {
+    padding-bottom: 4px;
+}
+
+.cs-scene-panel__layer[data-panel-sheet="true"] .cs-scene-panel__sheet-titles p {
+    line-height: 1.35;
+}
+
+.cs-scene-panel__layer[data-panel-sheet="true"] .cs-scene-panel__sheet[data-scene-panel="sheet"] {
+    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.4);
+}
+
+.cs-scene-panel__layer[data-panel-sheet="true"][data-panel-sheet-state="open"] .cs-scene-panel__sheet {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.cs-scene-panel__layer[data-panel-sheet="true"][hidden] {
+    display: none;
 }
 
 .cs-scene-panel__layer[hidden] {
@@ -3176,5 +3243,15 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     .cs-scene-panel__summon[data-panel-visible="true"] {
         right: max(env(safe-area-inset-right, 12px), 12px);
         bottom: max(env(safe-area-inset-bottom, 12px), 12px);
+    }
+
+    .cs-scene-panel__layer[data-panel-sheet="true"] .cs-scene-panel__sheet {
+        width: 100%;
+        border-left: none;
+        border-radius: 0;
+    }
+
+    .cs-scene-panel__layer[data-panel-sheet="true"] .cs-scene-panel__sheet-body {
+        padding-right: 12px;
     }
 }
