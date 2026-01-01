@@ -1787,7 +1787,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 }
 
 :root {
-    --cs-scene-panel-width: min(24rem, 30vw);
+    --cs-scene-panel-width: clamp(18rem, 28vw, 24rem);
     --cs-scene-panel-gap: 12px;
     --cs-scene-panel-collapsed-width: 3rem;
 }
@@ -1847,8 +1847,8 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 .cs-scene-panel__content {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 20px;
+    gap: clamp(12px, 2vw, 16px);
+    padding: clamp(16px, 3vw, 20px);
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
@@ -1856,14 +1856,14 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-panel__sections {
     --cs-scene-visible-section-count: 0;
-    --cs-scene-section-max-height: 240px;
+    --cs-scene-section-max-height: min(48vh, 360px);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: clamp(12px, 2vw, 16px);
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
-    padding-right: 4px;
+    padding-right: clamp(2px, 1vw, 4px);
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
 }
@@ -1929,9 +1929,9 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 }
 
 .cs-scene-panel__crest {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
+    width: clamp(42px, 8vw, 52px);
+    height: clamp(42px, 8vw, 52px);
+    border-radius: clamp(12px, 2vw, 14px);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1977,14 +1977,14 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 .cs-scene-panel__toolbar {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: clamp(6px, 1.5vw, 12px);
     flex-wrap: wrap;
 }
 
 .cs-scene-panel__toolbar-group {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: clamp(6px, 1.5vw, 12px);
     flex-wrap: wrap;
 }
 
@@ -2096,11 +2096,11 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 .cs-scene-panel__section {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: clamp(10px, 1.8vw, 12px);
     background: rgba(0, 0, 0, 0.25);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
-    padding: 14px;
+    padding: clamp(12px, 2vw, 14px);
     flex: 0 0 auto;
     min-height: 0;
 }
@@ -2161,7 +2161,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 .cs-scene-panel__card-list,
 .cs-scene-panel__log {
     overflow-y: auto;
-    max-height: var(--cs-scene-section-max-height, 240px);
+    max-height: min(var(--cs-scene-section-max-height, 360px), 48vh);
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -2169,7 +2169,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 }
 
 .cs-scene-panel__section[data-scene-panel="roster"] {
-    --cs-scene-roster-scroll-height: 128px;
+    --cs-scene-roster-scroll-height: min(34vh, 320px);
 }
 
 .cs-scene-panel__section[data-scene-panel="roster"] > .cs-scene-panel__scrollable {
@@ -2187,7 +2187,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 }
 
 .cs-scene-panel__sections[data-sections-expanded="true"] {
-    --cs-scene-section-max-height: none;
+    --cs-scene-section-max-height: 100vh;
     --cs-scene-section-gap-size: 16px;
     --cs-scene-section-flex-basis: calc(
         (100% - (var(--cs-scene-visible-section-count, 1) - 1) * var(--cs-scene-section-gap-size, 16px))
@@ -2268,7 +2268,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 }
 
 .cs-scene-panel__card-list {
-    max-height: 260px;
+    max-height: min(260px, 36vh);
 }
 
 .cs-scene-panel__card-list[data-pin-mode="true"] .cs-scene-active__card:first-child {
@@ -3253,5 +3253,76 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
     .cs-scene-panel__layer[data-panel-sheet="true"] .cs-scene-panel__sheet-body {
         padding-right: 12px;
+    }
+}
+
+@media (max-width: 640px) {
+    :root {
+        --cs-scene-panel-gap: 10px;
+    }
+
+    .cs-scene-panel {
+        inset: auto 10px 10px 10px;
+        top: calc(var(--topBarBlockSize, 3.25rem) + 6px);
+        height: auto;
+        max-height: calc(100vh - (var(--topBarBlockSize, 3.25rem) + 20px));
+    }
+
+    .cs-scene-panel__content,
+    .cs-scene-panel__content--responsive {
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .cs-scene-panel__headline,
+    .cs-scene-panel__title {
+        padding: 12px;
+    }
+
+    .cs-scene-panel__title-copy h3 {
+        font-size: 1.15rem;
+    }
+
+    .cs-scene-panel__subtitle,
+    .cs-scene-panel__helper {
+        font-size: 0.82rem;
+    }
+
+    .cs-scene-panel__toolbar,
+    .cs-scene-panel__toolbar--responsive {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .cs-scene-panel__toolbar-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .cs-scene-panel__toolbar-group--primary {
+        justify-content: flex-start;
+    }
+
+    .cs-scene-panel__sections,
+    .cs-scene-panel__sections--responsive {
+        gap: 12px;
+        padding-right: 0;
+    }
+
+    .cs-scene-panel__section {
+        padding: 12px;
+    }
+
+    .cs-scene-panel__section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .cs-scene-panel__scrollable,
+    .cs-scene-panel__card-list,
+    .cs-scene-panel__log {
+        max-height: min(44vh, 320px);
     }
 }
