@@ -41,7 +41,8 @@ function normalizeOutfitVariantForSave(rawVariant = {}) {
     }
 
     if (typeof rawVariant === "string") {
-        return { folder: rawVariant.trim(), triggers: [] };
+        const folder = rawVariant.trim();
+        return { folder, triggers: [], priority: 0 };
     }
 
     const variant = safeClone(rawVariant) || {};
@@ -142,9 +143,9 @@ function cloneOutfits(outfits) {
             return;
         }
         if (typeof item === "string") {
-            const trimmed = item.trim();
-            if (trimmed) {
-                result.push({ folder: trimmed, triggers: [] });
+            const normalized = normalizeOutfitVariantForSave(item);
+            if (normalized.folder) {
+                result.push(normalized);
             }
             return;
         }

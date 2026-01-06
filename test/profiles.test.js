@@ -58,7 +58,10 @@ test('loadProfiles preserves enableOutfits flag and outfit arrays', () => {
     const mapping = loaded.Modern.mappings[0];
     assert.equal(mapping.defaultFolder, 'bob/base');
     assert.equal(mapping.folder, 'bob/base');
-    assert.deepEqual(mapping.outfits, ['bob/casual', { slot: 'formal', folder: 'bob/formal' }]);
+    assert.deepEqual(mapping.outfits, [
+        { folder: "bob/casual", triggers: [], priority: 0 },
+        { slot: "formal", folder: "bob/formal", label: "formal", priority: 0, triggers: [] },
+    ]);
     assert.notStrictEqual(mapping.outfits[1], modernProfiles.Modern.mappings[0].outfits[1], 'outfits should be cloned');
 
     const serialized = JSON.parse(JSON.stringify(loaded.Modern));
@@ -156,7 +159,7 @@ test('prepareMappingsForSave preserves draft mappings with tracked ids', () => {
     const prepared = prepareMappingsForSave([mapping], drafts);
 
     assert.equal(prepared.length, 1, 'draft mappings should persist while being edited');
-    assert.deepEqual(prepared[0].outfits, ['draft/folder'], 'draft mappings should retain outfits');
+    assert.deepEqual(prepared[0].outfits, [{ folder: "draft/folder", triggers: [], priority: 0 }], 'draft mappings should retain outfits');
     assert.equal(drafts.has('card-draft'), true, 'draft id should remain tracked until mapping gains identity');
 });
 

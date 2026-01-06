@@ -38,6 +38,8 @@
   reappearing as empty cards.
 - **Outfit Lab trigger persistence.** Regex-based outfit triggers and awareness rules are preserved during saves so folders,
   match kinds, and exclusion lists stay intact after reloading profiles.
+- **Neutral costume resets.** Returning to a character's base or neutral folder now trims stray trailing slashes so avatar images
+  render with the correct path.
 - **Fuzzy fallback overlap guard.** Capitalized filler words must now share at least half of their characters with a real
   pattern slot before fuzzy rescue runs, blocking adverbs like “Now” from being remapped to characters such as Yoshinon.
 - **Fuzzy fallback score cap.** Fallback rescues now require a valid Fuse score that stays under the configured tolerance (or

@@ -325,3 +325,24 @@ test("evaluateSwitchDecision switches characters sharing the same outfit folder"
     assert.equal(decision.name, "Rival");
     assert.equal(decision.folder, "shared/outfit");
 });
+
+test("evaluateSwitchDecision trims trailing separators from neutral folders", () => {
+    setupProfile({
+        mappings: [
+            { name: "Neutral", defaultFolder: "Character/" },
+        ],
+    });
+
+    const runtime = {
+        lastIssuedCostume: null,
+        lastIssuedFolder: null,
+        lastSwitchTimestamp: 0,
+        lastTriggerTimes: new Map(),
+        failedTriggerTimes: new Map(),
+        characterOutfits: new Map(),
+    };
+
+    const decision = evaluateSwitchDecision("Neutral", {}, runtime, 1000);
+
+    assert.equal(decision.folder, "Character");
+});
