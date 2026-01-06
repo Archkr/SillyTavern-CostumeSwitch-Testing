@@ -69,6 +69,7 @@
 - **Scene panel idle refresh.** Chat-change hooks now ignore updates that don't alter the latest assistant message, so editing system prompts or sending player chatter no longer clears or replays roster detections.
 - **Scene panel auto-open triggers.** Auto-open on streaming or new results now re-enables the side panel when it was hidden, so updates bring the workspace back instead of staying out of view.
 - **Buffer window trimming.** Streaming keeps matching after the max buffer limit trims older text, so outfit switching and live diagnostics continue instead of stalling at the limit.
+- **Live stream character switching.** Incremental detection now keeps scanning trimmed buffers during long generations, so /costume switches continue firing while outputs stream past the max buffer window.
 - **Coverage fallback in the scene panel.** The side panel now reuses the latest tester coverage analysis when no live buffer is
   streaming so vocabulary suggestions stay visible between messages.
 - **Skip reason flood control.** Live diagnostics cap repeated skip notices to keep recent switch and veto activity surfaced in
