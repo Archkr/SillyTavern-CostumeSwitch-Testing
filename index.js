@@ -361,7 +361,7 @@ const PROFILE_DEFAULTS = {
     globalCooldownMs: 1200,
     perTriggerCooldownMs: 250,
     failedTriggerCooldownMs: 10000,
-    maxBufferChars: 3000,
+    maxBufferChars: 5000,
     repeatSuppressMs: 800,
     tokenProcessThreshold: 60,
     mappings: [],
@@ -7387,21 +7387,30 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
 
     for (let i = 0; i < combined.length; i++) {
         const appended = buffer + combined[i];
-        buffer = appended.slice(-maxBuffer);
-        const trimmedChars = appended.length - buffer.length;
-        adjustWindowForTrim(msgState, trimmedChars, buffer.length);
-        state.perMessageBuffers.set(bufKey, buffer);
-
+        const trimmedChars = Math.max(0, appended.length - maxBuffer);
+        const detectionBuffer = appended;
+        const combinedBuffer = trimmedChars > 0 ? appended.slice(-maxBuffer) : appended;
         const bufferOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
-        const newestAbsoluteIndex = buffer.length > 0 ? bufferOffset + buffer.length - 1 : bufferOffset;
+        const newestAbsoluteIndex = detectionBuffer.length > 0 ? bufferOffset + detectionBuffer.length - 1 : bufferOffset;
         const lastProcessedIndex = Number.isFinite(msgState.lastAcceptedIndex) ? msgState.lastAcceptedIndex : -1;
+        let windowUpdated = false;
+        const flushWindow = () => {
+            if (windowUpdated) {
+                return;
+            }
+            adjustWindowForTrim(msgState, trimmedChars, combinedBuffer.length);
+            state.perMessageBuffers.set(bufKey, combinedBuffer);
+            windowUpdated = true;
+        };
+        buffer = combinedBuffer;
 
         if (newestAbsoluteIndex <= lastProcessedIndex) {
+            flushWindow();
             continue;
         }
 
-        if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(buffer)) {
-            const vetoMatch = buffer.match(state.compiledRegexes.vetoRegex)?.[0];
+        if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(detectionBuffer)) {
+            const vetoMatch = detectionBuffer.match(state.compiledRegexes.vetoRegex)?.[0];
             const recordedVeto = recordLastVetoMatch(vetoMatch, { source: 'tester', persist: false });
             if (typeof globalThis.$ === 'function') {
                 showStatus(`Detection halted. Veto phrase <b>${escapeHtml(recordedVeto.phrase)}</b> matched in tester.`, 'error', 5000);
@@ -7410,6 +7419,7 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
                 events.push({ type: 'veto', match: vetoMatch, charIndex: newestAbsoluteIndex });
             }
             msgState.vetoed = true;
+            flushWindow();
             break;
         }
 
@@ -7423,15 +7433,16 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
             matchOptions.minIndex = minIndexRelative;
         }
 
-        const matches = findAllMatches(buffer, matchOptions);
+        const matches = findAllMatches(detectionBuffer, matchOptions);
         if (Array.isArray(matches) && matches.length) {
             detectedAnyCandidates = true;
         }
         if (matches?.fuzzyResolution) {
             lastFuzzySnapshot = cloneFuzzyResolution(matches.fuzzyResolution);
         }
-        const bestMatch = findBestMatch(buffer, matches, matchOptions);
+        const bestMatch = findBestMatch(detectionBuffer, matches, matchOptions);
         if (!bestMatch) {
+            flushWindow();
             continue;
         }
 
@@ -7501,6 +7512,7 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
                     nameResolution: bestMatch.nameResolution || null,
                 });
             }
+            flushWindow();
             continue;
         }
 
@@ -7511,7 +7523,7 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
             matchKind: bestMatch.matchKind,
             bufKey,
             messageState: msgState,
-            context: { text: buffer, matchKind: bestMatch.matchKind, roster: msgState.sceneRoster },
+            context: { text: detectionBuffer, matchKind: bestMatch.matchKind, roster: msgState.sceneRoster },
             rawName: bestMatch.rawName || bestMatch.name,
             nameResolution: bestMatch.nameResolution || null,
         }, simulationState, virtualNow);
@@ -7607,6 +7619,7 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
             });
             requestScenePanelRender("stream-roster");
         }
+        flushWindow();
     }
 
     const finalState = buildSimulationFinalState(msgState);
@@ -10774,23 +10787,33 @@ const handleStream = (...args) => {
         const normalizedToken = normalizeStreamText(tokenText);
         const appended = prev + normalizedToken;
         const maxBuffer = resolveMaxBufferChars(profile);
-        const combined = appended.slice(-maxBuffer);
-        const trimmedChars = appended.length - combined.length;
-        adjustWindowForTrim(msgState, trimmedChars, combined.length);
-        state.perMessageBuffers.set(bufKey, combined);
-
+        const trimmedChars = Math.max(0, appended.length - maxBuffer);
+        const combined = trimmedChars > 0 ? appended.slice(-maxBuffer) : appended;
+        const detectionBuffer = appended;
         const bufferOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
         const deltaAbsoluteStart = Math.max(previousProcessedLength, bufferOffset);
         const startIndex = Math.max(0, deltaAbsoluteStart - bufferOffset);
-        const newestAbsoluteIndex = combined.length > 0 ? bufferOffset + combined.length - 1 : bufferOffset;
+        const newestAbsoluteIndex = detectionBuffer.length > 0
+            ? bufferOffset + detectionBuffer.length - 1
+            : bufferOffset;
         const lastProcessedIndex = Number.isFinite(msgState.lastAcceptedIndex) ? msgState.lastAcceptedIndex : -1;
+        let windowUpdated = false;
+        const flushWindow = () => {
+            if (windowUpdated) {
+                return;
+            }
+            adjustWindowForTrim(msgState, trimmedChars, combined.length);
+            state.perMessageBuffers.set(bufKey, combined);
+            windowUpdated = true;
+        };
 
         if (newestAbsoluteIndex <= lastProcessedIndex) {
+            flushWindow();
             return;
         }
 
         const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : null;
-        const analytics = updateMessageAnalytics(bufKey, combined, {
+        const analytics = updateMessageAnalytics(bufKey, detectionBuffer, {
             rosterSet,
             assumeNormalized: true,
             bufferOffset,
@@ -10812,12 +10835,12 @@ const handleStream = (...args) => {
             matchOptions.minIndex = minIndexRelative;
         }
 
-        const bestMatch = findBestMatch(combined, analytics?.matches, matchOptions);
-        debugLog(`[STREAM] Buffer len: ${combined.length}. Match:`, bestMatch ? `${bestMatch.name} (${bestMatch.matchKind})` : 'None');
+        const bestMatch = findBestMatch(detectionBuffer, analytics?.matches, matchOptions);
+        debugLog(`[STREAM] Buffer len: ${combined.length} (raw ${detectionBuffer.length}). Match:`, bestMatch ? `${bestMatch.name} (${bestMatch.matchKind})` : 'None');
 
-        if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(combined)) {
+        if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(detectionBuffer)) {
             debugLog("Veto phrase matched. Halting detection for this message.");
-            const vetoMatch = combined.match(state.compiledRegexes.vetoRegex)?.[0] || 'unknown veto phrase';
+            const vetoMatch = detectionBuffer.match(state.compiledRegexes.vetoRegex)?.[0] || 'unknown veto phrase';
             const recordedVeto = recordLastVetoMatch(vetoMatch, { source: 'live', persist: true });
             recordDecisionEvent({
                 type: 'veto',
@@ -10826,7 +10849,9 @@ const handleStream = (...args) => {
                 timestamp: Date.now(),
             });
             showStatus(`Detection halted. Veto phrase <b>${escapeHtml(recordedVeto.phrase)}</b> matched.`, 'error', 5000);
-            msgState.vetoed = true; return;
+            msgState.vetoed = true;
+            flushWindow();
+            return;
         }
 
         if (bestMatch) {
@@ -10875,6 +10900,7 @@ const handleStream = (...args) => {
                         timestamp: now,
                     });
                 }
+                flushWindow();
                 return;
             }
 
@@ -10884,10 +10910,11 @@ const handleStream = (...args) => {
                 matchKind,
                 bufKey,
                 messageState: msgState,
-                context: { text: combined, matchKind, roster: msgState.sceneRoster },
+                context: { text: detectionBuffer, matchKind, roster: msgState.sceneRoster },
                 match: bestMatch,
             });
         }
+        flushWindow();
     } catch (err) { console.error(`${logPrefix} stream handler error:`, err); }
 };
 

@@ -96,6 +96,7 @@
 - **Live tester isolation.** Running pattern simulations no longer injects tester roster data or log events into the side panel.
 - **Scene completion gating.** Live tester streams no longer trigger the command center's completion handlers, so roster capture waits for real assistant messages to finish.
 - **Roster activation regression.** Freshly detected characters now mark as active again when they enter the roster instead of staying flagged as inactive.
+- **Long-message buffer retention.** Stream processing now evaluates tokens before trimming and raises the default buffer to 5,000 characters (with UI guidance for low-end devices) so early mentions in lengthy replies still trigger costume switches.
 - **Manual refresh recovery.** The refresh control reloads the latest assistant outcome so the side panel actually updates instead of simply re-rendering stale data.
 
 ## v3.5.0

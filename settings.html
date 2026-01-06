@@ -464,6 +464,7 @@
                   <input id="cs-failed-trigger-cooldown" class="text_pole" type="number" min="0" title="Backoff delay after a failed switch attempt before trying again." />
                   <label for="cs-max-buffer-chars">Max Buffer Size (chars)</label>
                   <input id="cs-max-buffer-chars" class="text_pole" type="number" min="0" title="Maximum characters of recent text to keep while scanning the stream." />
+                  <small class="cs-helper-text">Raise this if long replies mention characters early; lower it on low-end devices to conserve memory.</small>
                   <label for="cs-token-process-threshold">Token Process Threshold (chars)</label>
                   <input id="cs-token-process-threshold" class="text_pole" type="number" min="0" title="How many characters to wait before checking. Lower is more reactive but uses more CPU." />
                 </div>
