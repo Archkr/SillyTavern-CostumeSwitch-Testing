@@ -640,6 +640,101 @@ test("handleStream merges incremental matches without duplication", () => {
     }
 });
 
+test("handleStream retains the full streaming buffer when text exceeds the window", () => {
+    resetSceneState();
+    clearLiveTesterOutputs();
+
+    state.perMessageStates = new Map();
+    state.perMessageBuffers = new Map();
+    state.messageStats = new Map();
+    state.messageMatches = new Map();
+    state.topSceneRanking = new Map();
+    state.topSceneRankingUpdatedAt = new Map();
+    state.currentGenerationKey = null;
+
+    const settings = extensionSettingsStore[extensionName];
+    const originalProfile = settings.profiles.Default;
+    const originalCompiled = state.compiledRegexes;
+    const original$ = globalThis.$;
+
+    const stubElement = {
+        length: 0,
+        find: () => stubElement,
+        filter: () => stubElement,
+        first: () => stubElement,
+        append: () => stubElement,
+        insertAfter: () => stubElement,
+        text: () => stubElement,
+        html: () => stubElement,
+        toggleClass: () => stubElement,
+        stop: () => stubElement,
+        fadeIn: () => stubElement,
+        fadeOut: (duration, callback) => {
+            if (typeof callback === "function") {
+                callback();
+            }
+            return stubElement;
+        },
+        removeClass: () => stubElement,
+        addClass: () => stubElement,
+        prop: () => stubElement,
+        attr: () => stubElement,
+        on: () => stubElement,
+        off: () => stubElement,
+    };
+    globalThis.$ = () => stubElement;
+
+    settings.profiles.Default = {
+        patterns: ["Kotori", "Shido"],
+        detectAttribution: false,
+        detectAction: false,
+        detectGeneral: true,
+        detectPronoun: false,
+        detectVocative: false,
+        detectPossessive: false,
+        maxBufferChars: 24,
+    };
+
+    const compiled = compileProfileRegexes(settings.profiles.Default);
+    state.compiledRegexes = { ...compiled.regexes, effectivePatterns: compiled.effectivePatterns };
+
+    try {
+        const profile = settings.profiles.Default;
+        __testables.createMessageState(profile, "m0", { messageRole: "assistant" });
+        state.currentGenerationKey = "m0";
+
+        const longChunk = `Kotori greets the crowd and keeps talking ${"x".repeat(120)} still going.`;
+        handleStream(0, longChunk);
+
+        const buffer = state.perMessageBuffers.get("m0") || "";
+        const cache = state.messageMatches.get("m0");
+
+        assert.ok(buffer.startsWith("Kotori"), "buffer should preserve the leading cue");
+        assert.ok(buffer.length >= longChunk.length, "buffer should retain the full streamed content");
+        assert.ok(cache?.matches?.some((match) => match.name === "Kotori"), "detection should still find early cues");
+        assert.equal(cache.matches[0].absoluteIndex, 0, "leading match should remain at the start of the buffer");
+    } finally {
+        settings.profiles.Default = originalProfile;
+        state.compiledRegexes = originalCompiled;
+        if (state.statusTimer) {
+            clearTimeout(state.statusTimer);
+            state.statusTimer = null;
+        }
+        if (typeof original$ === "undefined") {
+            globalThis.$ = () => stubElement;
+        } else {
+            globalThis.$ = original$;
+        }
+        state.currentGenerationKey = null;
+        state.perMessageStates = new Map();
+        state.perMessageBuffers = new Map();
+        state.messageStats = new Map();
+        state.messageMatches = new Map();
+        state.topSceneRanking = new Map();
+        state.topSceneRankingUpdatedAt = new Map();
+    }
+});
+
 test("collectScenePanelState analytics updatedAt reflects latest scene activity", () => {
     resetSceneState();
     clearLiveTesterOutputs();

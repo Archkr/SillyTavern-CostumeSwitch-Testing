@@ -97,6 +97,7 @@ const extensionTemplateNamespace = `third-party/${extensionName}`;
 const extensionFolderPath = `scripts/extensions/${extensionTemplateNamespace}`;
 const logPrefix = "[CostumeSwitch]";
 const INCREMENTAL_SCAN_PADDING = 8;
+const STREAM_BUFFER_SAFETY_CHARS = 120000;
 const NO_EFFECTIVE_PATTERNS_MESSAGE = "All detection patterns were filtered out by ignored names. No detectors can run until you restore at least one allowed pattern.";
 const FOCUS_LOCK_NOTICE_INTERVAL = 2500;
 const MESSAGE_OUTCOME_STORAGE_KEY = "cs_scene_outcomes";
@@ -7052,6 +7053,25 @@ function adjustWindowForTrim(msgState, trimmedChars, combinedLength) {
     }
 }
 
+function buildStreamingBuffers(previousBuffer, nextChunk, profile, msgState) {
+    const priorText = typeof previousBuffer === "string" ? previousBuffer : "";
+    const appended = priorText + (typeof nextChunk === "string" ? nextChunk : "");
+    const safetyLimit = Math.max(resolveMaxBufferChars(profile), STREAM_BUFFER_SAFETY_CHARS);
+    const trimmedChars = safetyLimit > 0 && appended.length > safetyLimit
+        ? appended.length - safetyLimit
+        : 0;
+    const detectionBuffer = trimmedChars > 0 ? appended.slice(-safetyLimit) : appended;
+    const baseBufferOffset = Number.isFinite(msgState?.bufferOffset) ? msgState.bufferOffset : 0;
+    const bufferOffset = baseBufferOffset + trimmedChars;
+
+    return {
+        appended,
+        detectionBuffer,
+        trimmedChars,
+        bufferOffset,
+    };
+}
+
 function createTesterMessageState(profile) {
     const defaultRosterTTL = sanitizeRosterTurnValue(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
     return {
@@ -7186,7 +7206,6 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
         characterOutfits: new Map(),
     };
 
-    const maxBuffer = resolveMaxBufferChars(profile);
     const defaultRosterTTL = sanitizeRosterTurnValue(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
     const repeatSuppress = Number(profile.repeatSuppressMs) || 0;
     let buffer = "";
@@ -7194,23 +7213,20 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
     const rosterWarnings = [];
 
     for (let i = 0; i < combined.length; i++) {
-        const appended = buffer + combined[i];
-        const trimmedChars = Math.max(0, appended.length - maxBuffer);
-        const detectionBuffer = appended;
-        const combinedBuffer = trimmedChars > 0 ? appended.slice(-maxBuffer) : appended;
-        const bufferOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
-        const newestAbsoluteIndex = detectionBuffer.length > 0 ? bufferOffset + detectionBuffer.length - 1 : bufferOffset;
+        const { appended, detectionBuffer, trimmedChars, bufferOffset } = buildStreamingBuffers(buffer, combined[i], profile, msgState);
+        const combinedLength = detectionBuffer.length;
+        const newestAbsoluteIndex = combinedLength > 0 ? bufferOffset + combinedLength - 1 : bufferOffset;
         const lastProcessedIndex = Number.isFinite(msgState.lastAcceptedIndex) ? msgState.lastAcceptedIndex : -1;
         let windowUpdated = false;
         const flushWindow = () => {
             if (windowUpdated) {
                 return;
             }
-            adjustWindowForTrim(msgState, trimmedChars, combinedBuffer.length);
-            state.perMessageBuffers.set(bufKey, combinedBuffer);
+            adjustWindowForTrim(msgState, trimmedChars, combinedLength);
+            state.perMessageBuffers.set(bufKey, appended);
             windowUpdated = true;
         };
-        buffer = combinedBuffer;
+        buffer = appended;
 
         if (newestAbsoluteIndex <= lastProcessedIndex) {
             flushWindow();
@@ -10580,17 +10596,12 @@ const handleStream = (...args) => {
             ? msgState.processedLength
             : previousOffset + prev.length;
         const normalizedToken = normalizeStreamText(tokenText);
-        const appended = prev + normalizedToken;
-        const maxBuffer = resolveMaxBufferChars(profile);
-        const trimmedChars = Math.max(0, appended.length - maxBuffer);
-        const combined = trimmedChars > 0 ? appended.slice(-maxBuffer) : appended;
-        const baseBufferOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
-        const bufferOffset = baseBufferOffset + trimmedChars;
-        const detectionBuffer = combined;
+        const { appended, detectionBuffer, trimmedChars, bufferOffset } = buildStreamingBuffers(prev, normalizedToken, profile, msgState);
+        const combinedLength = detectionBuffer.length;
         const deltaAbsoluteStart = Math.max(previousProcessedLength, bufferOffset);
         const startIndex = Math.max(0, deltaAbsoluteStart - bufferOffset);
-        const newestAbsoluteIndex = detectionBuffer.length > 0
-            ? bufferOffset + detectionBuffer.length - 1
+        const newestAbsoluteIndex = combinedLength > 0
+            ? bufferOffset + combinedLength - 1
             : bufferOffset;
         const lastProcessedIndex = Number.isFinite(msgState.lastAcceptedIndex) ? msgState.lastAcceptedIndex : -1;
         let windowUpdated = false;
@@ -10598,8 +10609,8 @@ const handleStream = (...args) => {
             if (windowUpdated) {
                 return;
             }
-            adjustWindowForTrim(msgState, trimmedChars, combined.length);
-            state.perMessageBuffers.set(bufKey, combined);
+            adjustWindowForTrim(msgState, trimmedChars, combinedLength);
+            state.perMessageBuffers.set(bufKey, appended);
             windowUpdated = true;
         };
 
@@ -10632,7 +10643,7 @@ const handleStream = (...args) => {
         }
 
         const bestMatch = findBestMatch(detectionBuffer, analytics?.matches, matchOptions);
-        debugLog(`[STREAM] Buffer len: ${combined.length} (raw ${detectionBuffer.length}). Match:`, bestMatch ? `${bestMatch.name} (${bestMatch.matchKind})` : 'None');
+        debugLog(`[STREAM] Buffer len: ${appended.length} (window ${detectionBuffer.length}). Match:`, bestMatch ? `${bestMatch.name} (${bestMatch.matchKind})` : 'None');
 
         if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(detectionBuffer)) {
             debugLog("Veto phrase matched. Halting detection for this message.");

@@ -135,6 +135,24 @@ test("simulateTesterStream advances indices without redundant skips", () => {
     assert.equal(uniqueSkipIndices.size, skipped.length, "skip events should not repeat the same index");
 });
 
+test("simulateTesterStream keeps the full buffer for long inputs", () => {
+    const profile = setupProfile({ maxBufferChars: 24 });
+    const bufKey = "tester-long";
+    const msgState = createMessageState(profile);
+    state.perMessageStates = new Map([[bufKey, msgState]]);
+    state.perMessageBuffers = new Map([[bufKey, ""]]);
+
+    const longText = `Kotori starts the tale ${"x".repeat(96)} and eventually mentions Shido.`;
+    const result = simulateTesterStream(longText, profile, bufKey);
+
+    const buffer = state.perMessageBuffers.get(bufKey) || "";
+    assert.ok(buffer.startsWith("Kotori"), "buffer should retain the lead-in text");
+    assert.ok(buffer.length >= longText.length, "buffer should reflect the complete streamed text");
+
+    const namedEvents = result.events.filter(event => event?.name);
+    assert.ok(namedEvents.some(event => event.name.toLowerCase() === "kotori"), "early cues should still be detected");
+});
+
 test("pronoun detections are ignored until the subject is confirmed in the new message", () => {
     const profile = setupProfile({ detectPronoun: true, detectAction: true });
     const bufKey = "tester-pronoun";
