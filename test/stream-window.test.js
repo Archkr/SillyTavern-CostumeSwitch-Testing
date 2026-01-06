@@ -90,6 +90,24 @@ test("adjustWindowForTrim grows processed length with new characters", () => {
     assert.equal(msgState.processedLength, 150);
 });
 
+test("buildStreamingBuffers trims stored stream windows to the safety cap", () => {
+    const profile = { maxBufferChars: 5000 };
+    const msgState = { bufferOffset: 0 };
+    const largeChunk = "a".repeat(__testables.STREAM_BUFFER_SAFETY_CHARS + 5000);
+
+    const { appended, detectionBuffer, trimmedChars, bufferOffset } = __testables.buildStreamingBuffers(
+        "",
+        largeChunk,
+        profile,
+        msgState,
+    );
+
+    assert.equal(appended.length, __testables.STREAM_BUFFER_SAFETY_CHARS);
+    assert.equal(detectionBuffer.length, __testables.STREAM_BUFFER_SAFETY_CHARS);
+    assert.equal(trimmedChars, 5000);
+    assert.equal(bufferOffset, 5000);
+});
+
 test("handleStream logs focus lock status when locked", () => {
     const original$ = globalThis.$;
     const stubElement = {

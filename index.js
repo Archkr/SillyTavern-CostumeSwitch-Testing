@@ -6103,6 +6103,8 @@ function trimDecisionEvents(events, max = MAX_RECENT_DECISION_EVENTS) {
 const __testables = {
     trimDecisionEvents,
     recordDecisionEvent,
+    buildStreamingBuffers,
+    STREAM_BUFFER_SAFETY_CHARS,
 };
 
 function recordLastVetoMatch(match, { source = 'live', persist = true } = {}) {
@@ -7061,11 +7063,12 @@ function buildStreamingBuffers(previousBuffer, nextChunk, profile, msgState) {
         ? appended.length - safetyLimit
         : 0;
     const detectionBuffer = trimmedChars > 0 ? appended.slice(-safetyLimit) : appended;
+    const appendedWindow = detectionBuffer;
     const baseBufferOffset = Number.isFinite(msgState?.bufferOffset) ? msgState.bufferOffset : 0;
     const bufferOffset = baseBufferOffset + trimmedChars;
 
     return {
-        appended,
+        appended: appendedWindow,
         detectionBuffer,
         trimmedChars,
         bufferOffset,
