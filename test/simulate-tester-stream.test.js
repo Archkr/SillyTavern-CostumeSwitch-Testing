@@ -295,6 +295,30 @@ test("simulateTesterStream surfaces a fuzzy idle warning when tolerance is enabl
     assert.match(warning.message, /detect attribution and detect action/i, "warning should mention attribution or action verbs for fuzzy context");
 });
 
+test("simulateTesterStream preserves early detections when long replies trim the buffer", () => {
+    const profile = setupProfile({
+        detectGeneral: true,
+        globalCooldownMs: 0,
+        repeatSuppressMs: 0,
+        maxBufferChars: 48,
+        tokenProcessThreshold: 0,
+    });
+    const bufKey = "tester-long-window";
+    const msgState = createMessageState(profile);
+    state.perMessageStates = new Map([[bufKey, msgState]]);
+    state.perMessageBuffers = new Map([[bufKey, ""]]);
+
+    const earlyName = "Kotori";
+    const longText = `${earlyName} greeted the crew before launching into a lengthy monologue about the mission parameters that stretched across several decks and corridors of exposition.`;
+
+    const result = simulateTesterStream(longText, profile, bufKey);
+    const switchEvents = result.events.filter(event => event.type === "switch");
+    const windowTrimStart = Math.max(0, longText.length - profile.maxBufferChars);
+
+    assert.ok(switchEvents.some(event => event.name === earlyName), "expected the early mention to trigger a switch event");
+    assert.ok(switchEvents.some(event => event.charIndex < windowTrimStart), "expected the switch to occur before the mention aged out of the buffer window");
+});
+
 test("incremental analytics handles long streaming messages without full rescans", () => {
     const profile = setupProfile({ detectGeneral: true, maxBufferChars: 8192 });
     const bufKey = "tester-incremental";
