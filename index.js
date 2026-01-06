@@ -2968,6 +2968,18 @@ function normalizeCostumeName(n) {
     const base = segments.length ? segments[segments.length - 1] : s;
     return String(base).replace(/[-_](?:sama|san)$/i, "").trim();
 }
+
+function normalizeCostumeFolder(folder) {
+    if (folder == null) {
+        return "";
+    }
+    const trimmed = String(folder).trim();
+    if (!trimmed) {
+        return "";
+    }
+    const sanitized = trimmed.replace(/[\\/]+$/, "");
+    return sanitized;
+}
 function normalizeRosterKey(value) {
     if (typeof value !== "string") {
         return "";
@@ -3195,7 +3207,7 @@ function rebuildMappingLookup(profile) {
             if (!entry) continue;
             const normalized = normalizeCostumeName(entry.name);
             if (!normalized) continue;
-            const folder = String(entry.defaultFolder ?? entry.folder ?? '').trim();
+            const folder = normalizeCostumeFolder(entry.defaultFolder ?? entry.folder ?? "");
             map.set(normalized.toLowerCase(), folder || normalized);
         }
     }
@@ -3433,8 +3445,9 @@ function resolveOutfitForMatch(rawName, options = {}) {
     const now = Number.isFinite(options?.now) ? options.now : Date.now();
 
     if (!normalizedName || !profile) {
+        const fallbackFolder = normalizeCostumeFolder(options?.fallbackFolder ?? normalizedName ?? "");
         return {
-            folder: String(options?.fallbackFolder || normalizedName || "").trim(),
+            folder: fallbackFolder,
             reason: profile ? "no-name" : "no-profile",
             normalizedName,
             rawName: rawInput,
@@ -3474,7 +3487,7 @@ function resolveOutfitForMatch(rawName, options = {}) {
             }
         }
     }
-    const defaultFolder = String(options?.fallbackFolder || mapping?.defaultFolder || mapping?.folder || normalizedName).trim();
+    const defaultFolder = normalizeCostumeFolder(options?.fallbackFolder || mapping?.defaultFolder || mapping?.folder || normalizedName) || normalizedName;
     const baseResult = {
         folder: defaultFolder || normalizedName,
         reason: "default-folder",
@@ -3502,7 +3515,7 @@ function resolveOutfitForMatch(rawName, options = {}) {
         if (!variant) {
             return;
         }
-        const folder = typeof variant.folder === "string" ? variant.folder.trim() : "";
+        const folder = normalizeCostumeFolder(variant.folder);
         if (!folder) {
             return;
         }
@@ -3711,6 +3724,7 @@ function evaluateSwitchDecision(rawName, opts = {}, contextState = null, nowOver
     const lookupKey = normalizedKey;
     const mapped = state.mappingLookup instanceof Map ? state.mappingLookup.get(lookupKey) : null;
     let mappedFolder = String(mapped ?? decision.name).trim();
+    mappedFolder = normalizeCostumeFolder(mappedFolder) || decision.name;
     if (!mappedFolder) {
         mappedFolder = decision.name;
     }
