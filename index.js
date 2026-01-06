@@ -10789,8 +10789,9 @@ const handleStream = (...args) => {
         const maxBuffer = resolveMaxBufferChars(profile);
         const trimmedChars = Math.max(0, appended.length - maxBuffer);
         const combined = trimmedChars > 0 ? appended.slice(-maxBuffer) : appended;
-        const detectionBuffer = appended;
-        const bufferOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
+        const baseBufferOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
+        const bufferOffset = baseBufferOffset + trimmedChars;
+        const detectionBuffer = combined;
         const deltaAbsoluteStart = Math.max(previousProcessedLength, bufferOffset);
         const startIndex = Math.max(0, deltaAbsoluteStart - bufferOffset);
         const newestAbsoluteIndex = detectionBuffer.length > 0
