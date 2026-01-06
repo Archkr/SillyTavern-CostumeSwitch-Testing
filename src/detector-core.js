@@ -897,9 +897,12 @@ function sanitizeAppliedScripts(applied = []) {
 
 export function collectDetections(text, profile = {}, regexes = {}, options = {}) {
     const matches = [];
-    const originalText = typeof text === "string" ? text : String(text ?? "");
+    const rawText = typeof text === "string" ? text : String(text ?? "");
+    const originalText = typeof options.originalText === "string"
+        ? options.originalText
+        : rawText;
     matches.originalText = originalText;
-    matches.preprocessedText = originalText;
+    matches.preprocessedText = rawText;
     matches.preprocessorScripts = [];
     const translateNames = Boolean(options?.translateNames ?? profile?.translateNames ?? false);
     const candidateList = Array.isArray(regexes?.effectivePatterns) ? regexes.effectivePatterns : [];

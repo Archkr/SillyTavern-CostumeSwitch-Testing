@@ -1,5 +1,11 @@
 import { extension_settings, getContext, renderExtensionTemplateAsync } from "../../../extensions.js";
-import { saveSettingsDebounced, saveChatDebounced, event_types, eventSource, system_message_types } from "../../../../script.js";
+import {
+    saveSettingsDebounced,
+    saveChatDebounced,
+    event_types,
+    eventSource,
+    system_message_types,
+} from "../../../../script.js";
 import { executeSlashCommandsOnChatInput, registerSlashCommand } from "../../../slash-commands.js";
 import {
     DEFAULT_ACTION_VERBS_PRESENT,
@@ -882,6 +888,57 @@ function shouldLogMatchEvent(matchKind, reason) {
     return !PRONOUN_SUPPRESS_REASONS.has(normalizedReason);
 }
 
+function buildAvailableOutfitSet(profile, messageState = null) {
+    if (!profile?.enableOutfits) {
+        return new Set();
+    }
+
+    const available = new Set();
+    if (state.mappingLookup instanceof Map) {
+        state.mappingLookup.forEach((_, key) => {
+            if (key) {
+                available.add(key);
+            }
+        });
+    }
+
+    const roster = messageState?.outfitRoster instanceof Map ? messageState.outfitRoster : null;
+    if (roster) {
+        roster.forEach((_, key) => {
+            if (key) {
+                available.add(key);
+            }
+        });
+    }
+
+    return available;
+}
+
+function filterMatchesByAvailability(matches, profile, options = {}) {
+    if (!Array.isArray(matches)) {
+        return { matches, filteredOut: [] };
+    }
+
+    const available = buildAvailableOutfitSet(profile, options.messageState);
+    if (!available.size) {
+        return { matches, filteredOut: [] };
+    }
+
+    const filteredOut = [];
+    const kept = [];
+    matches.forEach((match) => {
+        const normalized = normalizeCostumeName(match?.name);
+        const lowered = normalized ? normalized.toLowerCase() : "";
+        if (lowered && available.has(lowered)) {
+            kept.push(match);
+        } else {
+            filteredOut.push({ ...match, reason: "outfit-unavailable" });
+        }
+    });
+
+    return { matches: kept, filteredOut };
+}
+
 function findAllMatches(combined, options = {}) {
     const profile = getActiveProfile();
     const { compiledRegexes } = state;
@@ -889,6 +946,10 @@ function findAllMatches(combined, options = {}) {
     if (!profile || !combined) {
         return [];
     }
+
+    const conditioned = conditionDetectionInput(combined, { sampleThreshold: 500 });
+    const trimmedLeading = Number.isFinite(conditioned.trimmedLeading) ? Math.max(0, conditioned.trimmedLeading) : 0;
+    const effectiveText = conditioned.text;
 
     let lastSubject = null;
     if (profile.detectPronoun && state.perMessageStates.size > 0) {
@@ -928,14 +989,42 @@ function findAllMatches(combined, options = {}) {
         detectionOptions.lastIndex = Math.floor(options.lastIndex);
     }
 
-    const matches = collectDetections(combined, profile, compiledRegexes, detectionOptions);
+    if (trimmedLeading > 0) {
+        if (Number.isFinite(detectionOptions.startIndex)) {
+            detectionOptions.startIndex = Math.max(0, detectionOptions.startIndex - trimmedLeading);
+        }
+        if (Number.isFinite(detectionOptions.minIndex)) {
+            detectionOptions.minIndex = Math.max(0, detectionOptions.minIndex - trimmedLeading);
+        }
+        detectionOptions.bufferOffset = (detectionOptions.bufferOffset || 0) + trimmedLeading;
+    }
+
+    const matches = collectDetections(effectiveText, profile, compiledRegexes, {
+        ...detectionOptions,
+        originalText: combined,
+    });
+
+    const { matches: availableMatches, filteredOut } = filterMatchesByAvailability(matches, profile, {
+        messageState: options?.messageState || null,
+    });
+    availableMatches.originalText = matches.originalText;
+    availableMatches.preprocessedText = matches.preprocessedText;
+    availableMatches.preprocessorScripts = matches.preprocessorScripts;
+    availableMatches.tokenizerId = matches.tokenizerId;
+    availableMatches.tokenCount = matches.tokenCount;
+    availableMatches.tokenOffsets = matches.tokenOffsets;
+    availableMatches.tokenCountPromise = matches.tokenCountPromise;
+    availableMatches.startTokenIndex = matches.startTokenIndex;
+    availableMatches.minTokenIndex = matches.minTokenIndex;
+    availableMatches.filteredOut = filteredOut;
+
     const processed = typeof matches?.preprocessedText === "string"
         ? matches.preprocessedText
-        : combined;
+        : effectiveText;
     state.lastPreprocessedText = processed;
     state.lastPreprocessorScripts = clonePreprocessorScripts(matches?.preprocessorScripts || []);
-    state.lastDetectionCount = Array.isArray(matches) ? matches.length : 0;
-    return matches;
+    state.lastDetectionCount = Array.isArray(availableMatches) ? availableMatches.length : 0;
+    return availableMatches;
 }
 
 function findBestMatch(combined, precomputedMatches = null, options = {}) {
@@ -2943,6 +3032,28 @@ function escapeHtml(str) {
     return p.innerHTML;
 }
 function normalizeStreamText(s) { return s ? String(s).replace(/[\uFEFF\u200B\u200C\u200D]/g, "").replace(/[\u2018\u2019\u201A\u201B]/g, "'").replace(/[\u201C\u201D\u201E\u201F]/g, '"').replace(/(\*\*|__|~~|`{1,3})/g, "").replace(/\u00A0/g, " ") : ""; }
+function substituteParamsSafe(text) {
+    const fn = typeof globalThis.substituteParams === "function" ? globalThis.substituteParams : null;
+    return fn ? fn(text) : text;
+}
+function conditionDetectionInput(text, options = {}) {
+    const normalized = normalizeStreamText(text);
+    const substituted = substituteParamsSafe(normalized);
+    const cleaned = substituted.replace(/[*"]/g, "");
+    const sampleThreshold = Number.isFinite(options.sampleThreshold) && options.sampleThreshold > 0
+        ? Math.floor(options.sampleThreshold)
+        : 500;
+
+    if (cleaned.length <= sampleThreshold) {
+        return { text: cleaned.trim(), trimmedLeading: 0 };
+    }
+
+    const trimmedLeading = cleaned.length - sampleThreshold;
+    return {
+        text: cleaned.slice(-sampleThreshold).trim(),
+        trimmedLeading,
+    };
+}
 function normalizeCostumeName(n) {
     if (!n) return "";
     let s = String(n).trim();
@@ -5948,6 +6059,7 @@ function describeSkipReason(code) {
         'no-profile': 'profile unavailable',
         'no-name': 'no name detected',
         'focus-lock': 'focus lock active',
+        'outfit-unavailable': 'no mapped outfit available',
     };
     return messages[code] || 'not eligible to switch yet';
 }
@@ -7128,10 +7240,26 @@ function simulateTesterStream(combined, profile, bufKey, options = {}) {
         if (Number.isFinite(minIndexRelative) && minIndexRelative >= 0) {
             matchOptions.minIndex = minIndexRelative;
         }
+        matchOptions.messageState = msgState;
 
         const matches = findAllMatches(detectionBuffer, matchOptions);
         const bestMatch = findBestMatch(detectionBuffer, matches, matchOptions);
         if (!bestMatch) {
+            if (Array.isArray(matches.filteredOut) && matches.filteredOut.length) {
+                matches.filteredOut.forEach((entry) => {
+                    events.push({
+                        type: 'skipped',
+                        name: entry.name,
+                        rawName: entry.rawName || entry.name,
+                        matchKind: entry.matchKind,
+                        reason: entry.reason || 'outfit-unavailable',
+                        charIndex: newestAbsoluteIndex,
+                        tokenIndex: entry.tokenIndex ?? null,
+                        tokenLength: entry.tokenLength ?? null,
+                        nameResolution: entry.nameResolution || null,
+                    });
+                });
+            }
             flushWindow();
             continue;
         }
@@ -8942,6 +9070,9 @@ function updateMessageAnalytics(bufKey, text, options = {}) {
         if (explicitMinIndex != null) {
             detectionOptions.minIndex = explicitMinIndex;
         }
+        if (messageState) {
+            detectionOptions.messageState = messageState;
+        }
         if (context?.quoteState) {
             detectionOptions.quoteState = context.quoteState;
             detectionOptions.bufferOffset = bufferOffset;
@@ -8981,6 +9112,9 @@ function updateMessageAnalytics(bufKey, text, options = {}) {
             startIndex: scanStartIndex,
             minIndex: effectiveMinIndex,
         };
+        if (messageState) {
+            detectionOptions.messageState = messageState;
+        }
         if (context?.quoteState) {
             detectionOptions.quoteState = context.quoteState;
             detectionOptions.lastIndex = context.lastProcessedAbsolute;
