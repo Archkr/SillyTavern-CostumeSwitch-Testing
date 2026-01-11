@@ -24,6 +24,7 @@
 - **Detection buffer conditioning.** Detection now mirrors the expressions pipeline by substituting macros, stripping markdown clutter, and windowing the freshest 500 characters while keeping trimmed offsets aligned for streaming scans.
 - **Streaming buffer retention.** Live streams and the simulator now keep the full assistant message instead of trimming to the buffer window, so early cues remain eligible for switches even during lengthy generations.
 - **Streaming buffer safety cap.** Live stream buffers now trim the stored window to a high safety limit to avoid runaway token growth during unusually long generations.
+- **Outfit lab saving resilience.** Outfit Lab now syncs from the live form state before saves so manual and auto-saves reliably capture every outfit field.
 - **Outfit availability filtering.** Character matches without mapped outfits are filtered out before switching, and skip reasons surface in tester logs so missing folders are clear while debugging.
 - **Live tester preprocessing diagnostics.** The Match Flow panel now itemizes applied regex scripts, shows a fuzzy-tolerance badge, adds normalization notes to detections, and copies the summary data into reports so support can trace preprocessing effects.
 - **Scene control center aurora parity.** The roster headline now inherits the hero gradient and animated starfield from the main header so the command center shares the same nebula finish.

@@ -4650,6 +4650,7 @@ function loadProfile(profileName) {
 function saveCurrentProfileData() {
     const profileData = {};
     const activeProfile = getActiveProfile();
+    syncOutfitLabMappingsFromUI(activeProfile);
     for (const key in uiMapping) {
         const { selector, type } = uiMapping[key];
         if (type === 'patternEditor') {
@@ -4943,6 +4944,13 @@ function gatherVariantStringList(value) {
     };
     visit(value);
     return [...new Set(results)];
+}
+
+function parseOutfitListInput(value) {
+    return String(value ?? "")
+        .split(/\r?\n|,/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
 }
 
 function normalizeOutfitVariant(rawVariant = {}) {
@@ -5607,15 +5615,10 @@ function createOutfitVariantElement(profile, mapping, mappingIdx, variant, varia
     awarenessField.append($('<small>').text('Scene awareness relies on the Scene Roster detector setting. Names are matched case-insensitively.'));
     variantEl.append(awarenessField);
 
-    const parseListInput = (value) => value
-        .split(/\r?\n|,/)
-        .map((entry) => entry.trim())
-        .filter(Boolean);
-
     const updateAwarenessState = () => {
-        const requiresList = parseListInput(requiresTextarea.val());
-        const anyList = parseListInput(anyTextarea.val());
-        const excludesList = parseListInput(excludesTextarea.val());
+        const requiresList = parseOutfitListInput(requiresTextarea.val());
+        const anyList = parseOutfitListInput(anyTextarea.val());
+        const excludesList = parseOutfitListInput(excludesTextarea.val());
         const next = {};
         if (requiresList.length) {
             next.requires = requiresList;
@@ -5971,6 +5974,93 @@ function renderMappings(profile) {
     }
 
     renderOutfitLab(profile);
+}
+
+function syncOutfitLabMappingsFromUI(profile) {
+    if (!profile || typeof profile !== "object") {
+        return;
+    }
+    if (!Array.isArray(profile.mappings)) {
+        return;
+    }
+    const container = $("#cs-outfit-character-list");
+    if (!container.length) {
+        return;
+    }
+
+    container.find(".cs-outfit-card").each(function() {
+        const card = $(this);
+        const idx = Number(card.data("idx"));
+        if (!Number.isFinite(idx) || !profile.mappings[idx]) {
+            return;
+        }
+        const mapping = profile.mappings[idx];
+
+        const nameInput = card.find(".cs-outfit-character-name");
+        if (nameInput.length) {
+            mapping.name = String(nameInput.val() ?? "").trim();
+        }
+
+        const defaultInput = card.find(".cs-outfit-default-folder");
+        if (defaultInput.length) {
+            const value = String(defaultInput.val() ?? "").trim();
+            mapping.defaultFolder = value;
+            if (value) {
+                mapping.folder = value;
+            } else if (typeof mapping.folder === "string") {
+                mapping.folder = mapping.folder.trim();
+            }
+        }
+
+        const outfits = [];
+        card.find(".cs-outfit-variant").each(function() {
+            const variantEl = $(this);
+            const labelValue = String(variantEl.find(".cs-outfit-variant-label").val() ?? "").trim();
+            const folderValue = String(variantEl.find(".cs-outfit-variant-folder").val() ?? "").trim();
+            const priorityRaw = variantEl.find(".cs-outfit-variant-priority").val();
+            const priority = Number(priorityRaw);
+            const triggers = String(variantEl.find(".cs-outfit-variant-triggers").val() ?? "")
+                .split(/\r?\n/)
+                .map((value) => value.trim())
+                .filter(Boolean);
+            const matchKinds = variantEl.find(".cs-outfit-matchkind-options input:checked")
+                .map((_, el) => String(el.value ?? "").trim())
+                .get()
+                .filter(Boolean);
+            const awarenessInputs = variantEl.find(".cs-outfit-awareness-input");
+            const requires = parseOutfitListInput(awarenessInputs.eq(0).val());
+            const requiresAny = parseOutfitListInput(awarenessInputs.eq(1).val());
+            const excludes = parseOutfitListInput(awarenessInputs.eq(2).val());
+            const awareness = {};
+            if (requires.length) {
+                awareness.requires = requires;
+            }
+            if (requiresAny.length) {
+                awareness.requiresAny = requiresAny;
+            }
+            if (excludes.length) {
+                awareness.excludes = excludes;
+            }
+
+            const variant = {
+                folder: folderValue,
+                triggers,
+                priority: Number.isFinite(priority) ? priority : 0,
+            };
+            if (labelValue) {
+                variant.label = labelValue;
+            }
+            if (matchKinds.length) {
+                variant.matchKinds = matchKinds;
+            }
+            if (Object.keys(awareness).length) {
+                variant.awareness = awareness;
+            }
+
+            outfits.push(normalizeOutfitVariant(variant));
+        });
+        mapping.outfits = outfits;
+    });
 }
 
 async function fetchBuildMetadata() {

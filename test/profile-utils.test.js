@@ -126,3 +126,31 @@ test("prepareMappingsForSave preserves regex-based outfit variations", () => {
         priority: 3,
     });
 });
+
+test("prepareMappingsForSave keeps outfit labels and awareness requirements", () => {
+    const saved = prepareMappingsForSave([
+        {
+            name: "Tess",
+            defaultFolder: "tess/base",
+            outfits: [
+                {
+                    folder: "tess/formal",
+                    label: "Gala",
+                    triggers: ["banquet"],
+                    matchKinds: ["speaker", "vocative"],
+                    awareness: { requires: ["Nova"], requiresAny: ["Rin"], excludes: ["Drake"] },
+                    priority: 2,
+                },
+            ],
+        },
+    ]);
+
+    assert.deepEqual(saved[0].outfits[0], {
+        folder: "tess/formal",
+        label: "Gala",
+        triggers: ["banquet"],
+        matchKinds: ["speaker", "vocative"],
+        awareness: { requires: ["Nova"], requiresAny: ["Rin"], excludes: ["Drake"] },
+        priority: 2,
+    });
+});
