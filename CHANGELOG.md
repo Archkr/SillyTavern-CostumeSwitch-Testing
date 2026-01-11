@@ -26,7 +26,6 @@
 - **Streaming buffer retention.** Live streams and the simulator now keep the full assistant message instead of trimming to the buffer window, so early cues remain eligible for switches even during lengthy generations.
 - **Streaming buffer safety cap.** Live stream buffers now trim the stored window to a high safety limit to avoid runaway token growth during unusually long generations.
 - **Stream payload resilience.** Stream message references now guard against circular payloads and nested arrays, preventing streaming crashes when SillyTavern emits rich token events.
-- **Streaming workload batching.** Live stream detection now batches token bursts into short processing windows to reduce CPU churn without sacrificing responsiveness.
 - **Outfit lab saving resilience.** Outfit Lab now syncs from the live form state before saves so manual and auto-saves reliably capture every outfit field.
 - **Outfit availability filtering.** Character matches without mapped outfits are filtered out before switching, and skip reasons surface in tester logs so missing folders are clear while debugging.
 - **Live tester preprocessing diagnostics.** The Match Flow panel now itemizes applied regex scripts, shows a fuzzy-tolerance badge, adds normalization notes to detections, and copies the summary data into reports so support can trace preprocessing effects.
