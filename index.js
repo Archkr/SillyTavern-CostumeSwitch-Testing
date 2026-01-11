@@ -1,4 +1,5 @@
 import { extension_settings, getContext, renderExtensionTemplateAsync } from "../../../extensions.js";
+import { callGenericPopup, POPUP_TYPE } from "../../../popup.js";
 import {
     saveSettingsDebounced,
     saveChatDebounced,
@@ -101,6 +102,8 @@ const STREAM_BUFFER_SAFETY_CHARS = 120000;
 const NO_EFFECTIVE_PATTERNS_MESSAGE = "All detection patterns were filtered out by ignored names. No detectors can run until you restore at least one allowed pattern.";
 const FOCUS_LOCK_NOTICE_INTERVAL = 2500;
 const MESSAGE_OUTCOME_STORAGE_KEY = "cs_scene_outcomes";
+const SCENE_CONTROL_POPUP_TITLE = "Scene Control Center";
+let scenePanelPopupState = null;
 
 function createFocusLockNotice() {
     return { at: 0, character: null, displayName: null, message: null, event: null };
@@ -141,6 +144,104 @@ const EXTENDED_ACTION_VERB_FORMS = buildVerbList(
     EXTENDED_ACTION_VERBS_PAST_PARTICIPLE,
     EXTENDED_ACTION_VERBS_PRESENT_PARTICIPLE,
 );
+
+function getExtensionsMenuContainer() {
+    const selectors = ["#extensionsMenu", "#extensions-menu", "#extensionsList", "#extensionsMenuContainer", "#extensions_menu"];
+    for (const selector of selectors) {
+        const $container = $(selector).first();
+        if ($container.length) {
+            return $container;
+        }
+    }
+    return null;
+}
+
+function restoreScenePanelFromPopup() {
+    if (!scenePanelPopupState) {
+        return;
+    }
+    const { panel, parent, nextSibling, observer, disabledState } = scenePanelPopupState;
+    if (observer) {
+        observer.disconnect();
+    }
+    if (panel) {
+        panel.classList.remove("cs-scene-panel--popup");
+        panel.removeAttribute("data-cs-popup");
+        if (disabledState === null) {
+            panel.removeAttribute("data-cs-disabled");
+        } else if (disabledState != null) {
+            panel.setAttribute("data-cs-disabled", disabledState);
+        }
+        if (parent) {
+            if (nextSibling && nextSibling.parentElement === parent) {
+                parent.insertBefore(panel, nextSibling);
+            } else {
+                parent.appendChild(panel);
+            }
+        }
+    }
+    scenePanelPopupState = null;
+    requestScenePanelRender("popup-close", { immediate: true });
+}
+
+async function openSceneControlCenterPopup() {
+    if (scenePanelPopupState?.panel) {
+        return;
+    }
+    await mountScenePanelTemplate();
+    const panel = document.getElementById("cs-scene-panel");
+    if (!panel) {
+        console.warn(`${logPrefix} Scene panel is unavailable; unable to open popup.`);
+        return;
+    }
+    const parent = panel.parentElement;
+    const nextSibling = panel.nextElementSibling;
+    const dialog = $("<div class=\"cs-scene-panel-popup\" aria-live=\"polite\"></div>");
+    const disabledState = panel.getAttribute("data-cs-disabled");
+    panel.classList.add("cs-scene-panel--popup");
+    panel.setAttribute("data-cs-popup", "true");
+    panel.setAttribute("data-cs-disabled", "false");
+    dialog.append(panel);
+    setScenePanelCollapsed(false);
+    requestScenePanelRender("popup-open", { immediate: true });
+    const observer = new MutationObserver(() => {
+        if (!dialog[0]?.isConnected) {
+            restoreScenePanelFromPopup();
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    scenePanelPopupState = {
+        panel,
+        parent,
+        nextSibling,
+        observer,
+        disabledState,
+    };
+    callGenericPopup(dialog, POPUP_TYPE.TEXT, SCENE_CONTROL_POPUP_TITLE, {
+        wide: true,
+        large: true,
+        allowVerticalScrolling: false,
+    });
+}
+
+function addSceneControlCenterMenuButton() {
+    if ($("#cs_scene_panel_menu_button").length) {
+        return;
+    }
+    const $container = getExtensionsMenuContainer();
+    if (!$container) {
+        console.warn(`${logPrefix} Could not find an extensions menu container to attach the Scene Control Center popup.`);
+        return;
+    }
+    const buttonHtml = `
+        <div id="cs_scene_panel_menu_button" class="list-group-item flex-container flexGap5">
+            <div class="fa-solid fa-masks-theater extensionsMenuExtensionButton"></div>
+            <div class="flex1">Scene Control Center</div>
+        </div>
+    `;
+    $container.append(buttonHtml);
+    $("#cs_scene_panel_menu_button").on("click", openSceneControlCenterPopup);
+}
 
 // ======================================================================
 // PRESET PROFILES
@@ -11532,6 +11633,7 @@ if (typeof window !== "undefined" && typeof jQuery === "function") {
             $("#extensions_settings").append(settingsHtml);
 
             await mountScenePanelTemplate();
+            addSceneControlCenterMenuButton();
 
             const buildMeta = await fetchBuildMetadata();
             renderBuildMetadata(buildMeta);

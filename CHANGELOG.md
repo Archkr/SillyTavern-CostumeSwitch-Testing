@@ -6,6 +6,7 @@
 - **Detection engine upgrade.** Main Detection Engine v4 and Outfit Detection Engine v2 now ship with the shared preprocessing, token-aware streaming, and fuzzy/translation reconciliation layers so detections stay accurate even when inputs arrive noisy or translated mid-stream.
 - **Fuzzy name preprocessing.** Added an optional normalization layer shared by detection and outfit matching that reuses classification sampling, translation toggles, and Fuse-powered lookups to reconcile misspelled or accented names before scoring.
 - **Scene panel command center.** Polished the side panel with a branded header, roster manager drawer, log viewer, auto-pin highlight toggle, and quick focus-lock controls so every button delivers meaningful actions.
+- **Scene control center popup.** Added a magic-wand menu entry that opens the Scene Control Center in a centered popup so mobile layouts can access the panel without the side dock.
 - **Summon toggle for the scene panel.** Hide the panel completely and bring it back with a floating summon button that stays available as a quick toggle so the chat column can reclaim the full width whenever you need extra room.
 - **Inline scene roster settings.** The footer button now opens an in-panel settings sheet with quick toggles for auto-open behavior, section visibility, and roster avatars.
 - **Roster expiry counter.** Every roster entry now displays the remaining message count before it expires, making it easy to spot characters that are about to drop from the scene.
