@@ -1817,9 +1817,9 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 .cs-scene-panel-popup {
     width: min(92vw, 52rem);
-    max-width: 100%;
+    max-width: calc(100vw - 24px);
     height: min(84vh, 48rem);
-    max-height: 84vh;
+    max-height: calc(100vh - (var(--topBarBlockSize, 3.25rem) + 24px));
     margin: 0 auto;
     display: flex;
 }
@@ -3211,6 +3211,12 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 }
 
 @media (max-width: 720px) {
+    .cs-scene-panel-popup {
+        width: calc(100vw - 20px);
+        height: calc(100vh - (var(--topBarBlockSize, 3.25rem) + 20px));
+        max-height: calc(100vh - (var(--topBarBlockSize, 3.25rem) + 20px));
+    }
+
     .cs-scene-panel {
         width: auto;
         left: 12px;

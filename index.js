@@ -160,7 +160,7 @@ function restoreScenePanelFromPopup() {
     if (!scenePanelPopupState) {
         return;
     }
-    const { panel, parent, nextSibling, observer } = scenePanelPopupState;
+    const { panel, parent, nextSibling, observer, panelSettings, wasEnabled } = scenePanelPopupState;
     if (observer) {
         observer.disconnect();
     }
@@ -175,6 +175,10 @@ function restoreScenePanelFromPopup() {
             }
         }
     }
+    if (panelSettings && wasEnabled === false) {
+        panelSettings.enabled = false;
+        updateScenePanelSettingControls(panelSettings);
+    }
     scenePanelPopupState = null;
     requestScenePanelRender("popup-close", { immediate: true });
 }
@@ -188,6 +192,14 @@ async function openSceneControlCenterPopup() {
     if (!panel) {
         console.warn(`${logPrefix} Scene panel is unavailable; unable to open popup.`);
         return;
+    }
+    const settings = getSettings?.();
+    const panelSettings = settings ? ensureScenePanelSettings(settings) : null;
+    const wasEnabled = panelSettings ? panelSettings.enabled !== false : true;
+    if (panelSettings && !wasEnabled) {
+        panelSettings.enabled = true;
+        updateScenePanelSettingControls(panelSettings);
+        requestScenePanelRender("popup-force-enable", { immediate: true });
     }
     const parent = panel.parentElement;
     const nextSibling = panel.nextElementSibling;
@@ -208,11 +220,13 @@ async function openSceneControlCenterPopup() {
         parent,
         nextSibling,
         observer,
+        panelSettings,
+        wasEnabled,
     };
     callGenericPopup(dialog, POPUP_TYPE.TEXT, SCENE_CONTROL_POPUP_TITLE, {
         wide: true,
         large: true,
-        allowVerticalScrolling: false,
+        allowVerticalScrolling: true,
     });
 }
 
@@ -8828,9 +8842,10 @@ function extractMessageIdFromKey(key) {
     return match ? Number(match[1]) : null;
 }
 
-function parseMessageReference(input) {
+function parseMessageReference(input, seen = null) {
     let key = null;
     let messageId = null;
+    const visited = seen instanceof WeakSet ? seen : new WeakSet();
 
     const commitKey = (candidate) => {
         const normalized = normalizeMessageKey(candidate);
@@ -8860,7 +8875,28 @@ function parseMessageReference(input) {
         commitId(input);
     } else if (typeof input === 'string') {
         commitKey(input);
+    } else if (Array.isArray(input)) {
+        if (visited.has(input)) {
+            return { key: null, messageId: null };
+        }
+        visited.add(input);
+        for (const entry of input) {
+            const nested = parseMessageReference(entry, visited);
+            if (!key && nested.key) {
+                key = nested.key;
+            }
+            if (messageId == null && nested.messageId != null) {
+                messageId = nested.messageId;
+            }
+            if (key && messageId != null) {
+                break;
+            }
+        }
     } else if (typeof input === 'object') {
+        if (visited.has(input)) {
+            return { key: null, messageId: null };
+        }
+        visited.add(input);
         if (Number.isFinite(input.messageId)) commitId(input.messageId);
         if (Number.isFinite(input.mesId)) commitId(input.mesId);
         if (Number.isFinite(input.id)) commitId(input.id);
@@ -8872,9 +8908,23 @@ function parseMessageReference(input) {
         if (typeof input.messageKey === 'string') commitKey(input.messageKey);
         if (typeof input.generationType === 'string') commitKey(input.generationType);
         if (typeof input.message === 'object' && input.message !== null) {
-            const nested = parseMessageReference(input.message);
+            const nested = parseMessageReference(input.message, visited);
             if (!key && nested.key) key = nested.key;
             if (messageId == null && nested.messageId != null) messageId = nested.messageId;
+        }
+        if (Array.isArray(input.messages)) {
+            for (const entry of input.messages) {
+                const nested = parseMessageReference(entry, visited);
+                if (!key && nested.key) {
+                    key = nested.key;
+                }
+                if (messageId == null && nested.messageId != null) {
+                    messageId = nested.messageId;
+                }
+                if (key && messageId != null) {
+                    break;
+                }
+            }
         }
     }
 

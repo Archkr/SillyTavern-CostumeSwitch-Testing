@@ -25,11 +25,13 @@
 - **Detection buffer conditioning.** Detection now mirrors the expressions pipeline by substituting macros, stripping markdown clutter, and windowing the freshest 500 characters while keeping trimmed offsets aligned for streaming scans.
 - **Streaming buffer retention.** Live streams and the simulator now keep the full assistant message instead of trimming to the buffer window, so early cues remain eligible for switches even during lengthy generations.
 - **Streaming buffer safety cap.** Live stream buffers now trim the stored window to a high safety limit to avoid runaway token growth during unusually long generations.
+- **Stream payload resilience.** Stream message references now guard against circular payloads and nested arrays, preventing streaming crashes when SillyTavern emits rich token events.
 - **Outfit lab saving resilience.** Outfit Lab now syncs from the live form state before saves so manual and auto-saves reliably capture every outfit field.
 - **Outfit availability filtering.** Character matches without mapped outfits are filtered out before switching, and skip reasons surface in tester logs so missing folders are clear while debugging.
 - **Live tester preprocessing diagnostics.** The Match Flow panel now itemizes applied regex scripts, shows a fuzzy-tolerance badge, adds normalization notes to detections, and copies the summary data into reports so support can trace preprocessing effects.
 - **Scene control center aurora parity.** The roster headline now inherits the hero gradient and animated starfield from the main header so the command center shares the same nebula finish.
 - **Scene control center polish.** Refined the panel with a live-status banner, quick section navigation chips, richer hover states, and smoother animations to make the roster workspace feel faster and more intentional.
+- **Scene control center popup sizing.** The popup now respects small viewport heights and widths so it fits on mobile screens without overflowing.
 - **Coverage toggle in the control center.** Coverage suggestions now share the toolbar's quick toggles so the panel can hide or restore vocabulary guidance without opening settings.
 - **Scene panel master toggle placement.** The hide/show switch now anchors to the base of the hero card so it stays visually connected to the gradient header instead of floating above it.
 - **Adaptive section sizing.** Remaining scene panel sections now stretch to fill the freed space as soon as any module is hidden, so two-up layouts immediately expand instead of waiting until only a single section remains.
