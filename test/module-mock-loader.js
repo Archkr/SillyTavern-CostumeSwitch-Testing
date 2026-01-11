@@ -8,6 +8,9 @@ export async function resolve(specifier, context, defaultResolve) {
     if (specifier === "../../../slash-commands.js") {
         return { url: "node:mock/slash", shortCircuit: true };
     }
+    if (specifier === "../../../popup.js") {
+        return { url: "node:mock/popup", shortCircuit: true };
+    }
     if (specifier === "../regex/engine.js" || specifier === "../../regex/engine.js" || specifier === "../../../../regex/engine.js") {
         return { url: "node:mock/regex-engine", shortCircuit: true };
     }
@@ -33,6 +36,13 @@ export async function load(url, context, defaultLoad) {
         return {
             format: "module",
             source: `export const executeSlashCommandsOnChatInput = async () => {};\nexport const registerSlashCommand = () => {};`,
+            shortCircuit: true,
+        };
+    }
+    if (url === "node:mock/popup") {
+        return {
+            format: "module",
+            source: `export const POPUP_TYPE = {};\nexport function callGenericPopup() {}`,
             shortCircuit: true,
         };
     }

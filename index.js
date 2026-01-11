@@ -99,6 +99,8 @@ const extensionFolderPath = `scripts/extensions/${extensionTemplateNamespace}`;
 const logPrefix = "[CostumeSwitch]";
 const INCREMENTAL_SCAN_PADDING = 8;
 const STREAM_BUFFER_SAFETY_CHARS = 120000;
+const STREAM_QUEUE_FLUSH_MS = 120;
+const STREAM_QUEUE_MAX_CHARS = 2400;
 const NO_EFFECTIVE_PATTERNS_MESSAGE = "All detection patterns were filtered out by ignored names. No detectors can run until you restore at least one allowed pattern.";
 const FOCUS_LOCK_NOTICE_INTERVAL = 2500;
 const MESSAGE_OUTCOME_STORAGE_KEY = "cs_scene_outcomes";
@@ -160,7 +162,7 @@ function restoreScenePanelFromPopup() {
     if (!scenePanelPopupState) {
         return;
     }
-    const { panel, parent, nextSibling, observer } = scenePanelPopupState;
+    const { panel, parent, nextSibling, observer, panelSettings, wasEnabled } = scenePanelPopupState;
     if (observer) {
         observer.disconnect();
     }
@@ -175,6 +177,10 @@ function restoreScenePanelFromPopup() {
             }
         }
     }
+    if (panelSettings && wasEnabled === false) {
+        panelSettings.enabled = false;
+        updateScenePanelSettingControls(panelSettings);
+    }
     scenePanelPopupState = null;
     requestScenePanelRender("popup-close", { immediate: true });
 }
@@ -188,6 +194,14 @@ async function openSceneControlCenterPopup() {
     if (!panel) {
         console.warn(`${logPrefix} Scene panel is unavailable; unable to open popup.`);
         return;
+    }
+    const settings = getSettings?.();
+    const panelSettings = settings ? ensureScenePanelSettings(settings) : null;
+    const wasEnabled = panelSettings ? panelSettings.enabled !== false : true;
+    if (panelSettings && !wasEnabled) {
+        panelSettings.enabled = true;
+        updateScenePanelSettingControls(panelSettings);
+        requestScenePanelRender("popup-force-enable", { immediate: true });
     }
     const parent = panel.parentElement;
     const nextSibling = panel.nextElementSibling;
@@ -208,11 +222,13 @@ async function openSceneControlCenterPopup() {
         parent,
         nextSibling,
         observer,
+        panelSettings,
+        wasEnabled,
     };
     callGenericPopup(dialog, POPUP_TYPE.TEXT, SCENE_CONTROL_POPUP_TITLE, {
         wide: true,
         large: true,
-        allowVerticalScrolling: false,
+        allowVerticalScrolling: true,
     });
 }
 
@@ -652,6 +668,9 @@ const state = {
     patternSearchQuery: "",
     lastSceneSwipeId: null,
     lastSceneDigest: null,
+    pendingStreamBuffers: new Map(),
+    pendingStreamRoles: new Map(),
+    pendingStreamTimer: null,
 };
 
 let nextOutfitCardId = 1;
@@ -8828,9 +8847,10 @@ function extractMessageIdFromKey(key) {
     return match ? Number(match[1]) : null;
 }
 
-function parseMessageReference(input) {
+function parseMessageReference(input, seen = null) {
     let key = null;
     let messageId = null;
+    const visited = seen instanceof WeakSet ? seen : new WeakSet();
 
     const commitKey = (candidate) => {
         const normalized = normalizeMessageKey(candidate);
@@ -8860,7 +8880,28 @@ function parseMessageReference(input) {
         commitId(input);
     } else if (typeof input === 'string') {
         commitKey(input);
+    } else if (Array.isArray(input)) {
+        if (visited.has(input)) {
+            return { key: null, messageId: null };
+        }
+        visited.add(input);
+        for (const entry of input) {
+            const nested = parseMessageReference(entry, visited);
+            if (!key && nested.key) {
+                key = nested.key;
+            }
+            if (messageId == null && nested.messageId != null) {
+                messageId = nested.messageId;
+            }
+            if (key && messageId != null) {
+                break;
+            }
+        }
     } else if (typeof input === 'object') {
+        if (visited.has(input)) {
+            return { key: null, messageId: null };
+        }
+        visited.add(input);
         if (Number.isFinite(input.messageId)) commitId(input.messageId);
         if (Number.isFinite(input.mesId)) commitId(input.mesId);
         if (Number.isFinite(input.id)) commitId(input.id);
@@ -8872,9 +8913,23 @@ function parseMessageReference(input) {
         if (typeof input.messageKey === 'string') commitKey(input.messageKey);
         if (typeof input.generationType === 'string') commitKey(input.generationType);
         if (typeof input.message === 'object' && input.message !== null) {
-            const nested = parseMessageReference(input.message);
+            const nested = parseMessageReference(input.message, visited);
             if (!key && nested.key) key = nested.key;
             if (messageId == null && nested.messageId != null) messageId = nested.messageId;
+        }
+        if (Array.isArray(input.messages)) {
+            for (const entry of input.messages) {
+                const nested = parseMessageReference(entry, visited);
+                if (!key && nested.key) {
+                    key = nested.key;
+                }
+                if (messageId == null && nested.messageId != null) {
+                    messageId = nested.messageId;
+                }
+                if (key && messageId != null) {
+                    break;
+                }
+            }
         }
     }
 
@@ -10671,6 +10726,237 @@ const handleGenerationStart = (...args) => {
 
 __testables.handleGenerationStart = handleGenerationStart;
 __testables.restoreLatestSceneOutcome = restoreLatestSceneOutcome;
+__testables.flushStreamQueue = flushStreamQueue;
+
+function ensureStreamQueue() {
+    if (!(state.pendingStreamBuffers instanceof Map)) {
+        state.pendingStreamBuffers = new Map();
+    }
+    if (!(state.pendingStreamRoles instanceof Map)) {
+        state.pendingStreamRoles = new Map();
+    }
+    return {
+        buffers: state.pendingStreamBuffers,
+        roles: state.pendingStreamRoles,
+    };
+}
+
+function scheduleStreamQueueFlush() {
+    if (state.pendingStreamTimer) {
+        return;
+    }
+    state.pendingStreamTimer = setTimeout(() => {
+        state.pendingStreamTimer = null;
+        flushStreamQueue();
+    }, STREAM_QUEUE_FLUSH_MS);
+}
+
+function flushStreamQueue({ keys = null } = {}) {
+    if (!(state.pendingStreamBuffers instanceof Map) || state.pendingStreamBuffers.size === 0) {
+        return;
+    }
+    const targets = Array.isArray(keys) ? new Set(keys) : null;
+    const buffers = state.pendingStreamBuffers;
+    const roles = state.pendingStreamRoles instanceof Map ? state.pendingStreamRoles : new Map();
+    for (const [bufKey, chunk] of buffers.entries()) {
+        if (targets && !targets.has(bufKey)) {
+            continue;
+        }
+        if (typeof chunk === "string" && chunk.length > 0) {
+            const messageRole = roles.get(bufKey) || state.currentGenerationRole || "assistant";
+            processStreamChunk(bufKey, chunk, { messageRole });
+        }
+        buffers.delete(bufKey);
+        roles.delete(bufKey);
+    }
+    if (buffers.size === 0 && state.pendingStreamTimer) {
+        clearTimeout(state.pendingStreamTimer);
+        state.pendingStreamTimer = null;
+    }
+}
+
+function queueStreamChunk(bufKey, tokenText, { messageRole } = {}) {
+    if (!bufKey || typeof tokenText !== "string" || tokenText.length === 0) {
+        return;
+    }
+    const { buffers, roles } = ensureStreamQueue();
+    const existing = buffers.get(bufKey) || "";
+    const combined = existing + tokenText;
+    buffers.set(bufKey, combined);
+    if (messageRole) {
+        roles.set(bufKey, messageRole);
+    }
+    if (combined.length >= STREAM_QUEUE_MAX_CHARS) {
+        flushStreamQueue({ keys: [bufKey] });
+        return;
+    }
+    scheduleStreamQueueFlush();
+}
+
+function processStreamChunk(bufKey, tokenText, { messageRole } = {}) {
+    const profile = getActiveProfile();
+    if (!profile) {
+        return;
+    }
+
+    const normalizedToken = normalizeStreamText(tokenText);
+    if (!normalizedToken) {
+        return;
+    }
+
+    let msgState = state.perMessageStates.get(bufKey);
+    if (!msgState) {
+        const { state: createdState, rosterCleared } = createMessageState(profile, bufKey, { messageRole: messageRole || "assistant" });
+        msgState = createdState;
+        if (rosterCleared && msgState) {
+            const normalized = normalizeMessageKey(bufKey) || bufKey;
+            applySceneRosterUpdate({
+                key: normalized,
+                messageId: extractMessageIdFromKey(normalized),
+                roster: Array.from(msgState.sceneRoster || []),
+                turnsByMember: cloneRosterTurns(msgState.rosterTurns),
+                turnsRemaining: msgState.defaultRosterTTL,
+                updatedAt: Date.now(),
+            });
+            requestScenePanelRender("roster-prime", { immediate: true });
+        }
+    }
+    if (!msgState) return;
+
+    if (msgState.vetoed) return;
+
+    const prev = state.perMessageBuffers.get(bufKey) || "";
+    const previousOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
+    const previousProcessedLength = Number.isFinite(msgState.processedLength)
+        ? msgState.processedLength
+        : previousOffset + prev.length;
+    const { appended, detectionBuffer, trimmedChars, bufferOffset } = buildStreamingBuffers(prev, normalizedToken, profile, msgState);
+    const combinedLength = detectionBuffer.length;
+    const deltaAbsoluteStart = Math.max(previousProcessedLength, bufferOffset);
+    const startIndex = Math.max(0, deltaAbsoluteStart - bufferOffset);
+    const newestAbsoluteIndex = combinedLength > 0
+        ? bufferOffset + combinedLength - 1
+        : bufferOffset;
+    const lastProcessedIndex = Number.isFinite(msgState.lastAcceptedIndex) ? msgState.lastAcceptedIndex : -1;
+    let windowUpdated = false;
+    const flushWindow = () => {
+        if (windowUpdated) {
+            return;
+        }
+        adjustWindowForTrim(msgState, trimmedChars, combinedLength);
+        state.perMessageBuffers.set(bufKey, appended);
+        windowUpdated = true;
+    };
+
+    if (newestAbsoluteIndex <= lastProcessedIndex) {
+        flushWindow();
+        return;
+    }
+
+    const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : null;
+    const analytics = updateMessageAnalytics(bufKey, detectionBuffer, {
+        rosterSet,
+        assumeNormalized: true,
+        bufferOffset,
+        incremental: true,
+        startIndex,
+        previousProcessedAbsolute: Number.isFinite(previousProcessedLength)
+            ? previousProcessedLength - 1
+            : null,
+        messageState: msgState,
+    });
+
+    let minIndexRelative = null;
+    if (lastProcessedIndex >= bufferOffset) {
+        minIndexRelative = lastProcessedIndex - bufferOffset;
+    }
+
+    const matchOptions = {};
+    if (Number.isFinite(minIndexRelative) && minIndexRelative >= 0) {
+        matchOptions.minIndex = minIndexRelative;
+    }
+
+    const bestMatch = findBestMatch(detectionBuffer, analytics?.matches, matchOptions);
+    debugLog(`[STREAM] Buffer len: ${appended.length} (window ${detectionBuffer.length}). Match:`, bestMatch ? `${bestMatch.name} (${bestMatch.matchKind})` : 'None');
+
+    if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(detectionBuffer)) {
+        debugLog("Veto phrase matched. Halting detection for this message.");
+        const vetoMatch = detectionBuffer.match(state.compiledRegexes.vetoRegex)?.[0] || 'unknown veto phrase';
+        const recordedVeto = recordLastVetoMatch(vetoMatch, { source: 'live', persist: true });
+        recordDecisionEvent({
+            type: 'veto',
+            match: recordedVeto.phrase,
+            charIndex: newestAbsoluteIndex,
+            timestamp: Date.now(),
+        });
+        showStatus(`Detection halted. Veto phrase <b>${escapeHtml(recordedVeto.phrase)}</b> matched.`, 'error', 5000);
+        msgState.vetoed = true;
+        flushWindow();
+        return;
+    }
+
+    if (bestMatch) {
+        const { name: matchedName, matchKind } = bestMatch;
+        const now = Date.now();
+        const suppressMs = profile.repeatSuppressMs;
+
+        const matchLength = Number.isFinite(bestMatch.matchLength) && bestMatch.matchLength > 0
+            ? Math.floor(bestMatch.matchLength)
+            : 1;
+        const matchEndRelative = Number.isFinite(bestMatch.matchIndex)
+            ? bestMatch.matchIndex + matchLength - 1
+            : null;
+        const absoluteIndex = Number.isFinite(matchEndRelative)
+            ? bufferOffset + matchEndRelative
+            : newestAbsoluteIndex;
+        msgState.lastAcceptedIndex = absoluteIndex;
+        msgState.processedLength = Math.max(msgState.processedLength || 0, absoluteIndex + 1);
+
+        if (profile.enableSceneRoster) {
+            const normalizedName = normalizeRosterKey(matchedName);
+            if (normalizedName) {
+                msgState.sceneRoster.add(normalizedName);
+                if (!(msgState.rosterTurns instanceof Map)) {
+                    msgState.rosterTurns = new Map();
+                }
+                const resolvedTTL = sanitizeRosterTurnValue(msgState.defaultRosterTTL ?? profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
+                if (resolvedTTL != null) {
+                    msgState.rosterTurns.set(normalizedName, resolvedTTL);
+                }
+            }
+            msgState.outfitTTL = sanitizeRosterTurnValue(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
+        }
+        if (matchKind !== 'pronoun') {
+            confirmMessageSubject(msgState, matchedName);
+        }
+
+        if (msgState.lastAcceptedName?.toLowerCase() === matchedName.toLowerCase() && (now - msgState.lastAcceptedTs < suppressMs)) {
+            if (matchKind !== 'pronoun') {
+                recordDecisionEvent({
+                    type: 'skipped',
+                    name: matchedName,
+                    matchKind,
+                    reason: 'repeat-suppression',
+                    charIndex: absoluteIndex,
+                    timestamp: now,
+                });
+            }
+            flushWindow();
+            return;
+        }
+
+        msgState.lastAcceptedName = matchedName;
+        msgState.lastAcceptedTs = now;
+        issueCostumeForName(matchedName, {
+            matchKind,
+            bufKey,
+            messageState: msgState,
+            context: { text: detectionBuffer, matchKind, roster: msgState.sceneRoster },
+            match: bestMatch,
+        });
+    }
+    flushWindow();
+}
 
 const handleStream = (...args) => {
     try {
@@ -10760,9 +11046,6 @@ const handleStream = (...args) => {
             }
         }
 
-        const profile = getActiveProfile();
-        if (!profile) return;
-
         let tokenText = "";
         if (typeof args[0] === 'number') { tokenText = String(args[1] ?? ""); }
         else if (typeof args[0] === 'object') { tokenText = String(args[0].token ?? args[0].text ?? ""); }
@@ -10772,159 +11055,7 @@ const handleStream = (...args) => {
         const bufKey = state.currentGenerationKey;
         if (!bufKey) return;
 
-        let msgState = state.perMessageStates.get(bufKey);
-        if (!msgState) {
-            const { state: createdState, rosterCleared } = createMessageState(profile, bufKey, { messageRole: messageRole || "assistant" });
-            msgState = createdState;
-            if (rosterCleared && msgState) {
-                const normalized = normalizeMessageKey(bufKey) || bufKey;
-                applySceneRosterUpdate({
-                    key: normalized,
-                    messageId: extractMessageIdFromKey(normalized),
-                    roster: Array.from(msgState.sceneRoster || []),
-                    turnsByMember: cloneRosterTurns(msgState.rosterTurns),
-                    turnsRemaining: msgState.defaultRosterTTL,
-                    updatedAt: Date.now(),
-                });
-                requestScenePanelRender("roster-prime", { immediate: true });
-            }
-        }
-        if (!msgState) return;
-
-        if (msgState.vetoed) return;
-
-        const prev = state.perMessageBuffers.get(bufKey) || "";
-        const previousOffset = Number.isFinite(msgState.bufferOffset) ? msgState.bufferOffset : 0;
-        const previousProcessedLength = Number.isFinite(msgState.processedLength)
-            ? msgState.processedLength
-            : previousOffset + prev.length;
-        const normalizedToken = normalizeStreamText(tokenText);
-        const { appended, detectionBuffer, trimmedChars, bufferOffset } = buildStreamingBuffers(prev, normalizedToken, profile, msgState);
-        const combinedLength = detectionBuffer.length;
-        const deltaAbsoluteStart = Math.max(previousProcessedLength, bufferOffset);
-        const startIndex = Math.max(0, deltaAbsoluteStart - bufferOffset);
-        const newestAbsoluteIndex = combinedLength > 0
-            ? bufferOffset + combinedLength - 1
-            : bufferOffset;
-        const lastProcessedIndex = Number.isFinite(msgState.lastAcceptedIndex) ? msgState.lastAcceptedIndex : -1;
-        let windowUpdated = false;
-        const flushWindow = () => {
-            if (windowUpdated) {
-                return;
-            }
-            adjustWindowForTrim(msgState, trimmedChars, combinedLength);
-            state.perMessageBuffers.set(bufKey, appended);
-            windowUpdated = true;
-        };
-
-        if (newestAbsoluteIndex <= lastProcessedIndex) {
-            flushWindow();
-            return;
-        }
-
-        const rosterSet = msgState?.sceneRoster instanceof Set ? msgState.sceneRoster : null;
-        const analytics = updateMessageAnalytics(bufKey, detectionBuffer, {
-            rosterSet,
-            assumeNormalized: true,
-            bufferOffset,
-            incremental: true,
-            startIndex,
-            previousProcessedAbsolute: Number.isFinite(previousProcessedLength)
-                ? previousProcessedLength - 1
-                : null,
-            messageState: msgState,
-        });
-
-        let minIndexRelative = null;
-        if (lastProcessedIndex >= bufferOffset) {
-            minIndexRelative = lastProcessedIndex - bufferOffset;
-        }
-
-        const matchOptions = {};
-        if (Number.isFinite(minIndexRelative) && minIndexRelative >= 0) {
-            matchOptions.minIndex = minIndexRelative;
-        }
-
-        const bestMatch = findBestMatch(detectionBuffer, analytics?.matches, matchOptions);
-        debugLog(`[STREAM] Buffer len: ${appended.length} (window ${detectionBuffer.length}). Match:`, bestMatch ? `${bestMatch.name} (${bestMatch.matchKind})` : 'None');
-
-        if (state.compiledRegexes.vetoRegex && state.compiledRegexes.vetoRegex.test(detectionBuffer)) {
-            debugLog("Veto phrase matched. Halting detection for this message.");
-            const vetoMatch = detectionBuffer.match(state.compiledRegexes.vetoRegex)?.[0] || 'unknown veto phrase';
-            const recordedVeto = recordLastVetoMatch(vetoMatch, { source: 'live', persist: true });
-            recordDecisionEvent({
-                type: 'veto',
-                match: recordedVeto.phrase,
-                charIndex: newestAbsoluteIndex,
-                timestamp: Date.now(),
-            });
-            showStatus(`Detection halted. Veto phrase <b>${escapeHtml(recordedVeto.phrase)}</b> matched.`, 'error', 5000);
-            msgState.vetoed = true;
-            flushWindow();
-            return;
-        }
-
-        if (bestMatch) {
-            const { name: matchedName, matchKind } = bestMatch;
-            const now = Date.now();
-            const suppressMs = profile.repeatSuppressMs;
-
-            const matchLength = Number.isFinite(bestMatch.matchLength) && bestMatch.matchLength > 0
-                ? Math.floor(bestMatch.matchLength)
-                : 1;
-            const matchEndRelative = Number.isFinite(bestMatch.matchIndex)
-                ? bestMatch.matchIndex + matchLength - 1
-                : null;
-            const absoluteIndex = Number.isFinite(matchEndRelative)
-                ? bufferOffset + matchEndRelative
-                : newestAbsoluteIndex;
-            msgState.lastAcceptedIndex = absoluteIndex;
-            msgState.processedLength = Math.max(msgState.processedLength || 0, absoluteIndex + 1);
-
-            if (profile.enableSceneRoster) {
-                const normalizedName = normalizeRosterKey(matchedName);
-                if (normalizedName) {
-                    msgState.sceneRoster.add(normalizedName);
-                    if (!(msgState.rosterTurns instanceof Map)) {
-                        msgState.rosterTurns = new Map();
-                    }
-                    const resolvedTTL = sanitizeRosterTurnValue(msgState.defaultRosterTTL ?? profile.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
-                    if (resolvedTTL != null) {
-                        msgState.rosterTurns.set(normalizedName, resolvedTTL);
-                    }
-                }
-                msgState.outfitTTL = sanitizeRosterTurnValue(profile?.sceneRosterTTL ?? PROFILE_DEFAULTS.sceneRosterTTL);
-            }
-            if (matchKind !== 'pronoun') {
-                confirmMessageSubject(msgState, matchedName);
-            }
-
-            if (msgState.lastAcceptedName?.toLowerCase() === matchedName.toLowerCase() && (now - msgState.lastAcceptedTs < suppressMs)) {
-                if (matchKind !== 'pronoun') {
-                    recordDecisionEvent({
-                        type: 'skipped',
-                        name: matchedName,
-                        matchKind,
-                        reason: 'repeat-suppression',
-                        charIndex: absoluteIndex,
-                        timestamp: now,
-                    });
-                }
-                flushWindow();
-                return;
-            }
-
-            msgState.lastAcceptedName = matchedName;
-            msgState.lastAcceptedTs = now;
-            issueCostumeForName(matchedName, {
-                matchKind,
-                bufKey,
-                messageState: msgState,
-                context: { text: detectionBuffer, matchKind, roster: msgState.sceneRoster },
-                match: bestMatch,
-            });
-        }
-        flushWindow();
+        queueStreamChunk(bufKey, tokenText, { messageRole });
     } catch (err) { console.error(`${logPrefix} stream handler error:`, err); }
 };
 
@@ -11361,6 +11492,8 @@ const handleMessageRendered = (...args) => {
         return;
     }
 
+    flushStreamQueue({ keys: [finalKey] });
+
     const hasTrackedState = Boolean(
         (state.perMessageBuffers instanceof Map && state.perMessageBuffers.has(finalKey))
         || (state.perMessageStates instanceof Map && state.perMessageStates.has(finalKey))
@@ -11393,6 +11526,10 @@ const resetGlobalState = ({ immediateRender = true } = {}) => {
         clearTimeout(state.statusTimer);
         state.statusTimer = null;
     }
+    if (state.pendingStreamTimer) {
+        clearTimeout(state.pendingStreamTimer);
+        state.pendingStreamTimer = null;
+    }
     if (Array.isArray(state.testerTimers)) {
         state.testerTimers.forEach(clearTimeout);
         state.testerTimers.length = 0;
@@ -11423,6 +11560,9 @@ const resetGlobalState = ({ immediateRender = true } = {}) => {
         focusLockNotice: createFocusLockNotice(),
         lastSceneSwipeId: null,
         lastSceneDigest: null,
+        pendingStreamBuffers: new Map(),
+        pendingStreamRoles: new Map(),
+        pendingStreamTimer: null,
     });
     clearSessionTopCharacters();
     if (!immediateRender) {
