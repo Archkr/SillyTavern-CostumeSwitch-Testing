@@ -101,6 +101,7 @@ const INCREMENTAL_SCAN_PADDING = 8;
 const STREAM_BUFFER_SAFETY_CHARS = 120000;
 const STREAM_QUEUE_FLUSH_MS = 120;
 const STREAM_QUEUE_MAX_CHARS = 2400;
+const STREAM_SNAPSHOT_INTERVAL_MS = 1000;
 const NO_EFFECTIVE_PATTERNS_MESSAGE = "All detection patterns were filtered out by ignored names. No detectors can run until you restore at least one allowed pattern.";
 const FOCUS_LOCK_NOTICE_INTERVAL = 2500;
 const MESSAGE_OUTCOME_STORAGE_KEY = "cs_scene_outcomes";
@@ -671,6 +672,7 @@ const state = {
     pendingStreamBuffers: new Map(),
     pendingStreamRoles: new Map(),
     pendingStreamTimer: null,
+    streamSnapshotTimer: null,
 };
 
 let nextOutfitCardId = 1;
@@ -10719,14 +10721,125 @@ const handleGenerationStart = (...args) => {
         }
     } else {
         state.perMessageStates.delete(normalizedKey);
-        state.perMessageBuffers.set(normalizedKey, '');
+        state.perMessageBuffers.set(normalizedKey, "");
     }
+    startStreamSnapshotTimer();
     maybeAutoExpandScenePanel("stream");
 };
 
 __testables.handleGenerationStart = handleGenerationStart;
 __testables.restoreLatestSceneOutcome = restoreLatestSceneOutcome;
 __testables.flushStreamQueue = flushStreamQueue;
+
+function resolveStreamSnapshotMessage(bufKey) {
+    if (!bufKey) {
+        return null;
+    }
+    const chat = resolveChatLog();
+    if (!Array.isArray(chat) || chat.length === 0) {
+        return null;
+    }
+    const normalizedKey = normalizeMessageKey(bufKey) || bufKey;
+    const resolvedId = extractMessageIdFromKey(normalizedKey);
+    let resolvedMessage = null;
+    if (Number.isFinite(resolvedId)) {
+        resolvedMessage = findChatMessageById(resolvedId);
+    }
+    if (!resolvedMessage) {
+        resolvedMessage = findChatMessageByKey(normalizedKey);
+    }
+    if (!resolvedMessage && Number.isFinite(resolvedId)) {
+        resolvedMessage = chat.find((message) => Number.isFinite(message?.mesId) && message.mesId === resolvedId) || null;
+    }
+    return resolvedMessage;
+}
+
+function runStreamSnapshotTick({ forceKey = null, forceRole = null } = {}) {
+    const activeKey = forceKey || state.currentGenerationKey;
+    if (!activeKey) {
+        return false;
+    }
+    const normalizedKey = normalizeMessageKey(activeKey) || activeKey;
+    const profile = getActiveProfile();
+    if (!profile) {
+        return false;
+    }
+    const messageRole = forceRole || state.currentGenerationRole || "assistant";
+    if (messageRole !== "assistant") {
+        return false;
+    }
+    const resolvedMessage = resolveStreamSnapshotMessage(normalizedKey);
+    if (!resolvedMessage || !isAssistantLikeMessage(resolvedMessage)) {
+        return false;
+    }
+    const snapshotSource = typeof resolvedMessage.mes === "string"
+        ? resolvedMessage.mes
+        : (typeof resolvedMessage.text === "string" ? resolvedMessage.text : "");
+    if (!snapshotSource) {
+        return false;
+    }
+    const snapshotText = normalizeStreamText(snapshotSource);
+    if (!snapshotText) {
+        return false;
+    }
+
+    let msgState = state.perMessageStates.get(normalizedKey);
+    if (!msgState) {
+        const { state: createdState, rosterCleared } = createMessageState(profile, normalizedKey, { messageRole });
+        msgState = createdState;
+        if (rosterCleared && msgState) {
+            applySceneRosterUpdate({
+                key: normalizedKey,
+                messageId: extractMessageIdFromKey(normalizedKey),
+                roster: Array.from(msgState.sceneRoster || []),
+                turnsByMember: cloneRosterTurns(msgState.rosterTurns),
+                turnsRemaining: msgState.defaultRosterTTL,
+                updatedAt: Date.now(),
+            });
+            requestScenePanelRender("roster-prime", { immediate: true });
+        }
+    }
+    if (!msgState || msgState.vetoed) {
+        return false;
+    }
+
+    const previousProcessedLength = Number.isFinite(msgState.processedLength) ? msgState.processedLength : 0;
+    if (snapshotText.length <= previousProcessedLength) {
+        msgState.processedLength = Math.max(msgState.processedLength || 0, snapshotText.length);
+        return false;
+    }
+
+    const deltaText = snapshotText.slice(previousProcessedLength);
+    if (!deltaText) {
+        return false;
+    }
+
+    processStreamChunk(normalizedKey, deltaText, { messageRole });
+    return true;
+}
+
+function startStreamSnapshotTimer() {
+    if (state.streamSnapshotTimer) {
+        return;
+    }
+    state.streamSnapshotTimer = setInterval(() => {
+        if (!state.currentGenerationKey) {
+            stopStreamSnapshotTimer();
+            return;
+        }
+        runStreamSnapshotTick();
+    }, STREAM_SNAPSHOT_INTERVAL_MS);
+}
+
+function stopStreamSnapshotTimer({ finalSnapshot = false, finalKey = null, finalRole = null } = {}) {
+    if (finalSnapshot) {
+        runStreamSnapshotTick({ forceKey: finalKey, forceRole: finalRole });
+    }
+    if (state.streamSnapshotTimer) {
+        clearInterval(state.streamSnapshotTimer);
+        state.streamSnapshotTimer = null;
+    }
+}
 
 function ensureStreamQueue() {
     if (!(state.pendingStreamBuffers instanceof Map)) {
@@ -10990,6 +11103,7 @@ const handleStream = (...args) => {
             }
         }
         if (messageRole && messageRole !== "assistant") {
+            stopStreamSnapshotTimer();
             return;
         }
 
@@ -11046,16 +11160,9 @@ const handleStream = (...args) => {
             }
         }
 
-        let tokenText = "";
-        if (typeof args[0] === 'number') { tokenText = String(args[1] ?? ""); }
-        else if (typeof args[0] === 'object') { tokenText = String(args[0].token ?? args[0].text ?? ""); }
-        else { tokenText = String(args.join(' ') || ""); }
-        if (!tokenText) return;
-
-        const bufKey = state.currentGenerationKey;
-        if (!bufKey) return;
-
-        queueStreamChunk(bufKey, tokenText, { messageRole });
+        if (state.currentGenerationKey) {
+            startStreamSnapshotTimer();
+        }
     } catch (err) { console.error(`${logPrefix} stream handler error:`, err); }
 };
 
@@ -11472,6 +11579,7 @@ const handleMessageRendered = (...args) => {
     const finalKey = resolvedKey || tempKey;
     if (!finalKey) {
         debugLog('Message rendered without a resolvable key.', args);
+        stopStreamSnapshotTimer();
         state.currentGenerationKey = null;
         state.currentGenerationRole = null;
         return;
@@ -11487,11 +11595,17 @@ const handleMessageRendered = (...args) => {
 
     if (renderedMessage?.is_user || isSystemOrNarratorMessage(renderedMessage)) {
         debugLog(`Skipping scene panel sync for non-assistant message ${finalKey}.`);
+        stopStreamSnapshotTimer();
         state.currentGenerationKey = null;
         state.currentGenerationRole = null;
         return;
     }
 
+    stopStreamSnapshotTimer({
+        finalSnapshot: true,
+        finalKey,
+        finalRole: state.currentGenerationRole,
+    });
     flushStreamQueue({ keys: [finalKey] });
 
     const hasTrackedState = Boolean(
@@ -11502,6 +11616,7 @@ const handleMessageRendered = (...args) => {
 
     if (!renderedMessage && !hasTrackedState) {
         debugLog(`Skipping scene panel sync for ${finalKey}; no tracked generation state found.`, args);
+        stopStreamSnapshotTimer();
         state.currentGenerationKey = null;
         state.currentGenerationRole = null;
         return;
@@ -11529,6 +11644,10 @@ const resetGlobalState = ({ immediateRender = true } = {}) => {
     if (state.pendingStreamTimer) {
         clearTimeout(state.pendingStreamTimer);
         state.pendingStreamTimer = null;
+    }
+    if (state.streamSnapshotTimer) {
+        clearInterval(state.streamSnapshotTimer);
+        state.streamSnapshotTimer = null;
     }
     if (Array.isArray(state.testerTimers)) {
         state.testerTimers.forEach(clearTimeout);
@@ -11563,6 +11682,7 @@ const resetGlobalState = ({ immediateRender = true } = {}) => {
         pendingStreamBuffers: new Map(),
         pendingStreamRoles: new Map(),
         pendingStreamTimer: null,
+        streamSnapshotTimer: null,
     });
     clearSessionTopCharacters();
     if (!immediateRender) {

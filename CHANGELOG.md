@@ -25,6 +25,7 @@
 - **Detection buffer conditioning.** Detection now mirrors the expressions pipeline by substituting macros, stripping markdown clutter, and windowing the freshest 500 characters while keeping trimmed offsets aligned for streaming scans.
 - **Streaming buffer retention.** Live streams and the simulator now keep the full assistant message instead of trimming to the buffer window, so early cues remain eligible for switches even during lengthy generations.
 - **Streaming buffer safety cap.** Live stream buffers now trim the stored window to a high safety limit to avoid runaway token growth during unusually long generations.
+- **Streaming snapshot polling.** Live streaming now polls the authoritative chat log every second and processes only the delta from the latest assistant message, keeping memory overhead low while still feeding the existing buffer logic.
 - **Stream payload resilience.** Stream message references now guard against circular payloads and nested arrays, preventing streaming crashes when SillyTavern emits rich token events.
 - **Outfit lab saving resilience.** Outfit Lab now syncs from the live form state before saves so manual and auto-saves reliably capture every outfit field.
 - **Outfit availability filtering.** Character matches without mapped outfits are filtered out before switching, and skip reasons surface in tester logs so missing folders are clear while debugging.
