@@ -3431,11 +3431,18 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
   }
 }
 
-/* Transparent backdrop for Scene Control Center popup */
+/* Transparent backdrop with BLUR for Scene Control Center popup */
 .popup:has(.cs-scene-panel-popup)::backdrop {
-  background-color: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background-color: rgba(0, 0, 0, 0.3);
+  /* Slight dim */
+  backdrop-filter: blur(4px);
+  /* Restore blur */
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Ensure popup body allows close button to hang outside */
+.popup:has(.cs-scene-panel-popup) .popup-body {
+  overflow: visible !important;
 }
 
 /* Close button for Scene Control Center popup */
