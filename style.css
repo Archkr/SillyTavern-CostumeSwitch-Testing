@@ -3343,33 +3343,36 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
   /* Mobile-specific popup overrides */
   .cs-scene-panel-popup {
-    width: calc(100dvw - 32px);
-    max-width: calc(100dvw - 32px);
+    /* Safe width to prevent overflow */
+    width: 94vw;
+    max-width: 94vw;
     /* Reduced height to leave clear space for the Close button at the bottom */
     height: calc(100dvh - var(--topBarBlockSize, 3.25rem) - 86px);
     max-height: calc(100dvh - var(--topBarBlockSize, 3.25rem) - 86px);
-    /* "Up a tiny bit and to the left a little" */
-    margin: 0;
-    margin-left: 8px;
-    /* Slight left bias (centered is 16px) */
-    margin-top: -8px;
-    /* Move up slightly */
+    /* Center properly without pushing off-screen */
+    margin: 8px auto 0 auto;
     padding-bottom: 16px;
     box-sizing: border-box;
+    /* Slight shift up/left to match user preference without overflow */
+    position: relative;
+    left: -4px;
+    top: -8px;
   }
 
   .cs-scene-panel--popup {
     border-radius: 12px;
   }
 
-  /* Compact auto-pin toggle on mobile */
+  /* Aggressively compact auto-pin toggle on mobile */
   .cs-scene-panel-popup .cs-toggle-row {
-    margin-top: 4px;
-    gap: 4px;
+    margin-top: 0 !important;
+    gap: 0px !important;
+    padding: 0 !important;
   }
 
-  .cs-scene-panel-popup .cs-toggle-row__label {
-    font-size: 0.7rem;
+  .cs-scene-panel-popup .cs-toggle-row label {
+    margin: 0 !important;
+    padding: 4px 0 !important;
   }
 
   /* Force hide "Scene Tools" sheet layer if it ever tries to appear in popup mode */
