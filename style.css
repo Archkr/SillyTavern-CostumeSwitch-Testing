@@ -3198,9 +3198,13 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
 @media (max-width: 720px) {
   .cs-scene-panel-popup {
-    width: calc(100vw - 20px);
-    height: calc(100vh - (var(--topBarBlockSize, 3.25rem) + 20px));
-    max-height: calc(100vh - (var(--topBarBlockSize, 3.25rem) + 20px));
+    /* Override to proper centered, non-overflowing dimensions */
+    width: 92vw !important;
+    max-width: 92vw !important;
+    height: calc(100dvh - var(--topBarBlockSize, 3.25rem) - 90px) !important;
+    max-height: calc(100dvh - var(--topBarBlockSize, 3.25rem) - 90px) !important;
+    margin: 0 auto !important;
+    left: 0 !important;
   }
 
   .cs-scene-panel {
@@ -3364,15 +3368,15 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
   }
 
   /* Aggressively compact auto-pin toggle on mobile */
-  .cs-scene-panel-popup .cs-toggle-row {
-    margin-top: 0 !important;
-    gap: 0px !important;
+  .cs-scene-panel-popup .cs-scene-panel__toolbar-group--toggles {
+    margin: 0 !important;
     padding: 0 !important;
   }
 
-  .cs-scene-panel-popup .cs-toggle-row label {
+  .cs-scene-panel-popup .cs-scene-panel__toggle {
     margin: 0 !important;
-    padding: 4px 0 !important;
+    padding: 2px 0 !important;
+    gap: 4px !important;
   }
 
   /* Force hide "Scene Tools" sheet layer if it ever tries to appear in popup mode */
