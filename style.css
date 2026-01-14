@@ -3343,11 +3343,14 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
 
   /* Mobile-specific popup overrides */
   .cs-scene-panel-popup {
-    width: calc(100dvw - 16px);
-    max-width: calc(100dvw - 16px);
+    width: calc(100dvw - 32px);
+    max-width: calc(100dvw - 32px);
     height: calc(100dvh - var(--topBarBlockSize, 3.25rem) - 8px);
     max-height: calc(100dvh - var(--topBarBlockSize, 3.25rem) - 8px);
     margin: 0 auto;
+    padding-bottom: 72px;
+    /* Reserve space for the Close button at bottom */
+    box-sizing: border-box;
   }
 
   .cs-scene-panel--popup {
