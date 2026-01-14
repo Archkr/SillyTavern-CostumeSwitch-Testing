@@ -3345,11 +3345,11 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
   .cs-scene-panel-popup {
     width: calc(100dvw - 32px);
     max-width: calc(100dvw - 32px);
-    height: calc(100dvh - var(--topBarBlockSize, 3.25rem) - 8px);
-    max-height: calc(100dvh - var(--topBarBlockSize, 3.25rem) - 8px);
+    /* Reduced height to leave clear space for the Close button at the bottom */
+    height: calc(100dvh - var(--topBarBlockSize, 3.25rem) - 86px);
+    max-height: calc(100dvh - var(--topBarBlockSize, 3.25rem) - 86px);
     margin: 0 auto;
-    padding-bottom: 72px;
-    /* Reserve space for the Close button at bottom */
+    padding-bottom: 16px;
     box-sizing: border-box;
   }
 
