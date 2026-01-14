@@ -3204,8 +3204,21 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     height: 100% !important;
     max-height: 85vh !important;
     margin: 0 auto !important;
-    transform: translate(-16px, -24px) !important;
+    transform: translate(-8px, -24px) !important;
     position: static !important;
+  }
+
+  /* Hardening for 720px too */
+  .cs-scene-panel-popup .cs-scene-panel__sections {
+    justify-content: flex-start !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .cs-scene-panel-popup .cs-scene-panel__section {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    width: 100% !important;
   }
 
   .cs-scene-panel {
@@ -3347,6 +3360,7 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
   }
 
   /* Mobile-specific popup overrides - SAFE RESET + SHIFT */
+  /* Mobile-specific popup overrides - SAFE RESET + SHIFT */
   .cs-scene-panel-popup {
     /* Slightly reduced width to allow shifting without overflow */
     width: 92% !important;
@@ -3357,8 +3371,8 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
     /* Reset centering to allow manual offset */
     margin: 0 auto !important;
 
-    /* Shift Up and Left as requested */
-    transform: translate(-16px, -24px) !important;
+    /* Shift Up and Left (Adjusted: Less left shift to fix alignment) */
+    transform: translate(-8px, -24px) !important;
 
     padding: 0 !important;
     position: static !important;
@@ -3368,6 +3382,20 @@ body[data-theme="moonlit-echoes"] #costume-switcher-settings.cs-theme .cs-build-
   .cs-scene-panel--popup {
     width: 100% !important;
     border-radius: 12px;
+  }
+
+  /* Hardening: Prevent sections from stretching or breaking when others are hidden */
+  .cs-scene-panel-popup .cs-scene-panel__sections {
+    justify-content: flex-start !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .cs-scene-panel-popup .cs-scene-panel__section {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   /* Aggressively compact auto-pin toggle on mobile */
